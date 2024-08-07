@@ -9,5 +9,4 @@ urlpatterns = [
     path('activities/', ActivityListCreateView.as_view(), name='activity-list-create'),
     path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
     path('activities/upload-image/', ActivityImageUploadView.as_view(), name='activity-image-upload'),
-
 ]
