@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, Permis
 from django.db import models
 from django.utils import timezone
 import uuid
+from django.core.exceptions import ValidationError
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, name, phone_number, date_of_birth, gender, password=None):
@@ -63,7 +64,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
-
 class OTP(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     otp = models.CharField(max_length=6)
@@ -73,7 +73,7 @@ class OTP(models.Model):
     def is_expired(self):
         return timezone.now() > self.expires_at
 
-#Activity-Models:
+# Activity-Models:
 class Activity(models.Model):
     activity_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_by = models.UUIDField(default=uuid.uuid4, editable=False)
@@ -96,18 +96,39 @@ class Activity(models.Model):
         
     user_participation = models.BooleanField(default=False)
     maximum_participants = models.IntegerField(default=0)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    infinite_time = models.BooleanField(default=False)
 
+    def clean(self):
+        now = timezone.now().date()
+
+        if self.start_date and self.start_date < now:
+            raise ValidationError("Start date cannot be in the past.")
+        if self.end_date and self.end_date < now:
+            raise ValidationError("End date cannot be in the past.")
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValidationError("End date must be after start date.")
+        if self.start_time and self.end_time and self.end_time < self.start_time:
+            raise ValidationError("End time must be after start time.")
+        
     def save(self, *args, **kwargs):
         if not self.user_participation:
             self.maximum_participants = 0
+        if self.infinite_time:
+            # Set end_date and end_time to a distant future date
+            future_date = timezone.now() + timezone.timedelta(days=365 * 100)  # 100 years from now
+            self.end_date = future_date.date()
+            self.end_time = future_date.time()
         super().save(*args, **kwargs)
-
 
     def __str__(self):
         return self.activity_title
-    
 
-    
 class ActivityImage(models.Model):
     activity = models.ForeignKey(Activity, related_name='images', on_delete=models.CASCADE)
     upload_image = models.ImageField(upload_to='activity_images/')

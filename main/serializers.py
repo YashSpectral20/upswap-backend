@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import authenticate, get_user_model
 from .models import CustomUser, OTP, Activity, ActivityImage
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -59,31 +60,70 @@ class OTPSerializer(serializers.Serializer):
         attrs['user'] = otp_instance.user
         return attrs
 
-
-#Activity-Serializers:
+# Activity-Serializers:
 class ActivitySerializer(serializers.ModelSerializer):
     maximum_participants = serializers.IntegerField()
+    set_current_datetime = serializers.BooleanField(write_only=True, required=False, default=False)
+    infinite_time = serializers.BooleanField(write_only=True, required=False, default=False)
 
     class Meta:
         model = Activity
         fields = [
             'activity_id', 'created_by', 'activity_title', 'activity_description', 
-            'activity_type', 'user_participation', 'maximum_participants'
+            'activity_type', 'user_participation', 'maximum_participants', 
+            'start_date', 'end_date', 'start_time', 'end_time', 'created_at', 
+            'set_current_datetime', 'infinite_time'
         ]
 
     def validate(self, data):
+        now = timezone.now().date()
+
+        # Validate start_date and end_date
+        if data.get('start_date') and data['start_date'] < now:
+            raise serializers.ValidationError("Start date cannot be in the past.")
+        if data.get('end_date') and data['end_date'] < now:
+            raise serializers.ValidationError("End date cannot be in the past.")
+        
+        # Validate end_date is after start_date
+        if data.get('start_date') and data.get('end_date') and data['end_date'] < data['start_date']:
+            raise serializers.ValidationError("End date must be after start date.")
+        
+        # Validate end_time is after start_time
+        if data.get('start_time') and data.get('end_time') and data['end_time'] < data['start_time']:
+            raise serializers.ValidationError("End time must be after start time.")
+
+        # Validate maximum_participants based on user_participation
         if not data.get('user_participation', False):
             data['maximum_participants'] = 0
+
         return data
 
     def create(self, validated_data):
-        if not validated_data.get('user_participation', False):
-            validated_data['maximum_participants'] = 0
+        # Handle the set_current_datetime and infinite_time flags
+        if validated_data.pop('set_current_datetime', False):
+            current_datetime = timezone.now()
+            validated_data['start_date'] = current_datetime.date()
+            validated_data['start_time'] = current_datetime.time()
+        
+        if validated_data.pop('infinite_time', False):
+            future_date = timezone.now() + timezone.timedelta(days=365 * 100)  # 100 years from now
+            validated_data['end_date'] = future_date.date()
+            validated_data['end_time'] = future_date.time()
+
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        if not validated_data.get('user_participation', False):
-            validated_data['maximum_participants'] = 0
+        # Handle the set_current_datetime and infinite_time flags
+        if validated_data.pop('set_current_datetime', False):
+            current_datetime = timezone.now()
+            validated_data['start_date'] = current_datetime.date()
+            validated_data['start_time'] = current_datetime.time()
+
+        if validated_data.pop('infinite_time', False):
+            future_date = timezone.now() + timezone.timedelta(days=365 * 100)  # 100 years from now
+            validated_data['end_date'] = future_date.date()
+            validated_data['end_time'] = future_date.time()
+
         return super().update(instance, validated_data)
 
 class ActivityImageSerializer(serializers.ModelSerializer):

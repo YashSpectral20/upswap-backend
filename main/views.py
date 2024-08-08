@@ -12,7 +12,6 @@ import string
 from django.utils import timezone
 from rest_framework.parsers import MultiPartParser, FormParser
 
-
 User = get_user_model()
 
 class RegisterView(generics.CreateAPIView):
@@ -65,7 +64,6 @@ class VerifyOTPView(generics.GenericAPIView):
             'access': str(refresh.access_token),
         })
 
-
 class LoginView(generics.GenericAPIView):
     permission_classes = (AllowAny,)
     serializer_class = LoginSerializer
@@ -82,16 +80,31 @@ class LoginView(generics.GenericAPIView):
             'access': str(refresh.access_token),
         })
 
-
-#Activity-Views:
+# Activity Views
 class ActivityListCreateView(generics.ListCreateAPIView):
     queryset = Activity.objects.all()
     serializer_class = ActivitySerializer
-    
+
+    def perform_create(self, serializer):
+        infinite_time = self.request.data.get('infinite_time', False)
+        if infinite_time:
+            # Handle infinite time logic here
+            serializer.save(infinite_time=True)
+        else:
+            super().perform_create(serializer)
+
 class ActivityRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Activity.objects.all()
     serializer_class = ActivitySerializer
-    
+
+    def perform_update(self, serializer):
+        infinite_time = self.request.data.get('infinite_time', False)
+        if infinite_time:
+            # Handle infinite time logic here
+            serializer.save(infinite_time=True)
+        else:
+            super().perform_update(serializer)
+
 class ActivityImageUploadView(generics.CreateAPIView):
     queryset = ActivityImage.objects.all()
     serializer_class = ActivityImageSerializer
