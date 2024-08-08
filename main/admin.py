@@ -25,9 +25,9 @@ admin.site.register(CustomUser, CustomUserAdmin)
 #Activity-Admin:
 @admin.register(Activity)
 class ActivityAdmin(admin.ModelAdmin):
-    list_display = ['activity_id', 'created_by', 'activity_title', 'activity_type','user_participation', 'max_participations_display']
+    list_display = ['activity_id', 'created_by', 'activity_title', 'activity_type', 'user_participation', 'max_participations_display']
     readonly_fields = ['activity_id', 'created_by']
-    
+
     def max_participations_display(self, obj):
         return obj.maximum_participants if obj.user_participation else 0
     max_participations_display.short_description = 'Max Participations'

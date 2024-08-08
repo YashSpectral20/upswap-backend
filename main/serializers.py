@@ -62,16 +62,30 @@ class OTPSerializer(serializers.Serializer):
 
 #Activity-Serializers:
 class ActivitySerializer(serializers.ModelSerializer):
-    max_participations = serializers.SerializerMethodField()
-
+    maximum_participants = serializers.IntegerField()
 
     class Meta:
         model = Activity
-        fields = ['activity_id', 'created_by', 'activity_title', 'activity_description', 'activity_type', 'user_participation', 'max_participations']
-       
-    def get_max_participations(self, obj):
-        return obj.maximum_participants if obj.user_participation else 0
-        
+        fields = [
+            'activity_id', 'created_by', 'activity_title', 'activity_description', 
+            'activity_type', 'user_participation', 'maximum_participants'
+        ]
+
+    def validate(self, data):
+        if not data.get('user_participation', False):
+            data['maximum_participants'] = 0
+        return data
+
+    def create(self, validated_data):
+        if not validated_data.get('user_participation', False):
+            validated_data['maximum_participants'] = 0
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        if not validated_data.get('user_participation', False):
+            validated_data['maximum_participants'] = 0
+        return super().update(instance, validated_data)
+
 class ActivityImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityImage
