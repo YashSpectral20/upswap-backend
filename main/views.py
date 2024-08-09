@@ -2,7 +2,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework import status, generics
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from .models import OTP, Activity, ActivityImage
@@ -84,23 +84,23 @@ class LoginView(generics.GenericAPIView):
 class ActivityListCreateView(generics.ListCreateAPIView):
     queryset = Activity.objects.all()
     serializer_class = ActivitySerializer
+    permission_classes = (IsAuthenticated,)
 
     def perform_create(self, serializer):
         infinite_time = self.request.data.get('infinite_time', False)
         if infinite_time:
-            # Handle infinite time logic here
-            serializer.save(infinite_time=True)
+            serializer.save(infinite_time=True, created_by=self.request.user.pk)
         else:
-            super().perform_create(serializer)
+            serializer.save(created_by=self.request.user.pk)
 
 class ActivityRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Activity.objects.all()
     serializer_class = ActivitySerializer
+    permission_classes = (IsAuthenticated,)
 
     def perform_update(self, serializer):
         infinite_time = self.request.data.get('infinite_time', False)
         if infinite_time:
-            # Handle infinite time logic here
             serializer.save(infinite_time=True)
         else:
             super().perform_update(serializer)
@@ -109,6 +109,7 @@ class ActivityImageUploadView(generics.CreateAPIView):
     queryset = ActivityImage.objects.all()
     serializer_class = ActivityImageSerializer
     parser_classes = (MultiPartParser, FormParser)
+    permission_classes = (IsAuthenticated,)
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

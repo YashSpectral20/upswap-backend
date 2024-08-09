@@ -60,7 +60,6 @@ class OTPSerializer(serializers.Serializer):
         attrs['user'] = otp_instance.user
         return attrs
 
-# Activity-Serializers:
 class ActivitySerializer(serializers.ModelSerializer):
     maximum_participants = serializers.IntegerField()
     set_current_datetime = serializers.BooleanField(write_only=True, required=False, default=False)
@@ -69,11 +68,12 @@ class ActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Activity
         fields = [
-            'activity_id', 'created_by', 'activity_title', 'activity_description', 
+            'activity_id', 'activity_title', 'activity_description', 
             'activity_type', 'user_participation', 'maximum_participants', 
             'start_date', 'end_date', 'start_time', 'end_time', 'created_at', 
             'set_current_datetime', 'infinite_time'
         ]
+        read_only_fields = ['created_by', 'created_at']
 
     def validate(self, data):
         now = timezone.now().date()
@@ -99,6 +99,9 @@ class ActivitySerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
+        # Assign the logged-in user as the creator
+        validated_data['created_by'] = self.context['request'].user
+
         # Handle the set_current_datetime and infinite_time flags
         if validated_data.pop('set_current_datetime', False):
             current_datetime = timezone.now()
