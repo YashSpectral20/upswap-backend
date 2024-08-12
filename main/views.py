@@ -5,8 +5,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
-from .models import OTP, Activity, ActivityImage
-from .serializers import CustomUserSerializer, LoginSerializer, OTPSerializer, ActivitySerializer, ActivityImageSerializer
+from .models import OTP, Activity, ActivityImage, ChatRoom, ChatMessage
+from .serializers import CustomUserSerializer, LoginSerializer, OTPSerializer, ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer
 import random
 import string
 from django.utils import timezone
@@ -118,3 +118,33 @@ class ActivityImageUploadView(generics.CreateAPIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# Chat Room Views
+class ChatRoomCreateView(generics.CreateAPIView):
+    queryset = ChatRoom.objects.all()
+    serializer_class = ChatRoomSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+class ChatRoomRetrieveView(generics.RetrieveAPIView):
+    queryset = ChatRoom.objects.all()
+    serializer_class = ChatRoomSerializer
+    permission_classes = (IsAuthenticated,)
+
+class ChatMessageCreateView(generics.CreateAPIView):
+    queryset = ChatMessage.objects.all()
+    serializer_class = ChatMessageSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def perform_create(self, serializer):
+        serializer.save(sender=self.request.user)
+
+class ChatMessageListView(generics.ListAPIView):
+    serializer_class = ChatMessageSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def get_queryset(self):
+        chat_room_id = self.kwargs.get('chat_room_id')
+        return ChatMessage.objects.filter(chat_room_id=chat_room_id)

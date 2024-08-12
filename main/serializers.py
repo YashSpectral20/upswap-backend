@@ -1,8 +1,8 @@
 from rest_framework import serializers
-from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth import authenticate, get_user_model
-from .models import CustomUser, OTP, Activity, ActivityImage
+from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
+from .models import CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage
 
 User = get_user_model()
 
@@ -11,7 +11,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True, required=True)
 
     class Meta:
-        model = CustomUser
+        model = User
         fields = ['name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password']
 
     def validate(self, attrs):
@@ -21,7 +21,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('confirm_password')
-        user = CustomUser(**validated_data)
+        user = User(**validated_data)
         user.set_password(validated_data['password'])
         user.save()
         return user
@@ -133,3 +133,17 @@ class ActivityImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityImage
         fields = ['id', 'activity', 'upload_image']
+
+class ChatRoomSerializer(serializers.ModelSerializer):
+    participants = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), many=True)
+
+    class Meta:
+        model = ChatRoom
+        fields = ['id', 'activity', 'participants']  # Changed 'chat_room_id' to 'id'
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    sender = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+
+    class Meta:
+        model = ChatMessage
+        fields = ['id', 'chat_room', 'sender', 'content', 'created_at']

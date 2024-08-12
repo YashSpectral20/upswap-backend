@@ -3,7 +3,9 @@ from django.db import models
 from django.utils import timezone
 import uuid
 from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
 
+# Define User model before using it in other models
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, name, phone_number, date_of_birth, gender, password=None):
         if not email:
@@ -73,7 +75,6 @@ class OTP(models.Model):
     def is_expired(self):
         return timezone.now() > self.expires_at
 
-# Activity-Models:
 class Activity(models.Model):
     activity_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_by = models.UUIDField(default=uuid.uuid4, editable=False)
@@ -120,7 +121,6 @@ class Activity(models.Model):
         if not self.user_participation:
             self.maximum_participants = 0
         if self.infinite_time:
-            # Set end_date and end_time to a distant future date
             future_date = timezone.now() + timezone.timedelta(days=365 * 100)  # 100 years from now
             self.end_date = future_date.date()
             self.end_time = future_date.time()
@@ -132,3 +132,21 @@ class Activity(models.Model):
 class ActivityImage(models.Model):
     activity = models.ForeignKey(Activity, related_name='images', on_delete=models.CASCADE)
     upload_image = models.ImageField(upload_to='activity_images/')
+
+class ChatRoom(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
+    participants = models.ManyToManyField(CustomUser)  # Use CustomUser here instead of User
+    
+    def __str__(self):
+        return f"ChatRoom {self.id} for Activity {self.activity.activity_title}"
+
+class ChatMessage(models.Model):
+    chat_room = models.ForeignKey(ChatRoom, related_name='messages', on_delete=models.CASCADE)
+    sender = models.ForeignKey(CustomUser, related_name='sent_messages', on_delete=models.CASCADE)
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Message {self.id} from {self.sender.email}"
