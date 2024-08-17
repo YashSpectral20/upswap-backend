@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from .models import CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage
+import uuid
 
 User = get_user_model()
 
@@ -12,11 +13,11 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password']
+        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"password": "Password fields didn't match."})
+            raise serializers.ValidationError({"confirm_password": "Password fields didn't match."})
         return attrs
 
     def create(self, validated_data):
@@ -71,7 +72,7 @@ class ActivitySerializer(serializers.ModelSerializer):
             'activity_id', 'activity_title', 'activity_description', 
             'activity_type', 'user_participation', 'maximum_participants', 
             'start_date', 'end_date', 'start_time', 'end_time', 'created_at', 
-            'set_current_datetime', 'infinite_time'
+            'created_by', 'set_current_datetime', 'infinite_time'
         ]
         read_only_fields = ['created_by', 'created_at']
 
@@ -80,17 +81,17 @@ class ActivitySerializer(serializers.ModelSerializer):
 
         # Validate start_date and end_date
         if data.get('start_date') and data['start_date'] < now:
-            raise serializers.ValidationError("Start date cannot be in the past.")
+            raise serializers.ValidationError({"start_date": "Start date cannot be in the past."})
         if data.get('end_date') and data['end_date'] < now:
-            raise serializers.ValidationError("End date cannot be in the past.")
+            raise serializers.ValidationError({"end_date": "End date cannot be in the past."})
         
         # Validate end_date is after start_date
         if data.get('start_date') and data.get('end_date') and data['end_date'] < data['start_date']:
-            raise serializers.ValidationError("End date must be after start date.")
+            raise serializers.ValidationError({"end_date": "End date must be after start date."})
         
         # Validate end_time is after start_time
         if data.get('start_time') and data.get('end_time') and data['end_time'] < data['start_time']:
-            raise serializers.ValidationError("End time must be after start time.")
+            raise serializers.ValidationError({"end_time": "End time must be after start time."})
 
         # Validate maximum_participants based on user_participation
         if not data.get('user_participation', False):
@@ -133,16 +134,24 @@ class ActivityImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityImage
         fields = ['id', 'activity', 'upload_image']
+    
+    def create(self, validated_data):
+        # Automatically set the user_uuid based on the activity's creator
+        activity = validated_data['activity']
+        validated_data['user_uuid'] = activity.created_by.id
+        return super().create(validated_data)
 
 class ChatRoomSerializer(serializers.ModelSerializer):
     participants = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), many=True)
+    activity = serializers.PrimaryKeyRelatedField(queryset=Activity.objects.all())
 
     class Meta:
         model = ChatRoom
-        fields = ['id', 'activity', 'participants']  # Changed 'chat_room_id' to 'id'
+        fields = ['id', 'activity', 'participants']
 
 class ChatMessageSerializer(serializers.ModelSerializer):
     sender = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    chat_room = serializers.PrimaryKeyRelatedField(queryset=ChatRoom.objects.all())
 
     class Meta:
         model = ChatMessage

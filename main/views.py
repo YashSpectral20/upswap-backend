@@ -6,7 +6,11 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from .models import OTP, Activity, ActivityImage, ChatRoom, ChatMessage
-from .serializers import CustomUserSerializer, LoginSerializer, OTPSerializer, ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer
+from .serializers import (
+    CustomUserSerializer, LoginSerializer, OTPSerializer,
+    ActivitySerializer, ActivityImageSerializer,
+    ChatRoomSerializer, ChatMessageSerializer
+)
 import random
 import string
 from django.utils import timezone
@@ -24,13 +28,18 @@ class RegisterView(generics.CreateAPIView):
         otp_code = ''.join(random.choices(string.digits, k=6))
         expires_at = timezone.now() + timezone.timedelta(minutes=5)
         OTP.objects.create(user=user, otp=otp_code, expires_at=expires_at)
-        send_mail(
-            'Your OTP Code',
-            f'Your OTP code is {otp_code}',
-            settings.DEFAULT_FROM_EMAIL,
-            [user.email],
-            fail_silently=False,
-        )
+        
+        try:
+            send_mail(
+                'Your OTP Code',
+                f'Your OTP code is {otp_code}',
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            # Handle email sending failure
+            raise Exception(f"Failed to send OTP email: {str(e)}")
 
 class VerifyOTPView(generics.GenericAPIView):
     serializer_class = OTPSerializer
@@ -42,7 +51,6 @@ class VerifyOTPView(generics.GenericAPIView):
         user = serializer.validated_data['user']
         otp = serializer.validated_data['otp']
         
-        # Check for OTP
         try:
             otp_instance = OTP.objects.get(user=user, otp=otp)
         except OTP.DoesNotExist:
@@ -51,12 +59,9 @@ class VerifyOTPView(generics.GenericAPIView):
         if otp_instance.is_expired():
             return Response({"detail": "OTP has expired."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # OTP is valid, mark user as verified
         user.otp_verified = True
         user.save()
-        
-        # Optionally delete the OTP instance if it's a one-time use
-        otp_instance.delete()
+        otp_instance.delete()  # Delete OTP if it should only be used once
         
         refresh = RefreshToken.for_user(user)
         return Response({
@@ -72,8 +77,10 @@ class LoginView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
+        
         if not user.otp_verified:
             return Response({"detail": "OTP not verified."}, status=status.HTTP_401_UNAUTHORIZED)
+        
         refresh = RefreshToken.for_user(user)
         return Response({
             'refresh': str(refresh),
@@ -88,10 +95,10 @@ class ActivityListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         infinite_time = self.request.data.get('infinite_time', False)
-        if infinite_time:
-            serializer.save(infinite_time=True, created_by=self.request.user.pk)
-        else:
-            serializer.save(created_by=self.request.user.pk)
+        serializer.save(
+            infinite_time=infinite_time,
+            created_by=self.request.user
+        )
 
 class ActivityRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Activity.objects.all()
@@ -116,8 +123,7 @@ class ActivityImageUploadView(generics.CreateAPIView):
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # Chat Room Views
 class ChatRoomCreateView(generics.CreateAPIView):

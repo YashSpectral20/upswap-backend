@@ -1,11 +1,9 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
-from django.utils import timezone
 import uuid
+from django.utils import timezone
 from django.core.exceptions import ValidationError
-from django.contrib.auth import get_user_model
 
-# Define User model before using it in other models
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, name, phone_number, date_of_birth, gender, password=None):
         if not email:
@@ -35,8 +33,9 @@ class CustomUserManager(BaseUserManager):
             gender=gender,
             password=password,
         )
-        user.is_admin = True
+        user.is_superuser = True
         user.is_staff = True
+        user.is_admin = True
         user.save(using=self._db)
         return user
 
@@ -47,6 +46,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('O', 'Other'),
     ]
 
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=150, unique=True)
     email = models.EmailField(max_length=255, unique=True)
     name = models.CharField(max_length=255)
@@ -56,7 +56,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
-    otp_verified = models.BooleanField(default=False)  # Add this line
+    otp_verified = models.BooleanField(default=False)
 
     objects = CustomUserManager()
 
@@ -77,7 +77,7 @@ class OTP(models.Model):
 
 class Activity(models.Model):
     activity_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    created_by = models.UUIDField(default=uuid.uuid4, editable=False)
+    created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # Link to CustomUser
     activity_title = models.CharField(max_length=50)
     activity_description = models.TextField()
     
@@ -94,7 +94,6 @@ class Activity(models.Model):
         OTHERS = 'OTHERS', 'Others'
 
     activity_type = models.CharField(max_length=50, choices=ActivityType.choices)
-        
     user_participation = models.BooleanField(default=False)
     maximum_participants = models.IntegerField(default=0)
     start_date = models.DateField(null=True, blank=True)
@@ -132,6 +131,13 @@ class Activity(models.Model):
 class ActivityImage(models.Model):
     activity = models.ForeignKey(Activity, related_name='images', on_delete=models.CASCADE)
     upload_image = models.ImageField(upload_to='activity_images/')
+    user_uuid = models.UUIDField(editable=False, null=True)  # Field to store UUID
+
+    def save(self, *args, **kwargs):
+        if not self.user_uuid:
+            # Automatically set user_uuid if it's not provided
+            self.user_uuid = self.activity.created_by.id
+        super().save(*args, **kwargs)
 
 class ChatRoom(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
