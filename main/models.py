@@ -3,6 +3,7 @@ from django.db import models
 import uuid
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, name, phone_number, date_of_birth, gender, password=None):
@@ -77,7 +78,7 @@ class OTP(models.Model):
 
 class Activity(models.Model):
     activity_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # Link to CustomUser
+    created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     activity_title = models.CharField(max_length=50)
     activity_description = models.TextField()
     
@@ -131,19 +132,45 @@ class Activity(models.Model):
 class ActivityImage(models.Model):
     activity = models.ForeignKey(Activity, related_name='images', on_delete=models.CASCADE)
     upload_image = models.ImageField(upload_to='activity_images/')
-    user_uuid = models.UUIDField(editable=False, null=True)  # Field to store UUID
+    user_uuid = models.UUIDField(editable=False, null=True)
 
     def save(self, *args, **kwargs):
         if not self.user_uuid:
-            # Automatically set user_uuid if it's not provided
             self.user_uuid = self.activity.created_by.id
         super().save(*args, **kwargs)
 
+class ChatRequest(models.Model):
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
+    from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
+    to_user = models.ForeignKey(CustomUser, related_name='received_requests', on_delete=models.CASCADE)
+    is_accepted = models.BooleanField(default=False)
+    is_rejected = models.BooleanField(default=False)
+    interested = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+    
+    def accept(self):
+        if not self.is_rejected:
+            self.is_accepted = True
+            self.interested = True
+            # Create a ChatRoom upon acceptance
+            chat_room, created = ChatRoom.objects.get_or_create(activity=self.activity)
+            chat_room.participants.add(self.from_user, self.to_user)
+            chat_room.save()
+            self.save()
+
+    def reject(self):
+        if not self.is_accepted:
+            self.is_rejected = True
+            self.save()
+
+    def __str__(self):
+        return f"Request from {self.from_user} to {self.to_user} for {self.activity}"
+
 class ChatRoom(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    created_at = models.DateTimeField(auto_now_add=True)
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
-    participants = models.ManyToManyField(CustomUser)  # Use CustomUser here instead of User
+    participants = models.ManyToManyField(CustomUser)
+    created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
         return f"ChatRoom {self.id} for Activity {self.activity.activity_title}"

@@ -1,9 +1,9 @@
+# serializers.py
 from rest_framework import serializers
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
-from .models import CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage
-import uuid
+from .models import CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage, ChatRequest
 
 User = get_user_model()
 
@@ -79,31 +79,23 @@ class ActivitySerializer(serializers.ModelSerializer):
     def validate(self, data):
         now = timezone.now().date()
 
-        # Validate start_date and end_date
         if data.get('start_date') and data['start_date'] < now:
             raise serializers.ValidationError({"start_date": "Start date cannot be in the past."})
         if data.get('end_date') and data['end_date'] < now:
             raise serializers.ValidationError({"end_date": "End date cannot be in the past."})
-        
-        # Validate end_date is after start_date
         if data.get('start_date') and data.get('end_date') and data['end_date'] < data['start_date']:
             raise serializers.ValidationError({"end_date": "End date must be after start date."})
-        
-        # Validate end_time is after start_time
         if data.get('start_time') and data.get('end_time') and data['end_time'] < data['start_time']:
             raise serializers.ValidationError({"end_time": "End time must be after start time."})
 
-        # Validate maximum_participants based on user_participation
         if not data.get('user_participation', False):
             data['maximum_participants'] = 0
 
         return data
 
     def create(self, validated_data):
-        # Assign the logged-in user as the creator
         validated_data['created_by'] = self.context['request'].user
 
-        # Handle the set_current_datetime and infinite_time flags
         if validated_data.pop('set_current_datetime', False):
             current_datetime = timezone.now()
             validated_data['start_date'] = current_datetime.date()
@@ -117,7 +109,6 @@ class ActivitySerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        # Handle the set_current_datetime and infinite_time flags
         if validated_data.pop('set_current_datetime', False):
             current_datetime = timezone.now()
             validated_data['start_date'] = current_datetime.date()
@@ -134,25 +125,46 @@ class ActivityImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityImage
         fields = ['id', 'activity', 'upload_image']
-    
-    def create(self, validated_data):
-        # Automatically set the user_uuid based on the activity's creator
-        activity = validated_data['activity']
-        validated_data['user_uuid'] = activity.created_by.id
-        return super().create(validated_data)
 
 class ChatRoomSerializer(serializers.ModelSerializer):
-    participants = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), many=True)
-    activity = serializers.PrimaryKeyRelatedField(queryset=Activity.objects.all())
-
+    participants = serializers.SlugRelatedField(
+        many=True,
+        slug_field='username',
+        queryset=CustomUser.objects.all()
+    )
+    
     class Meta:
         model = ChatRoom
-        fields = ['id', 'activity', 'participants']
+        fields = ['id', 'activity', 'participants', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def create(self, validated_data):
+        # Pop participants data to handle it separately
+        participants_data = validated_data.pop('participants', [])
+        
+        # Create the ChatRoom instance
+        chat_room = ChatRoom.objects.create(**validated_data)
+        
+        # Add participants to the chat room
+        chat_room.participants.set(participants_data)
+        
+        return chat_room
 
 class ChatMessageSerializer(serializers.ModelSerializer):
-    sender = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
-    chat_room = serializers.PrimaryKeyRelatedField(queryset=ChatRoom.objects.all())
-
     class Meta:
         model = ChatMessage
         fields = ['id', 'chat_room', 'sender', 'content', 'created_at']
+
+class ChatRequestSerializer(serializers.ModelSerializer):
+    activity = serializers.PrimaryKeyRelatedField(queryset=Activity.objects.all())
+    from_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    to_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+
+    class Meta:
+        model = ChatRequest
+        fields = ['id', 'activity', 'from_user', 'to_user', 'is_accepted', 'is_rejected', 'interested']
+
+    def validate(self, attrs):
+        if attrs.get('is_accepted') and attrs.get('is_rejected'):
+            raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
+        return attrs

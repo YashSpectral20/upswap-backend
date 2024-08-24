@@ -5,3 +5,6 @@ whitenoise==5.2.0
 djangorestframework
 djangorestframework-simplejwt
 Pillow
+channels
+channels_redis
+daphne>=4.0.0
