@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage, 
-    ChatRequest, VendorKYC, BankDetails,ServicesProvide
+    ChatRequest, VendorKYC, BankDetails, ServicesProvide, ChooseBusinessHours
 )
 
 # Custom User Admin
@@ -117,9 +117,24 @@ class BankDetailsAdmin(admin.ModelAdmin):
     search_fields = ('vendor_kyc__full_name', 'account_number', 'bank_name', 'ifsc_code')
     readonly_fields = ('id',)
 
-#ServicesProvide Admin
+# ServicesProvide Admin
 @admin.register(ServicesProvide)
 class ServicesProvideAdmin(admin.ModelAdmin):
     list_display = ('item_name', 'chosen_item_category', 'item_description', 'item_price')
     search_fields = ('item_name', 'item_description')
     list_filter = ('chosen_item_category',)
+
+# ChooseBusinessHours Admin
+@admin.register(ChooseBusinessHours)
+class ChooseBusinessHoursAdmin(admin.ModelAdmin):
+    list_display = ('vendor_kyc', 'day', 'formatted_start_time', 'formatted_end_time')
+    list_filter = ('day',)
+    search_fields = ('vendor_kyc__user__username',)
+
+    def formatted_start_time(self, obj):
+        return obj.start_time.strftime('%I:%M %p')
+    formatted_start_time.short_description = 'Start Time (AM/PM)'
+
+    def formatted_end_time(self, obj):
+        return obj.end_time.strftime('%I:%M %p')
+    formatted_end_time.short_description = 'End Time (AM/PM)'

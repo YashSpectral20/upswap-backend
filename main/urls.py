@@ -10,8 +10,9 @@ from .views import (
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, ChatRequestUpdateView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCListView, VendorKYCDetailView, VendorKYCUpdateView, VendorKYCDeleteView,
-    BankDetailsCreateView, BankDetailsRetrieveUpdateDestroyView, ServicesProvideCreateView, ServicesProvideRetrieveUpdateDestroyView
-)
+    BankDetailsCreateView, BankDetailsRetrieveUpdateDestroyView, ServicesProvideCreateView, ServicesProvideRetrieveUpdateDestroyView,
+    ChooseBusinessHoursListCreateView, ChooseBusinessHoursRetrieveUpdateDestroyView
+    )
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -38,6 +39,8 @@ urlpatterns = [
     path('bank-details/<uuid:pk>/', BankDetailsRetrieveUpdateDestroyView.as_view(), name='bank-details-detail'),
     path('services-provide/', ServicesProvideCreateView.as_view(), name='services-provide-create'),
     path('services-provide/<uuid:pk>/', ServicesProvideRetrieveUpdateDestroyView.as_view(), name='services-provide-detail'),
+    path('business-hours/', ChooseBusinessHoursListCreateView.as_view(), name='business-hours-list-create'),
+    path('business-hours/<int:pk>/', ChooseBusinessHoursRetrieveUpdateDestroyView.as_view(), name='business-hours-detail'),
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh')
 ]

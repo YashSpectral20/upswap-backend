@@ -4,7 +4,7 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, BankDetails, ServicesProvide
+    ChatRequest, VendorKYC, BankDetails, ServicesProvide, ChooseBusinessHours
 )
 
 User = get_user_model()
@@ -247,3 +247,11 @@ class ServicesProvideSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServicesProvide
         fields = '__all__'
+        
+class ChooseBusinessHoursSerializer(serializers.ModelSerializer):
+    start_time = serializers.TimeField(format='%I:%M %p', input_formats=['%I:%M %p', '%H:%M'])
+    end_time = serializers.TimeField(format='%I:%M %p', input_formats=['%I:%M %p', '%H:%M'])
+
+    class Meta:
+        model = ChooseBusinessHours
+        fields = ['vendor_kyc', 'day', 'start_time', 'end_time']

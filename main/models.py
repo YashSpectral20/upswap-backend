@@ -4,6 +4,7 @@ import uuid
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 import mimetypes
+from django.utils.translation import gettext_lazy as _
 
 # Custom User Models
 class CustomUserManager(BaseUserManager):
@@ -197,7 +198,7 @@ class VendorKYC(models.Model):
     business_related_photos = models.ImageField(upload_to='business_photos/', null=True, blank=True)
     same_as_personal_phone_number = models.BooleanField(default=False)
     same_as_personal_email_id = models.BooleanField(default=False)
-
+    
     def validate_document(self, file):
         # Validate the MIME type of the file
         mime_type, _ = mimetypes.guess_type(file.name)
@@ -258,3 +259,26 @@ class ServicesProvide(models.Model):
 
     def __str__(self):
         return self.item_name
+    
+class ChooseBusinessHours(models.Model):
+    vendor_kyc = models.ForeignKey(
+        VendorKYC,
+        on_delete=models.CASCADE,
+        related_name='business_hours'  # Adjust related_name to avoid conflicts
+    )
+
+    class Days(models.TextChoices):
+        SUNDAY = 'SUN', _('Sunday')
+        MONDAY = 'MON', _('Monday')
+        TUESDAY = 'TUE', _('Tuesday')
+        WEDNESDAY = 'WED', _('Wednesday')
+        THURSDAY = 'THU', _('Thursday')
+        FRIDAY = 'FRI', _('Friday')
+        SATURDAY = 'SAT', _('Saturday')
+
+    day = models.CharField(max_length=3, choices=Days.choices)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    def __str__(self):
+        return f"{self.get_day_display()}: {self.start_time.strftime('%I:%M %p')} - {self.end_time.strftime('%I:%M %p')}"

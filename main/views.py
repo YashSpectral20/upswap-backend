@@ -1,11 +1,15 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import CustomUser, OTP, Activity, ActivityImage, ChatRequest, ChatRoom, ChatMessage, VendorKYC, BankDetails, ServicesProvide
+from .models import (
+    CustomUser, OTP, Activity, ActivityImage, ChatRequest, ChatRoom, 
+    ChatMessage, VendorKYC, BankDetails, ServicesProvide, ChooseBusinessHours
+)
 from .serializers import (
-    CustomUserSerializer, LoginSerializer, OTPSerializer, ActivitySerializer, ActivityImageSerializer,
-    ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer, VendorKYCSerializer, BankDetailsSerializer, ServicesProvideSerializer
-
+    CustomUserSerializer, LoginSerializer, OTPSerializer, ActivitySerializer, 
+    ActivityImageSerializer, ChatRequestSerializer, ChatRoomSerializer, 
+    ChatMessageSerializer, VendorKYCSerializer, BankDetailsSerializer, 
+    ServicesProvideSerializer, ChooseBusinessHoursSerializer
 )
 from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -154,10 +158,24 @@ class BankDetailsRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView
     serializer_class = BankDetailsSerializer
     permission_classes = [IsAuthenticated]
 
+# Services Provide Views
 class ServicesProvideCreateView(generics.CreateAPIView):
     queryset = ServicesProvide.objects.all()
     serializer_class = ServicesProvideSerializer
+    permission_classes = [IsAuthenticated]
 
 class ServicesProvideRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = ServicesProvide.objects.all()
     serializer_class = ServicesProvideSerializer
+    permission_classes = [IsAuthenticated]
+
+# Choose Business Hours Views
+class ChooseBusinessHoursListCreateView(generics.ListCreateAPIView):
+    queryset = ChooseBusinessHours.objects.all()
+    serializer_class = ChooseBusinessHoursSerializer
+    permission_classes = [IsAuthenticated]
+
+class ChooseBusinessHoursRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = ChooseBusinessHours.objects.all()
+    serializer_class = ChooseBusinessHoursSerializer
+    permission_classes = [IsAuthenticated]
