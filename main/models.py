@@ -214,9 +214,47 @@ class VendorKYC(models.Model):
             self.phone_number = self.user.phone_number
         if self.same_as_personal_email_id:
             self.business_email_id = self.user.email
-
-        self.validate_document(self.upload_business_related_documents)
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Vendor KYC for {self.full_name}"
+
+class BankDetails(models.Model):
+    vendor_kyc = models.OneToOneField(VendorKYC, on_delete=models.CASCADE, related_name='bank_details')
+    account_number = models.CharField(max_length=20)
+    retype_account_number = models.CharField(max_length=20)
+    bank_name = models.CharField(max_length=255)
+    ifsc_code = models.CharField(max_length=11)
+
+    def clean(self):
+        if self.account_number != self.retype_account_number:
+            raise ValidationError("Account numbers do not match.")
+
+    def __str__(self):
+        return f"Bank Details for Vendor {self.vendor_kyc.full_name}"
+
+class ServicesProvide(models.Model):
+    class ItemCategory(models.TextChoices):
+        RESTAURANTS = 'RESTAURANTS', 'Restaurants'
+        CONSULTANTS = 'CONSULTANTS', 'Consultants'
+        ESTATE_AGENTS = 'ESTATE_AGENTS', 'Estate Agents'
+        RENT_HIRE = 'RENT_HIRE', 'Rent & Hire'
+        DENTIST = 'DENTIST', 'Dentist'
+        PERSONAL_CARE = 'PERSONAL_CARE', 'Personal Care'
+        FOOD = 'FOOD', 'Food'
+        BAKERY = 'BAKERY', 'Bakery'
+        GROCERIES = 'GROCERIES', 'Groceries'
+        OTHERS = 'OTHERS', 'Others'
+
+    vendor_kyc = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='services_provide')
+    item_name = models.CharField(max_length=255)
+    chosen_item_category = models.CharField(
+        max_length=20,
+        choices=ItemCategory.choices,
+        default=ItemCategory.OTHERS
+    )
+    item_description = models.TextField()
+    item_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return self.item_name

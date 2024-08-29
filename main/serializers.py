@@ -2,7 +2,10 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
-from .models import CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage, ChatRequest, VendorKYC
+from .models import (
+    CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage,
+    ChatRequest, VendorKYC, BankDetails, ServicesProvide
+)
 
 User = get_user_model()
 
@@ -222,3 +225,25 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         validated_data['full_name'] = user.name
 
         return super().update(instance, validated_data)
+
+class BankDetailsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BankDetails
+        fields = ['vendor_kyc', 'account_number', 'retype_account_number', 'bank_name', 'ifsc_code']
+        extra_kwargs = {
+            'retype_account_number': {'write_only': True}
+        }
+
+    def validate(self, attrs):
+        if attrs.get('account_number') != attrs.get('retype_account_number'):
+            raise serializers.ValidationError({"retype_account_number": "Account number fields didn't match."})
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop('retype_account_number')
+        return super().create(validated_data)
+
+class ServicesProvideSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServicesProvide
+        fields = '__all__'

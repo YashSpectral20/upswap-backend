@@ -9,7 +9,8 @@ from .views import (
     ActivityImageUploadView, ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, ChatRequestUpdateView, AcceptChatRequestView,
-    VendorKYCCreateView, VendorKYCListView, VendorKYCDetailView, VendorKYCUpdateView, VendorKYCDeleteView
+    VendorKYCCreateView, VendorKYCListView, VendorKYCDetailView, VendorKYCUpdateView, VendorKYCDeleteView,
+    BankDetailsCreateView, BankDetailsRetrieveUpdateDestroyView, ServicesProvideCreateView, ServicesProvideRetrieveUpdateDestroyView
 )
 
 urlpatterns = [
@@ -33,6 +34,10 @@ urlpatterns = [
     path('vendor-kyc/<uuid:pk>/', VendorKYCDetailView.as_view(), name='vendor-kyc-detail'),
     path('vendor-kyc/<uuid:pk>/update/', VendorKYCUpdateView.as_view(), name='vendor-kyc-update'),
     path('vendor-kyc/<uuid:pk>/delete/', VendorKYCDeleteView.as_view(), name='vendor-kyc-delete'),
+    path('bank-details/', BankDetailsCreateView.as_view(), name='bank-details-create'),
+    path('bank-details/<uuid:pk>/', BankDetailsRetrieveUpdateDestroyView.as_view(), name='bank-details-detail'),
+    path('services-provide/', ServicesProvideCreateView.as_view(), name='services-provide-create'),
+    path('services-provide/<uuid:pk>/', ServicesProvideRetrieveUpdateDestroyView.as_view(), name='services-provide-detail'),
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh')
 ]

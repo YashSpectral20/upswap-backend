@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage, 
-    ChatRequest, VendorKYC
+    ChatRequest, VendorKYC, BankDetails,ServicesProvide
 )
 
 # Custom User Admin
@@ -109,3 +109,17 @@ class VendorKYCAdmin(admin.ModelAdmin):
     )
     search_fields = ('full_name', 'phone_number', 'business_email_id')
     readonly_fields = ('vendor_id',)
+
+# BankDetails Admin
+@admin.register(BankDetails)
+class BankDetailsAdmin(admin.ModelAdmin):
+    list_display = ('id', 'vendor_kyc', 'account_number', 'retype_account_number', 'bank_name', 'ifsc_code')
+    search_fields = ('vendor_kyc__full_name', 'account_number', 'bank_name', 'ifsc_code')
+    readonly_fields = ('id',)
+
+#ServicesProvide Admin
+@admin.register(ServicesProvide)
+class ServicesProvideAdmin(admin.ModelAdmin):
+    list_display = ('item_name', 'chosen_item_category', 'item_description', 'item_price')
+    search_fields = ('item_name', 'item_description')
+    list_filter = ('chosen_item_category',)
