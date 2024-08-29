@@ -1,34 +1,26 @@
-# views.py
 from django.core.mail import send_mail
 from django.conf import settings
-from rest_framework import status, generics
+from rest_framework import status, generics, serializers
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
-from .models import OTP, Activity, ActivityImage, ChatRoom, ChatMessage, ChatRequest
+from .models import OTP, Activity, ActivityImage, ChatRoom, ChatMessage, ChatRequest, VendorKYC
 from .serializers import (
     CustomUserSerializer, LoginSerializer, OTPSerializer,
     ActivitySerializer, ActivityImageSerializer,
-    ChatRoomSerializer, ChatMessageSerializer, ChatRequestSerializer
+    ChatRoomSerializer, ChatMessageSerializer, ChatRequestSerializer,
+    VendorKYCSerializer
 )
 from rest_framework.views import APIView
 import random
 import string
 from django.utils import timezone
 from rest_framework.parsers import MultiPartParser, FormParser
-from django.views import View
 
 User = get_user_model()
 
-class CustomUserCreateView(View):
-    def post(self, request, *args, **kwargs):
-        serializer = CustomUserSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+# User Registration and Authentication Views
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = (AllowAny,)
@@ -49,7 +41,6 @@ class RegisterView(generics.CreateAPIView):
                 fail_silently=False,
             )
         except Exception as e:
-            # Handle email sending failure
             raise Exception(f"Failed to send OTP email: {str(e)}")
 
 class OTPVerifyView(generics.GenericAPIView):
@@ -97,6 +88,12 @@ class LoginView(generics.GenericAPIView):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         })
+
+# Custom User Creation View
+class CustomUserCreateView(generics.CreateAPIView):
+    queryset = User.objects.all()
+    serializer_class = CustomUserSerializer
+    permission_classes = (AllowAny,)
 
 # Activity Views
 class ActivityListCreateView(generics.ListCreateAPIView):
@@ -191,7 +188,6 @@ class ChatRequestUpdateView(generics.UpdateAPIView):
 
     def perform_update(self, serializer):
         chat_request = self.get_object()
-        # Ensure a request cannot be both accepted and rejected
         if serializer.validated_data.get('is_accepted') and chat_request.is_rejected:
             raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
         if serializer.validated_data.get('is_rejected') and chat_request.is_accepted:
@@ -213,9 +209,58 @@ class AcceptChatRequestView(APIView):
         chat_request.is_accepted = True
         chat_request.save()
 
-        # **Create a chat room if the request is accepted**
-        chat_room = ChatRoom.objects.create(activity=chat_request.activity)
-        chat_room.participants.add(chat_request.from_user, chat_request.to_user)
-        chat_room.save()
+        # Create a chat room if the request is accepted
+        chat_room, created = ChatRoom.objects.get_or_create(activity=chat_request.activity)
+        if created:
+            chat_room.participants.add(chat_request.from_user, chat_request.to_user)
+            chat_room.save()
 
         return Response({"message": "Chat request accepted and chat room created.", "chat_room_id": chat_room.id}, status=status.HTTP_201_CREATED)
+
+# VendorKYC Views
+class VendorKYCCreateView(generics.CreateAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorKYCSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        phone_number = user.phone_number if self.request.data.get('same_as_personal_phone_number') else serializer.validated_data.get('phone_number')
+        business_email_id = user.email if self.request.data.get('same_as_personal_email_id') else serializer.validated_data.get('business_email_id')
+
+        serializer.save(
+            user=user,
+            phone_number=phone_number,
+            business_email_id=business_email_id,
+            full_name=user.name
+        )
+
+class VendorKYCListView(generics.ListAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorKYCSerializer
+    permission_classes = (IsAuthenticated,)
+
+class VendorKYCDetailView(generics.RetrieveAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorKYCSerializer
+    permission_classes = (IsAuthenticated,)
+
+class VendorKYCUpdateView(generics.UpdateAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorKYCSerializer
+    permission_classes = (IsAuthenticated,)
+
+    def perform_update(self, serializer):
+        user = self.request.user
+        phone_number = user.phone_number if self.request.data.get('same_as_personal_phone_number') else serializer.validated_data.get('phone_number')
+        business_email_id = user.email if self.request.data.get('same_as_personal_email_id') else serializer.validated_data.get('business_email_id')
+
+        serializer.save(
+            phone_number=phone_number,
+            business_email_id=business_email_id
+        )
+
+class VendorKYCDeleteView(generics.DestroyAPIView):
+    queryset = VendorKYC.objects.all()
+    permission_classes = (IsAuthenticated,)
+

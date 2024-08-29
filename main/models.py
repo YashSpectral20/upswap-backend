@@ -3,8 +3,9 @@ from django.db import models
 import uuid
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from django.contrib.auth import get_user_model
+import mimetypes
 
+# Custom User Models
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, name, phone_number, date_of_birth, gender, password=None):
         if not email:
@@ -183,3 +184,39 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return f"Message {self.id} from {self.sender.email}"
+
+class VendorKYC(models.Model):
+    vendor_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    full_name = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=15)
+    business_email_id = models.EmailField(max_length=255)
+    business_establishment_year = models.IntegerField()
+    business_description = models.TextField()
+    upload_business_related_documents = models.FileField(upload_to='business_documents/', null=True, blank=True)
+    business_related_photos = models.ImageField(upload_to='business_photos/', null=True, blank=True)
+    same_as_personal_phone_number = models.BooleanField(default=False)
+    same_as_personal_email_id = models.BooleanField(default=False)
+
+    def validate_document(self, file):
+        # Validate the MIME type of the file
+        mime_type, _ = mimetypes.guess_type(file.name)
+        allowed_types = [
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ]
+        if mime_type not in allowed_types:
+            raise ValidationError('Unsupported file type. Allowed types are PDF, DOC, and DOCX.')
+    
+    def save(self, *args, **kwargs):
+        if self.same_as_personal_phone_number:
+            self.phone_number = self.user.phone_number
+        if self.same_as_personal_email_id:
+            self.business_email_id = self.user.email
+
+        self.validate_document(self.upload_business_related_documents)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Vendor KYC for {self.full_name}"

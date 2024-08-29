@@ -1,9 +1,8 @@
-# serializers.py
 from rest_framework import serializers
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
-from .models import CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage, ChatRequest
+from .models import CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage, ChatRequest, VendorKYC
 
 User = get_user_model()
 
@@ -47,7 +46,7 @@ class LoginSerializer(serializers.Serializer):
 
 class OTPSerializer(serializers.Serializer):
     otp = serializers.CharField(max_length=6)
-    
+
     def validate(self, attrs):
         otp = attrs.get('otp')
         try:
@@ -100,7 +99,7 @@ class ActivitySerializer(serializers.ModelSerializer):
             current_datetime = timezone.now()
             validated_data['start_date'] = current_datetime.date()
             validated_data['start_time'] = current_datetime.time()
-        
+
         if validated_data.pop('infinite_time', False):
             future_date = timezone.now() + timezone.timedelta(days=365 * 100)  # 100 years from now
             validated_data['end_date'] = future_date.date()
@@ -132,20 +131,16 @@ class ChatRoomSerializer(serializers.ModelSerializer):
         slug_field='username',
         queryset=CustomUser.objects.all()
     )
-    
+
     class Meta:
         model = ChatRoom
         fields = ['id', 'activity', 'participants', 'created_at']
         read_only_fields = ['id', 'created_at']
 
     def create(self, validated_data):
-        # Pop participants data to handle it separately
         participants_data = validated_data.pop('participants', [])
         
-        # Create the ChatRoom instance
         chat_room = ChatRoom.objects.create(**validated_data)
-        
-        # Add participants to the chat room
         chat_room.participants.set(participants_data)
         
         return chat_room
@@ -168,3 +163,62 @@ class ChatRequestSerializer(serializers.ModelSerializer):
         if attrs.get('is_accepted') and attrs.get('is_rejected'):
             raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
         return attrs
+
+class VendorKYCSerializer(serializers.ModelSerializer):
+    upload_business_related_documents = serializers.FileField(required=False, allow_null=True)
+    business_related_photos = serializers.ImageField(required=False, allow_null=True)
+    same_as_personal_phone_number = serializers.BooleanField(write_only=True, required=False, default=False)
+    same_as_personal_email_id = serializers.BooleanField(write_only=True, required=False, default=False)
+    phone_number = serializers.CharField(required=False, allow_blank=True)
+    business_email_id = serializers.EmailField(required=False, allow_blank=True)
+
+    class Meta:
+        model = VendorKYC
+        fields = [
+            'vendor_id', 'full_name', 'phone_number', 'business_email_id', 
+            'business_establishment_year', 'business_description', 
+            'upload_business_related_documents', 'business_related_photos', 
+            'same_as_personal_phone_number', 'same_as_personal_email_id'
+        ]
+        read_only_fields = ['full_name']
+
+    def validate(self, data):
+        user = self.context['request'].user
+
+        if data.get('same_as_personal_phone_number'):
+            data['phone_number'] = user.phone_number or ""
+        if data.get('same_as_personal_email_id'):
+            data['business_email_id'] = user.email or ""
+
+        if data.get('same_as_personal_phone_number') and not user.phone_number:
+            raise serializers.ValidationError({"phone_number": "User's personal phone number is not available."})
+        if data.get('same_as_personal_email_id') and not user.email:
+            raise serializers.ValidationError({"business_email_id": "User's personal email is not available."})
+
+        return data
+
+    def create(self, validated_data):
+        user = self.context['request'].user
+
+        if validated_data.pop('same_as_personal_phone_number', False):
+            validated_data['phone_number'] = user.phone_number
+
+        if validated_data.pop('same_as_personal_email_id', False):
+            validated_data['business_email_id'] = user.email
+
+        validated_data['full_name'] = user.name
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        user = self.context['request'].user
+
+        if validated_data.pop('same_as_personal_phone_number', False):
+            validated_data['phone_number'] = user.phone_number
+
+        if validated_data.pop('same_as_personal_email_id', False):
+            validated_data['business_email_id'] = user.email
+
+        validated_data['full_name'] = user.name
+
+        return super().update(instance, validated_data)
