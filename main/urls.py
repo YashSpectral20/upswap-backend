@@ -6,41 +6,48 @@ from rest_framework_simplejwt.views import (
 from .views import (
     CustomUserCreateView, RegisterView, OTPVerifyView, LoginView,
     ActivityListCreateView, ActivityRetrieveUpdateDestroyView,
-    ActivityImageUploadView, ChatRoomCreateView, ChatRoomRetrieveView,
+    ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
-    ChatRequestRetrieveView, ChatRequestUpdateView, AcceptChatRequestView,
+    ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCListView, VendorKYCDetailView, VendorKYCUpdateView, VendorKYCDeleteView,
-    BankDetailsCreateView, BankDetailsRetrieveUpdateDestroyView, ServicesProvideCreateView, ServicesProvideRetrieveUpdateDestroyView,
-    ChooseBusinessHoursListCreateView, ChooseBusinessHoursRetrieveUpdateDestroyView
-    )
+    ActivityImageCreateView
+)
 
 urlpatterns = [
+    # User Management
     path('register/', RegisterView.as_view(), name='register'),
     path('verify-otp/', OTPVerifyView.as_view(), name='verify-otp'),
     path('login/', LoginView.as_view(), name='login'),
     path('custom-user/create/', CustomUserCreateView.as_view(), name='custom-user-create'),
+
+    # Activities
     path('activities/', ActivityListCreateView.as_view(), name='activity-list-create'),
     path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
-    path('activities/images/', ActivityImageUploadView.as_view(), name='activity-image-upload'),
+
+    # Activity Images
+    path('activity-images/', ActivityImageCreateView.as_view(), name='activity-image-create'),
+
+    # Chat Rooms
     path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),
     path('chat-rooms/<uuid:pk>/', ChatRoomRetrieveView.as_view(), name='chat-room-detail'),
+
+    # Chat Messages
     path('chat-messages/', ChatMessageCreateView.as_view(), name='chat-message-create'),
     path('chat-messages/<uuid:chat_room_id>/', ChatMessageListView.as_view(), name='chat-message-list'),
+
+    # Chat Requests
     path('chat-requests/', ChatRequestCreateView.as_view(), name='chat-request-create'),
     path('chat-requests/<uuid:pk>/', ChatRequestRetrieveView.as_view(), name='chat-request-detail'),
-    path('chat-requests/<uuid:pk>/update/', ChatRequestUpdateView.as_view(), name='chat-request-update'),
-    path('accept-chat-request/', AcceptChatRequestView.as_view(), name='accept-chat-request'),
+    path('chat-requests/<uuid:pk>/accept/', AcceptChatRequestView.as_view(), name='accept-chat-request'),
+
+    # Vendor KYC
     path('vendor-kyc/', VendorKYCListView.as_view(), name='vendor-kyc-list'),
     path('vendor-kyc/create/', VendorKYCCreateView.as_view(), name='vendor-kyc-create'),
     path('vendor-kyc/<uuid:pk>/', VendorKYCDetailView.as_view(), name='vendor-kyc-detail'),
     path('vendor-kyc/<uuid:pk>/update/', VendorKYCUpdateView.as_view(), name='vendor-kyc-update'),
     path('vendor-kyc/<uuid:pk>/delete/', VendorKYCDeleteView.as_view(), name='vendor-kyc-delete'),
-    path('bank-details/', BankDetailsCreateView.as_view(), name='bank-details-create'),
-    path('bank-details/<uuid:pk>/', BankDetailsRetrieveUpdateDestroyView.as_view(), name='bank-details-detail'),
-    path('services-provide/', ServicesProvideCreateView.as_view(), name='services-provide-create'),
-    path('services-provide/<uuid:pk>/', ServicesProvideRetrieveUpdateDestroyView.as_view(), name='services-provide-detail'),
-    path('business-hours/', ChooseBusinessHoursListCreateView.as_view(), name='business-hours-list-create'),
-    path('business-hours/<int:pk>/', ChooseBusinessHoursRetrieveUpdateDestroyView.as_view(), name='business-hours-detail'),
+
+    # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh')
+    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]

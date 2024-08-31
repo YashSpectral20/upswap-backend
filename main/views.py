@@ -1,18 +1,19 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import (
-    CustomUser, OTP, Activity, ActivityImage, ChatRequest, ChatRoom, 
-    ChatMessage, VendorKYC, BankDetails, ServicesProvide, ChooseBusinessHours
-)
-from .serializers import (
-    CustomUserSerializer, LoginSerializer, OTPSerializer, ActivitySerializer, 
-    ActivityImageSerializer, ChatRequestSerializer, ChatRoomSerializer, 
-    ChatMessageSerializer, VendorKYCSerializer, BankDetailsSerializer, 
-    ServicesProvideSerializer, ChooseBusinessHoursSerializer
-)
+from django.shortcuts import get_object_or_404
 from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.utils import timezone
+from .models import (
+    CustomUser, OTP, Activity, ChatRequest, ChatRoom,
+    ChatMessage, VendorKYC, ActivityImage
+)
+from .serializers import (
+    CustomUserSerializer, LoginSerializer, OTPSerializer, ActivitySerializer,
+    ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer,
+    VendorKYCSerializer, ActivityImageSerializer
+)
 
 # Custom User Views
 class CustomUserCreateView(generics.CreateAPIView):
@@ -31,13 +32,10 @@ class OTPVerifyView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         otp = serializer.validated_data['otp']
         user = serializer.validated_data['user']
-        
-        if not OTP.objects.filter(user=user, otp=otp).exists():
-            return Response({'detail': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
 
-        otp_instance = OTP.objects.get(user=user, otp=otp)
-        if otp_instance.is_expired():
-            return Response({'detail': 'OTP has expired'}, status=status.HTTP_400_BAD_REQUEST)
+        otp_instance = OTP.objects.filter(user=user, otp=otp).first()
+        if not otp_instance or otp_instance.is_expired():
+            return Response({'detail': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
 
         user.otp_verified = True
         user.save()
@@ -62,14 +60,12 @@ class ActivityListCreateView(generics.ListCreateAPIView):
     serializer_class = ActivitySerializer
     permission_classes = [IsAuthenticated]
 
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
 class ActivityRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Activity.objects.all()
     serializer_class = ActivitySerializer
-    permission_classes = [IsAuthenticated]
-
-class ActivityImageUploadView(generics.CreateAPIView):
-    queryset = ActivityImage.objects.all()
-    serializer_class = ActivityImageSerializer
     permission_classes = [IsAuthenticated]
 
 # Chat Request Views
@@ -83,17 +79,15 @@ class ChatRequestRetrieveView(generics.RetrieveAPIView):
     serializer_class = ChatRequestSerializer
     permission_classes = [IsAuthenticated]
 
-class ChatRequestUpdateView(generics.UpdateAPIView):
-    queryset = ChatRequest.objects.all()
-    serializer_class = ChatRequestSerializer
-    permission_classes = [IsAuthenticated]
-
 class AcceptChatRequestView(generics.GenericAPIView):
     serializer_class = ChatRequestSerializer
 
     def post(self, request, *args, **kwargs):
-        chat_request = generics.get_object_or_404(ChatRequest, pk=kwargs['pk'])
-        chat_request.accept()
+        chat_request = get_object_or_404(ChatRequest, pk=kwargs['pk'])
+        if chat_request.is_accepted or chat_request.is_rejected:
+            raise ValidationError("This chat request has already been accepted or rejected.")
+        chat_request.is_accepted = True
+        chat_request.save()
         return Response({'detail': 'Chat request accepted'}, status=status.HTTP_200_OK)
 
 # Chat Room Views
@@ -127,6 +121,16 @@ class VendorKYCCreateView(generics.CreateAPIView):
     serializer_class = VendorKYCSerializer
     permission_classes = [IsAuthenticated]
 
+    def perform_create(self, serializer):
+        user = self.request.user
+        if serializer.validated_data.get('same_as_personal_phone_number', False):
+            serializer.validated_data['phone_number'] = user.phone_number
+
+        if serializer.validated_data.get('same_as_personal_email_id', False):
+            serializer.validated_data['business_email_id'] = user.email
+
+        serializer.save(user=user)
+
 class VendorKYCListView(generics.ListAPIView):
     queryset = VendorKYC.objects.all()
     serializer_class = VendorKYCSerializer
@@ -147,35 +151,6 @@ class VendorKYCDeleteView(generics.DestroyAPIView):
     serializer_class = VendorKYCSerializer
     permission_classes = [IsAuthenticated]
 
-# Bank Details Views
-class BankDetailsCreateView(generics.CreateAPIView):
-    queryset = BankDetails.objects.all()
-    serializer_class = BankDetailsSerializer
-    permission_classes = [IsAuthenticated]
-
-class BankDetailsRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = BankDetails.objects.all()
-    serializer_class = BankDetailsSerializer
-    permission_classes = [IsAuthenticated]
-
-# Services Provide Views
-class ServicesProvideCreateView(generics.CreateAPIView):
-    queryset = ServicesProvide.objects.all()
-    serializer_class = ServicesProvideSerializer
-    permission_classes = [IsAuthenticated]
-
-class ServicesProvideRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = ServicesProvide.objects.all()
-    serializer_class = ServicesProvideSerializer
-    permission_classes = [IsAuthenticated]
-
-# Choose Business Hours Views
-class ChooseBusinessHoursListCreateView(generics.ListCreateAPIView):
-    queryset = ChooseBusinessHours.objects.all()
-    serializer_class = ChooseBusinessHoursSerializer
-    permission_classes = [IsAuthenticated]
-
-class ChooseBusinessHoursRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = ChooseBusinessHours.objects.all()
-    serializer_class = ChooseBusinessHoursSerializer
-    permission_classes = [IsAuthenticated]
+class ActivityImageCreateView(generics.CreateAPIView):
+    queryset = ActivityImage.objects.all()
+    serializer_class = ActivityImageSerializer

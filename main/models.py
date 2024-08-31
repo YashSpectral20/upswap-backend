@@ -3,7 +3,6 @@ from django.db import models
 import uuid
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-import mimetypes
 from django.utils.translation import gettext_lazy as _
 
 # Custom User Models
@@ -83,7 +82,7 @@ class Activity(models.Model):
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     activity_title = models.CharField(max_length=50)
     activity_description = models.TextField()
-    
+
     class ActivityType(models.TextChoices):
         TECH_GAMING = 'TECH_GAMING', 'Tech and Gaming'
         VOLUNTEER_OPPORTUNITIES = 'VOLUNTEER_OPPORTUNITIES', 'Volunteer Opportunities'
@@ -106,6 +105,7 @@ class Activity(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     infinite_time = models.BooleanField(default=False)
+    images = models.JSONField(default=list, blank=True, help_text="List of image paths")
 
     def clean(self):
         now = timezone.now().date()
@@ -118,7 +118,7 @@ class Activity(models.Model):
             raise ValidationError("End date must be after start date.")
         if self.start_time and self.end_time and self.end_time < self.start_time:
             raise ValidationError("End time must be after start time.")
-        
+
     def save(self, *args, **kwargs):
         if not self.user_participation:
             self.maximum_participants = 0
@@ -132,14 +132,24 @@ class Activity(models.Model):
         return self.activity_title
 
 class ActivityImage(models.Model):
-    activity = models.ForeignKey(Activity, related_name='images', on_delete=models.CASCADE)
-    upload_image = models.ImageField(upload_to='activity_images/')
-    user_uuid = models.UUIDField(editable=False, null=True)
+    image_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name='activity_images')
+    image = models.ImageField(upload_to='activity_images/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        if not self.user_uuid:
-            self.user_uuid = self.activity.created_by.id
         super().save(*args, **kwargs)
+        # Update the Activity model with the new image path
+        image_path = self.image.url.replace('/media/', '')  # Remove media URL base
+        activity = self.activity
+        existing_image_paths = activity.images
+        if image_path not in existing_image_paths:
+            existing_image_paths.append(image_path)
+            activity.images = existing_image_paths
+            activity.save()
+
+    def __str__(self):
+        return f"Image for {self.activity.activity_title}"
 
 class ChatRequest(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
@@ -154,7 +164,6 @@ class ChatRequest(models.Model):
         if not self.is_rejected:
             self.is_accepted = True
             self.interested = True
-            # Create a ChatRoom upon acceptance
             chat_room, created = ChatRoom.objects.get_or_create(activity=self.activity)
             chat_room.participants.add(self.from_user, self.to_user)
             chat_room.save()
@@ -188,6 +197,7 @@ class ChatMessage(models.Model):
 
 class VendorKYC(models.Model):
     vendor_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    profile_pic = models.ImageField(upload_to='vendor_profile_pics/', null=True, blank=True)
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     full_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=15)
@@ -198,87 +208,50 @@ class VendorKYC(models.Model):
     business_related_photos = models.ImageField(upload_to='business_photos/', null=True, blank=True)
     same_as_personal_phone_number = models.BooleanField(default=False)
     same_as_personal_email_id = models.BooleanField(default=False)
-    
-    def validate_document(self, file):
-        # Validate the MIME type of the file
-        mime_type, _ = mimetypes.guess_type(file.name)
-        allowed_types = [
-            'application/pdf', 
-            'application/msword', 
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        ]
-        if mime_type not in allowed_types:
-            raise ValidationError('Unsupported file type. Allowed types are PDF, DOC, and DOCX.')
-    
-    def save(self, *args, **kwargs):
-        if self.same_as_personal_phone_number:
-            self.phone_number = self.user.phone_number
-        if self.same_as_personal_email_id:
-            self.business_email_id = self.user.email
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"Vendor KYC for {self.full_name}"
-
-class BankDetails(models.Model):
-    vendor_kyc = models.OneToOneField(VendorKYC, on_delete=models.CASCADE, related_name='bank_details')
-    account_number = models.CharField(max_length=20)
-    retype_account_number = models.CharField(max_length=20)
-    bank_name = models.CharField(max_length=255)
-    ifsc_code = models.CharField(max_length=11)
-
-    def clean(self):
-        if self.account_number != self.retype_account_number:
-            raise ValidationError("Account numbers do not match.")
-
-    def __str__(self):
-        return f"Bank Details for Vendor {self.vendor_kyc.full_name}"
-
-class ServicesProvide(models.Model):
-    class ItemCategory(models.TextChoices):
-        RESTAURANTS = 'RESTAURANTS', 'Restaurants'
-        CONSULTANTS = 'CONSULTANTS', 'Consultants'
-        ESTATE_AGENTS = 'ESTATE_AGENTS', 'Estate Agents'
-        RENT_HIRE = 'RENT_HIRE', 'Rent & Hire'
-        DENTIST = 'DENTIST', 'Dentist'
-        PERSONAL_CARE = 'PERSONAL_CARE', 'Personal Care'
-        FOOD = 'FOOD', 'Food'
-        BAKERY = 'BAKERY', 'Bakery'
-        GROCERIES = 'GROCERIES', 'Groceries'
-        OTHERS = 'OTHERS', 'Others'
-
-    vendor_kyc = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='services_provide')
+    bank_account_number = models.CharField(max_length=50, default='', blank=True)
+    retype_bank_account_number = models.CharField(max_length=50, default='', blank=True)
+    bank_name = models.CharField(max_length=100, default='', blank=True)
+    ifsc_code = models.CharField(max_length=20, default='', blank=True)
     item_name = models.CharField(max_length=255)
-    chosen_item_category = models.CharField(
-        max_length=20,
-        choices=ItemCategory.choices,
-        default=ItemCategory.OTHERS
-    )
-    item_description = models.TextField()
-    item_price = models.DecimalField(max_digits=10, decimal_places=2)
-
-    def __str__(self):
-        return self.item_name
+    is_approved = models.BooleanField(default=False)
     
-class ChooseBusinessHours(models.Model):
-    vendor_kyc = models.ForeignKey(
-        VendorKYC,
-        on_delete=models.CASCADE,
-        related_name='business_hours'  # Adjust related_name to avoid conflicts
-    )
+    class ItemCategory(models.TextChoices):
+        RESTAURANTS = 'Restaurants'
+        CONSULTANTS = 'Consultants'
+        ESTATE_AGENTS = 'Estate Agents'
+        RENT_HIRE = 'Rent & Hire'
+        DENTIST = 'Dentist'
+        PERSONAL_CARE = 'Personal Care'
+        FOOD = 'Food'
+        BAKERY = 'Bakery'
+        GROCERIES = 'Groceries'
+        OTHERS = 'Others'
+    
+    chosen_item_category = models.CharField(max_length=50, choices=ItemCategory.choices)
+    item_description = models.TextField()
+    item_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
-    class Days(models.TextChoices):
-        SUNDAY = 'SUN', _('Sunday')
-        MONDAY = 'MON', _('Monday')
-        TUESDAY = 'TUE', _('Tuesday')
-        WEDNESDAY = 'WED', _('Wednesday')
-        THURSDAY = 'THU', _('Thursday')
-        FRIDAY = 'FRI', _('Friday')
-        SATURDAY = 'SAT', _('Saturday')
+    class DayChoices(models.TextChoices):
+        SUNDAY = 'Sunday'
+        MONDAY = 'Monday'
+        TUESDAY = 'Tuesday'
+        WEDNESDAY = 'Wednesday'
+        THURSDAY = 'Thursday'
+        FRIDAY = 'Friday'
+        SATURDAY = 'Saturday'
+    
+    business_hours = models.TextField(default='{}', help_text="Business hours stored as JSON string.")
 
-    day = models.CharField(max_length=3, choices=Days.choices)
-    start_time = models.TimeField()
-    end_time = models.TimeField()
+    def get_business_hours(self):
+        import json
+        try:
+            return json.loads(self.business_hours)
+        except json.JSONDecodeError:
+            return {}
+
+    def set_business_hours(self, hours):
+        import json
+        self.business_hours = json.dumps(hours)
 
     def __str__(self):
-        return f"{self.get_day_display()}: {self.start_time.strftime('%I:%M %p')} - {self.end_time.strftime('%I:%M %p')}"
+        return f"{self.user.email} - {self.full_name}"

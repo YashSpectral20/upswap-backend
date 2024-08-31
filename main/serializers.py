@@ -3,8 +3,8 @@ from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from .models import (
-    CustomUser, OTP, Activity, ActivityImage, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, BankDetails, ServicesProvide, ChooseBusinessHours
+    CustomUser, OTP, Activity, ChatRoom, ChatMessage,
+    ChatRequest, VendorKYC, ActivityImage
 )
 
 User = get_user_model()
@@ -38,14 +38,13 @@ class LoginSerializer(serializers.Serializer):
         password = attrs.get('password')
 
         if email and password:
-            user = authenticate(request=self.context.get('request'), email=email, password=password)
+            user = authenticate(request=self.context.get('request'), username=email, password=password)
             if not user:
                 raise serializers.ValidationError("Invalid login credentials.")
         else:
             raise serializers.ValidationError("Must include 'email' and 'password'.")
 
-        attrs['user'] = user
-        return attrs
+        return user
 
 class OTPSerializer(serializers.Serializer):
     otp = serializers.CharField(max_length=6)
@@ -64,6 +63,13 @@ class OTPSerializer(serializers.Serializer):
         return attrs
 
 class ActivitySerializer(serializers.ModelSerializer):
+    images = serializers.SerializerMethodField()  # Use a method field to get the image URLs
+    uploaded_images = serializers.ListField(
+        child=serializers.CharField(),  # For storing static image paths
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
     maximum_participants = serializers.IntegerField()
     set_current_datetime = serializers.BooleanField(write_only=True, required=False, default=False)
     infinite_time = serializers.BooleanField(write_only=True, required=False, default=False)
@@ -74,9 +80,12 @@ class ActivitySerializer(serializers.ModelSerializer):
             'activity_id', 'activity_title', 'activity_description', 
             'activity_type', 'user_participation', 'maximum_participants', 
             'start_date', 'end_date', 'start_time', 'end_time', 'created_at', 
-            'created_by', 'set_current_datetime', 'infinite_time'
+            'created_by', 'set_current_datetime', 'infinite_time', 'images', 'uploaded_images'
         ]
         read_only_fields = ['created_by', 'created_at']
+
+    def get_images(self, obj):
+        return obj.images  # Get all image URLs stored in the Activity model's JSONField
 
     def validate(self, data):
         now = timezone.now().date()
@@ -96,6 +105,7 @@ class ActivitySerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
+        uploaded_images = validated_data.pop('uploaded_images', [])
         validated_data['created_by'] = self.context['request'].user
 
         if validated_data.pop('set_current_datetime', False):
@@ -108,7 +118,12 @@ class ActivitySerializer(serializers.ModelSerializer):
             validated_data['end_date'] = future_date.date()
             validated_data['end_time'] = future_date.time()
 
-        return super().create(validated_data)
+        activity = super().create(validated_data)
+        # Save uploaded image paths
+        activity.images = uploaded_images
+        activity.save()
+
+        return activity
 
     def update(self, instance, validated_data):
         if validated_data.pop('set_current_datetime', False):
@@ -121,12 +136,18 @@ class ActivitySerializer(serializers.ModelSerializer):
             validated_data['end_date'] = future_date.date()
             validated_data['end_time'] = future_date.time()
 
+        uploaded_images = validated_data.pop('uploaded_images', None)
+        if uploaded_images is not None:
+            instance.images = uploaded_images
+            instance.save()
+
         return super().update(instance, validated_data)
+    
 
 class ActivityImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityImage
-        fields = ['id', 'activity', 'upload_image']
+        fields = '__all__' 
 
 class ChatRoomSerializer(serializers.ModelSerializer):
     participants = serializers.SlugRelatedField(
@@ -167,91 +188,77 @@ class ChatRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
         return attrs
 
+class BusinessHourSerializer(serializers.Serializer):
+    day = serializers.ChoiceField(
+        choices=[
+            ('Sunday', 'Sunday'), ('Monday', 'Monday'), ('Tuesday', 'Tuesday'),
+            ('Wednesday', 'Wednesday'), ('Thursday', 'Thursday'),
+            ('Friday', 'Friday'), ('Saturday', 'Saturday')
+        ]
+    )
+    start_time = serializers.TimeField()
+    end_time = serializers.TimeField()
+
+    def validate(self, data):
+        if data['start_time'] >= data['end_time']:
+            raise serializers.ValidationError("End time must be after start time.")
+        return data
+
 class VendorKYCSerializer(serializers.ModelSerializer):
+    profile_pic = serializers.ImageField(required=False, allow_null=True)
     upload_business_related_documents = serializers.FileField(required=False, allow_null=True)
     business_related_photos = serializers.ImageField(required=False, allow_null=True)
     same_as_personal_phone_number = serializers.BooleanField(write_only=True, required=False, default=False)
     same_as_personal_email_id = serializers.BooleanField(write_only=True, required=False, default=False)
-    phone_number = serializers.CharField(required=False, allow_blank=True)
-    business_email_id = serializers.EmailField(required=False, allow_blank=True)
+    business_hours = BusinessHourSerializer(many=True)
 
     class Meta:
         model = VendorKYC
         fields = [
-            'vendor_id', 'full_name', 'phone_number', 'business_email_id', 
-            'business_establishment_year', 'business_description', 
-            'upload_business_related_documents', 'business_related_photos', 
-            'same_as_personal_phone_number', 'same_as_personal_email_id'
+            'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 'business_email_id',
+            'business_establishment_year', 'business_description',
+            'upload_business_related_documents', 'business_related_photos',
+            'same_as_personal_phone_number', 'same_as_personal_email_id',
+            'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
+            'item_name', 'chosen_item_category', 'item_description', 'item_price', 'business_hours'
         ]
         read_only_fields = ['full_name']
 
-    def validate(self, data):
-        user = self.context['request'].user
+    def validate_business_hours(self, value):
+        days_of_week = set(day[0] for day in BusinessHourSerializer().fields['day'].choices)
+        provided_days = set(hour['day'] for hour in value)
 
-        if data.get('same_as_personal_phone_number'):
-            data['phone_number'] = user.phone_number or ""
-        if data.get('same_as_personal_email_id'):
-            data['business_email_id'] = user.email or ""
+        if not days_of_week.issubset(provided_days):
+            missing_days = days_of_week - provided_days
+            raise serializers.ValidationError(f"Missing days of the week: {', '.join(missing_days)}")
 
-        if data.get('same_as_personal_phone_number') and not user.phone_number:
-            raise serializers.ValidationError({"phone_number": "User's personal phone number is not available."})
-        if data.get('same_as_personal_email_id') and not user.email:
-            raise serializers.ValidationError({"business_email_id": "User's personal email is not available."})
-
-        return data
+        return value
 
     def create(self, validated_data):
         user = self.context['request'].user
-
         if validated_data.pop('same_as_personal_phone_number', False):
             validated_data['phone_number'] = user.phone_number
-
         if validated_data.pop('same_as_personal_email_id', False):
             validated_data['business_email_id'] = user.email
 
-        validated_data['full_name'] = user.name
+        business_hours_data = validated_data.pop('business_hours')
+        vendor_kyc = VendorKYC.objects.create(**validated_data)
 
-        return super().create(validated_data)
+        for hour in business_hours_data:
+            vendor_kyc.business_hours.create(**hour)
+
+        return vendor_kyc
 
     def update(self, instance, validated_data):
-        user = self.context['request'].user
-
         if validated_data.pop('same_as_personal_phone_number', False):
-            validated_data['phone_number'] = user.phone_number
-
+            validated_data['phone_number'] = instance.user.phone_number
         if validated_data.pop('same_as_personal_email_id', False):
-            validated_data['business_email_id'] = user.email
+            validated_data['business_email_id'] = instance.user.email
 
-        validated_data['full_name'] = user.name
+        business_hours_data = validated_data.pop('business_hours', None)
+        if business_hours_data:
+            instance.business_hours.all().delete()
+            for hour in business_hours_data:
+                instance.business_hours.create(**hour)
 
         return super().update(instance, validated_data)
-
-class BankDetailsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BankDetails
-        fields = ['vendor_kyc', 'account_number', 'retype_account_number', 'bank_name', 'ifsc_code']
-        extra_kwargs = {
-            'retype_account_number': {'write_only': True}
-        }
-
-    def validate(self, attrs):
-        if attrs.get('account_number') != attrs.get('retype_account_number'):
-            raise serializers.ValidationError({"retype_account_number": "Account number fields didn't match."})
-        return attrs
-
-    def create(self, validated_data):
-        validated_data.pop('retype_account_number')
-        return super().create(validated_data)
-
-class ServicesProvideSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ServicesProvide
-        fields = '__all__'
-        
-class ChooseBusinessHoursSerializer(serializers.ModelSerializer):
-    start_time = serializers.TimeField(format='%I:%M %p', input_formats=['%I:%M %p', '%H:%M'])
-    end_time = serializers.TimeField(format='%I:%M %p', input_formats=['%I:%M %p', '%H:%M'])
-
-    class Meta:
-        model = ChooseBusinessHours
-        fields = ['vendor_kyc', 'day', 'start_time', 'end_time']

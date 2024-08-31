@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
-    CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage, 
-    ChatRequest, VendorKYC, BankDetails, ServicesProvide, ChooseBusinessHours
+    CustomUser, Activity, ChatRoom, ChatMessage,
+    ChatRequest, VendorKYC, ActivityImage
 )
 
 # Custom User Admin
@@ -11,7 +11,7 @@ class CustomUserAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
         ('Personal info', {'fields': ('id', 'name', 'email', 'phone_number', 'date_of_birth', 'gender')}),
-        ('Permissions', {'fields': ('is_staff', 'is_active', 'otp_verified')}),
+        ('Permissions', {'fields': ('is_staff', 'is_active', 'otp_verified', 'is_superuser')}),
     )
     readonly_fields = ('id',)
     search_fields = ('username', 'email', 'phone_number')
@@ -24,8 +24,8 @@ admin.site.register(CustomUser, CustomUserAdmin)
 @admin.register(Activity)
 class ActivityAdmin(admin.ModelAdmin):
     list_display = [
-        'activity_id', 'created_by_display', 'activity_title', 
-        'activity_type', 'user_participation', 'max_participations_display', 
+        'activity_id', 'created_by_display', 'activity_title',
+        'activity_type', 'user_participation', 'max_participations_display',
         'start_date', 'end_date', 'start_time', 'end_time', 'infinite_time', 'created_at'
     ]
     readonly_fields = ['activity_id', 'created_by']
@@ -38,18 +38,6 @@ class ActivityAdmin(admin.ModelAdmin):
     def max_participations_display(self, obj):
         return obj.maximum_participants if obj.user_participation else 0
     max_participations_display.short_description = 'Max Participations'
-
-# Activity Image Admin
-@admin.register(ActivityImage)
-class ActivityImageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'activity', 'upload_image', 'user_display')
-    search_fields = ('activity__activity_title',)
-    list_filter = ('activity__activity_type',)
-    readonly_fields = ('id',)
-
-    def user_display(self, obj):
-        return obj.activity.created_by.username if obj.activity and obj.activity.created_by else 'N/A'
-    user_display.short_description = 'User'
 
 # ChatRoom Admin
 @admin.register(ChatRoom)
@@ -79,7 +67,7 @@ class ChatMessageAdmin(admin.ModelAdmin):
 @admin.register(ChatRequest)
 class ChatRequestAdmin(admin.ModelAdmin):
     list_display = (
-        'activity_display', 'from_user_display', 'to_user_display', 
+        'activity_display', 'from_user_display', 'to_user_display',
         'is_accepted', 'is_rejected', 'interested'
     )
     readonly_fields = ('activity_display', 'from_user_display', 'to_user_display')
@@ -102,39 +90,33 @@ class ChatRequestAdmin(admin.ModelAdmin):
 @admin.register(VendorKYC)
 class VendorKYCAdmin(admin.ModelAdmin):
     list_display = (
-        'vendor_id', 'user', 'full_name', 'phone_number', 'business_email_id', 
-        'business_establishment_year', 'business_description', 
-        'upload_business_related_documents', 'business_related_photos', 
-        'same_as_personal_phone_number', 'same_as_personal_email_id'
+        'vendor_id', 'user', 'full_name', 'phone_number', 'business_email_id',
+        'business_establishment_year', 'business_description',
+        'upload_business_related_documents', 'business_related_photos',
+        'same_as_personal_phone_number', 'same_as_personal_email_id', 'profile_pic',
+        'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
+        'item_name', 'chosen_item_category', 'item_description', 'item_price',
+        'formatted_business_hours'
     )
-    search_fields = ('full_name', 'phone_number', 'business_email_id')
+    search_fields = (
+        'full_name', 'phone_number', 'business_email_id',
+        'bank_account_number', 'bank_name', 'item_name', 'item_description'
+    )
     readonly_fields = ('vendor_id',)
 
-# BankDetails Admin
-@admin.register(BankDetails)
-class BankDetailsAdmin(admin.ModelAdmin):
-    list_display = ('id', 'vendor_kyc', 'account_number', 'retype_account_number', 'bank_name', 'ifsc_code')
-    search_fields = ('vendor_kyc__full_name', 'account_number', 'bank_name', 'ifsc_code')
-    readonly_fields = ('id',)
+    def formatted_business_hours(self, obj):
+        hours = obj.business_hours  # Assuming business_hours is a list of strings
+        if not hours:
+            return 'N/A'
+        
+        formatted_hours = []
+        for entry in hours:
+            formatted_hours.append(entry)  # Each entry should already be in the desired format
+        return "\n".join(formatted_hours)
+    formatted_business_hours.short_description = 'Business Hours'
 
-# ServicesProvide Admin
-@admin.register(ServicesProvide)
-class ServicesProvideAdmin(admin.ModelAdmin):
-    list_display = ('item_name', 'chosen_item_category', 'item_description', 'item_price')
-    search_fields = ('item_name', 'item_description')
-    list_filter = ('chosen_item_category',)
-
-# ChooseBusinessHours Admin
-@admin.register(ChooseBusinessHours)
-class ChooseBusinessHoursAdmin(admin.ModelAdmin):
-    list_display = ('vendor_kyc', 'day', 'formatted_start_time', 'formatted_end_time')
-    list_filter = ('day',)
-    search_fields = ('vendor_kyc__user__username',)
-
-    def formatted_start_time(self, obj):
-        return obj.start_time.strftime('%I:%M %p')
-    formatted_start_time.short_description = 'Start Time (AM/PM)'
-
-    def formatted_end_time(self, obj):
-        return obj.end_time.strftime('%I:%M %p')
-    formatted_end_time.short_description = 'End Time (AM/PM)'
+# ActivityImage Admin
+@admin.register(ActivityImage)
+class ActivityImageAdmin(admin.ModelAdmin):
+    list_display = ('image', 'activity')
+    readonly_fields = ('image', 'activity')
