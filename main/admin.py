@@ -18,6 +18,16 @@ class CustomUserAdmin(admin.ModelAdmin):
     ordering = ('username',)
     filter_horizontal = ()
 
+    def get_readonly_fields(self, request, obj=None):
+        if obj:  # Editing an existing user
+            return self.readonly_fields + ('password',)
+        return self.readonly_fields
+
+    def save_model(self, request, obj, form, change):
+        if not change:  # Creating a new user
+            obj.set_password(obj.password)  # Set the password using Django's password hashing
+        super().save_model(request, obj, form, change)
+
 admin.site.register(CustomUser, CustomUserAdmin)
 
 # Activity Admin

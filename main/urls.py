@@ -15,10 +15,10 @@ from .views import (
 
 urlpatterns = [
     # User Management
-    path('register/', RegisterView.as_view(), name='register'),
+    path('register/', RegisterView.as_view(), name='register'),  # Updated registration endpoint
     path('verify-otp/', OTPVerifyView.as_view(), name='verify-otp'),
     path('login/', LoginView.as_view(), name='login'),
-    path('custom-user/create/', CustomUserCreateView.as_view(), name='custom-user-create'),
+    path('custom-user/create/', CustomUserCreateView.as_view(), name='custom-user-create'),  # Optional, if needed
 
     # Activities
     path('activities/', ActivityListCreateView.as_view(), name='activity-list-create'),

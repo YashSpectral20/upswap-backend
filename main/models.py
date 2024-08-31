@@ -7,15 +7,12 @@ from django.utils.translation import gettext_lazy as _
 
 # Custom User Models
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email, username, name, phone_number, date_of_birth, gender, password=None):
+    def create_user(self, email, name, phone_number, date_of_birth, gender, password=None):
         if not email:
             raise ValueError('The Email field is required')
-        if not username:
-            raise ValueError('The Username field is required')
 
         user = self.model(
             email=self.normalize_email(email),
-            username=username,
             name=name,
             phone_number=phone_number,
             date_of_birth=date_of_birth,
@@ -25,10 +22,9 @@ class CustomUserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, username, name, phone_number, date_of_birth, gender, password=None):
+    def create_superuser(self, email, name, phone_number, date_of_birth, gender, password=None):
         user = self.create_user(
             email=email,
-            username=username,
             name=name,
             phone_number=phone_number,
             date_of_birth=date_of_birth,
@@ -49,7 +45,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    username = models.CharField(max_length=150, unique=True)
     email = models.EmailField(max_length=255, unique=True)
     name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=15, unique=True)
@@ -63,7 +58,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username', 'name', 'phone_number', 'date_of_birth', 'gender']
+    REQUIRED_FIELDS = ['name', 'phone_number', 'date_of_birth', 'gender']
 
     def __str__(self):
         return self.email
@@ -205,53 +200,47 @@ class VendorKYC(models.Model):
     business_establishment_year = models.IntegerField()
     business_description = models.TextField()
     upload_business_related_documents = models.FileField(upload_to='business_documents/', null=True, blank=True)
-    business_related_photos = models.ImageField(upload_to='business_photos/', null=True, blank=True)
-    same_as_personal_phone_number = models.BooleanField(default=False)
-    same_as_personal_email_id = models.BooleanField(default=False)
-    bank_account_number = models.CharField(max_length=50, default='', blank=True)
-    retype_bank_account_number = models.CharField(max_length=50, default='', blank=True)
-    bank_name = models.CharField(max_length=100, default='', blank=True)
-    ifsc_code = models.CharField(max_length=20, default='', blank=True)
+
+    # Bank Details
+    bank_account_number = models.CharField(max_length=20)
+    retype_bank_account_number = models.CharField(max_length=20)
+    bank_name = models.CharField(max_length=255)
+    ifsc_code = models.CharField(max_length=11)
+
+    # Services Provide
     item_name = models.CharField(max_length=255)
-    is_approved = models.BooleanField(default=False)
-    
-    class ItemCategory(models.TextChoices):
-        RESTAURANTS = 'Restaurants'
-        CONSULTANTS = 'Consultants'
-        ESTATE_AGENTS = 'Estate Agents'
-        RENT_HIRE = 'Rent & Hire'
-        DENTIST = 'Dentist'
-        PERSONAL_CARE = 'Personal Care'
-        FOOD = 'Food'
-        BAKERY = 'Bakery'
-        GROCERIES = 'Groceries'
-        OTHERS = 'Others'
-    
-    chosen_item_category = models.CharField(max_length=50, choices=ItemCategory.choices)
+    chosen_item_category = models.CharField(max_length=50, choices=[
+        ('Restaurants', 'Restaurants'),
+        ('Consultants', 'Consultants'),
+        ('Estate Agents', 'Estate Agents'),
+        ('Rent & Hire', 'Rent & Hire'),
+        ('Dentist', 'Dentist'),
+        ('Personal Care', 'Personal Care'),
+        ('Food', 'Food'),
+        ('Bakery', 'Bakery'),
+        ('Groceries', 'Groceries'),
+        ('Others', 'Others')
+    ])
     item_description = models.TextField()
-    item_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    item_price = models.DecimalField(max_digits=10, decimal_places=2)
 
-    class DayChoices(models.TextChoices):
-        SUNDAY = 'Sunday'
-        MONDAY = 'Monday'
-        TUESDAY = 'Tuesday'
-        WEDNESDAY = 'Wednesday'
-        THURSDAY = 'Thursday'
-        FRIDAY = 'Friday'
-        SATURDAY = 'Saturday'
-    
-    business_hours = models.TextField(default='{}', help_text="Business hours stored as JSON string.")
-
-    def get_business_hours(self):
-        import json
-        try:
-            return json.loads(self.business_hours)
-        except json.JSONDecodeError:
-            return {}
-
-    def set_business_hours(self, hours):
-        import json
-        self.business_hours = json.dumps(hours)
+    # Business Hours
+    business_hours = models.JSONField(default=list, blank=True)
+    is_approved = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"{self.user.email} - {self.full_name}"
+        return f"Vendor KYC for {self.user.email}"
+
+    class Meta:
+        verbose_name = "Vendor KYC"
+        verbose_name_plural = "Vendor KYCs"
+
+# Signals to auto-create OTP
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=CustomUser)
+def create_user_otp(sender, instance, created, **kwargs):
+    if created:
+        OTP.objects.create(user=instance)
+

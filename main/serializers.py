@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from django.contrib.auth import authenticate, get_user_model
-from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
@@ -10,12 +9,12 @@ from .models import (
 User = get_user_model()
 
 class CustomUserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    password = serializers.CharField(write_only=True, required=True)
     confirm_password = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = User
-        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password']
+        fields = ['id', 'name', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
@@ -38,8 +37,8 @@ class LoginSerializer(serializers.Serializer):
         password = attrs.get('password')
 
         if email and password:
-            user = authenticate(request=self.context.get('request'), username=email, password=password)
-            if not user:
+            user = User.objects.filter(email=email).first()
+            if not user or not user.check_password(password):
                 raise serializers.ValidationError("Invalid login credentials.")
         else:
             raise serializers.ValidationError("Must include 'email' and 'password'.")
@@ -142,7 +141,6 @@ class ActivitySerializer(serializers.ModelSerializer):
             instance.save()
 
         return super().update(instance, validated_data)
-    
 
 class ActivityImageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -152,7 +150,7 @@ class ActivityImageSerializer(serializers.ModelSerializer):
 class ChatRoomSerializer(serializers.ModelSerializer):
     participants = serializers.SlugRelatedField(
         many=True,
-        slug_field='username',
+        slug_field='email',
         queryset=CustomUser.objects.all()
     )
 
@@ -230,35 +228,38 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 
         if not days_of_week.issubset(provided_days):
             missing_days = days_of_week - provided_days
-            raise serializers.ValidationError(f"Missing days of the week: {', '.join(missing_days)}")
+            raise serializers.ValidationError(f"Business hours must be provided for all days. Missing: {', '.join(missing_days)}")
 
         return value
 
-    def create(self, validated_data):
-        user = self.context['request'].user
-        if validated_data.pop('same_as_personal_phone_number', False):
-            validated_data['phone_number'] = user.phone_number
-        if validated_data.pop('same_as_personal_email_id', False):
-            validated_data['business_email_id'] = user.email
+    def validate(self, data):
+        if data.get('same_as_personal_phone_number'):
+            data['phone_number'] = data['user'].phone_number
+        if data.get('same_as_personal_email_id'):
+            data['business_email_id'] = data['user'].email
+        return data
 
-        business_hours_data = validated_data.pop('business_hours')
+    def create(self, validated_data):
+        business_hours_data = validated_data.pop('business_hours', [])
         vendor_kyc = VendorKYC.objects.create(**validated_data)
 
-        for hour in business_hours_data:
-            vendor_kyc.business_hours.create(**hour)
+        # Convert to string representation for storing in the model's business_hours field
+        vendor_kyc.business_hours = [
+            f"{hour_data['day']} {hour_data['start_time'].strftime('%I:%M %p')} - {hour_data['end_time'].strftime('%I:%M %p')}"
+            for hour_data in business_hours_data
+        ]
+        vendor_kyc.save()
 
         return vendor_kyc
 
     def update(self, instance, validated_data):
-        if validated_data.pop('same_as_personal_phone_number', False):
-            validated_data['phone_number'] = instance.user.phone_number
-        if validated_data.pop('same_as_personal_email_id', False):
-            validated_data['business_email_id'] = instance.user.email
+        business_hours_data = validated_data.pop('business_hours', [])
 
-        business_hours_data = validated_data.pop('business_hours', None)
-        if business_hours_data:
-            instance.business_hours.all().delete()
-            for hour in business_hours_data:
-                instance.business_hours.create(**hour)
+        # Update the business hours field
+        instance.business_hours = [
+            f"{hour_data['day']} {hour_data['start_time'].strftime('%I:%M %p')} - {hour_data['end_time'].strftime('%I:%M %p')}"
+            for hour_data in business_hours_data
+        ]
+        instance.save()
 
         return super().update(instance, validated_data)
