@@ -6,7 +6,7 @@ from .models import (
 
 # Custom User Admin
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ('id', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified')
+    list_display = ('id', 'email', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified')
     list_filter = ('is_staff', 'is_active', 'otp_verified')
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
@@ -15,7 +15,7 @@ class CustomUserAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('id',)
     search_fields = ('username', 'email', 'phone_number')
-    ordering = ('username',)
+    ordering = ('email',)
     filter_horizontal = ()
 
 admin.site.register(CustomUser, CustomUserAdmin)
@@ -92,8 +92,7 @@ class VendorKYCAdmin(admin.ModelAdmin):
     list_display = (
         'vendor_id', 'user', 'full_name', 'phone_number', 'business_email_id',
         'business_establishment_year', 'business_description',
-        'upload_business_related_documents', 'business_related_photos',
-        'same_as_personal_phone_number', 'same_as_personal_email_id', 'profile_pic',
+        'upload_business_related_documents', 'profile_pic',  # Ensure these fields exist in the model
         'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
         'item_name', 'chosen_item_category', 'item_description', 'item_price',
         'formatted_business_hours'
