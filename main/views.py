@@ -20,21 +20,11 @@ class CustomUserCreateView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = CustomUserSerializer
 
-    def perform_create(self, serializer):
-        # Remove password confirmation from serializer data before creating user
-        validated_data = serializer.validated_data
-        validated_data.pop('confirm_password', None)
-        serializer.save()
-
 class RegisterView(generics.CreateAPIView):
     queryset = CustomUser.objects.all()
     serializer_class = CustomUserSerializer
-
-    def perform_create(self, serializer):
-        # Remove password confirmation from serializer data before creating user
-        validated_data = serializer.validated_data
-        validated_data.pop('confirm_password', None)
-        serializer.save()
+    # Remove the permission_classes attribute to make the endpoint accessible without authentication
+    # permission_classes = [IsAuthenticated]
 
 class OTPVerifyView(generics.GenericAPIView):
     serializer_class = OTPSerializer
