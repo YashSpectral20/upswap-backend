@@ -1,160 +1,314 @@
-from rest_framework import generics, status
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.shortcuts import get_object_or_404
-from django.core.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.utils import timezone
-from .models import (
-    CustomUser, OTP, Activity, ChatRequest, ChatRoom,
-    ChatMessage, VendorKYC, ActivityImage
-)
+from rest_framework import status, generics
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework.authtoken.models import Token  # Import Token from rest_framework
+from .models import CustomUser, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage
 from .serializers import (
-    CustomUserSerializer, LoginSerializer, OTPSerializer, ActivitySerializer,
-    ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer,
-    VendorKYCSerializer, ActivityImageSerializer
+    CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
+    ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
+    ChatRequestSerializer, VendorKYCSerializer
 )
+from .utils import generate_otp 
+from django.contrib.auth import authenticate
 
-# Custom User Views
-class CustomUserCreateView(generics.CreateAPIView):
-    queryset = CustomUser.objects.all()
-    serializer_class = CustomUserSerializer
-    permission_classes = [AllowAny]
 
 class RegisterView(generics.CreateAPIView):
-    queryset = CustomUser.objects.all()
     serializer_class = CustomUserSerializer
-    permission_classes = [AllowAny]
-    # Remove the permission_classes attribute to make the endpoint accessible without authentication
-    # permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # No authentication required for registration
 
-class OTPVerifyView(generics.GenericAPIView):
-    serializer_class = OTPSerializer
-
-    def post(self, request, *args, **kwargs):
+    def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        otp = serializer.validated_data['otp']
-        user = serializer.validated_data['user']
+        user = serializer.save()
 
-        otp_instance = OTP.objects.filter(user=user, otp=otp).first()
-        if not otp_instance or otp_instance.is_expired():
-            return Response({'detail': 'Invalid or expired OTP'}, status=status.HTTP_400_BAD_REQUEST)
+        # Generate and send OTP
+        generate_otp(user)  # Call the OTP generation function
 
-        user.otp_verified = True
-        user.save()
-        return Response({'detail': 'OTP verified successfully'}, status=status.HTTP_200_OK)
-
-class LoginView(generics.GenericAPIView):
-    serializer_class = LoginSerializer
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data
+        # Generate JWT token for the user
         refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
         return Response({
+            'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        })
+            'access': access_token,
+            'message': 'OTP sent successfully for login'
+        }, status=status.HTTP_201_CREATED)
 
-# Activity Views
-class ActivityListCreateView(generics.ListCreateAPIView):
-    queryset = Activity.objects.all()
-    serializer_class = ActivitySerializer
+class LoginView(APIView):
+    """
+    API view for user login.
+    """
+    def post(self, request, *args, **kwargs):
+        serializer = LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data['user']
+            access_token = serializer.validated_data['access']
+            refresh_token = serializer.validated_data['refresh']
+            return Response({
+                'refresh': refresh_token,
+                'access': access_token,
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class VerifyOTPView(APIView):
+    """
+    API view for OTP verification.
+    """
+    authentication_classes = [JWTAuthentication]  # Use JWT Authentication
     permission_classes = [IsAuthenticated]
-
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
-
-class ActivityRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Activity.objects.all()
-    serializer_class = ActivitySerializer
-    permission_classes = [IsAuthenticated]
-
-# Chat Request Views
-class ChatRequestCreateView(generics.CreateAPIView):
-    queryset = ChatRequest.objects.all()
-    serializer_class = ChatRequestSerializer
-    permission_classes = [IsAuthenticated]
-
-class ChatRequestRetrieveView(generics.RetrieveAPIView):
-    queryset = ChatRequest.objects.all()
-    serializer_class = ChatRequestSerializer
-    permission_classes = [IsAuthenticated]
-
-class AcceptChatRequestView(generics.GenericAPIView):
-    serializer_class = ChatRequestSerializer
 
     def post(self, request, *args, **kwargs):
-        chat_request = get_object_or_404(ChatRequest, pk=kwargs['pk'])
-        if chat_request.is_accepted or chat_request.is_rejected:
-            raise ValidationError("This chat request has already been accepted or rejected.")
-        chat_request.is_accepted = True
+        serializer = VerifyOTPSerializer(data=request.data)
+        if serializer.is_valid():
+            otp_verified = serializer.verify_otp()
+            if otp_verified:
+                return Response({'message': 'OTP verified successfully'}, status=status.HTTP_200_OK)
+            return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class CustomUserCreateView(APIView):
+    """
+    API view for creating a new CustomUser (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = CustomUserSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'CustomUser created successfully'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ActivityListCreateView(APIView):
+    """
+    API view for listing and creating activities (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        activities = Activity.objects.all()
+        serializer = ActivitySerializer(activities, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        serializer = ActivitySerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Activity created successfully'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ActivityRetrieveUpdateDestroyView(APIView):
+    """
+    API view for retrieving, updating, and deleting a specific activity (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk, *args, **kwargs):
+        activity = Activity.objects.get(pk=pk)
+        serializer = ActivitySerializer(activity)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request, pk, *args, **kwargs):
+        activity = Activity.objects.get(pk=pk)
+        serializer = ActivitySerializer(activity, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Activity updated successfully'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk, *args, **kwargs):
+        activity = Activity.objects.get(pk=pk)
+        activity.delete()
+        return Response({'message': 'Activity deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+class ActivityImageCreateView(APIView):
+    """
+    API view for creating activity images (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ActivityImageSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Activity image created successfully'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChatRoomCreateView(APIView):
+    """
+    API view for creating chat rooms (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ChatRoomSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Chat room created successfully'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChatRoomRetrieveView(APIView):
+    """
+    API view for retrieving a specific chat room (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk, *args, **kwargs):
+        chat_room = ChatRoom.objects.get(pk=pk)
+        serializer = ChatRoomSerializer(chat_room)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ChatMessageCreateView(APIView):
+    """
+    API view for creating chat messages (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ChatMessageSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Chat message created successfully'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChatMessageListView(APIView):
+    """
+    API view for listing chat messages in a specific chat room (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, chat_room_id, *args, **kwargs):
+        chat_messages = ChatMessage.objects.filter(chat_room_id=chat_room_id)
+        serializer = ChatMessageSerializer(chat_messages, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ChatRequestCreateView(APIView):
+    """
+    API view for creating chat requests (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = ChatRequestSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Chat request created successfully'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChatRequestRetrieveView(APIView):
+    """
+    API view for retrieving a specific chat request (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk, *args, **kwargs):
+        chat_request = ChatRequest.objects.get(pk=pk)
+        serializer = ChatRequestSerializer(chat_request)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class AcceptChatRequestView(APIView):
+    """
+    API view for accepting a chat request (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk, *args, **kwargs):
+        chat_request = ChatRequest.objects.get(pk=pk)
+        chat_request.status = 'accepted'
         chat_request.save()
-        return Response({'detail': 'Chat request accepted'}, status=status.HTTP_200_OK)
+        return Response({'message': 'Chat request accepted'}, status=status.HTTP_200_OK)
 
-# Chat Room Views
-class ChatRoomCreateView(generics.CreateAPIView):
-    queryset = ChatRoom.objects.all()
-    serializer_class = ChatRoomSerializer
+
+class VendorKYCCreateView(APIView):
+    """
+    API view for creating vendor KYC (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
     permission_classes = [IsAuthenticated]
 
-class ChatRoomRetrieveView(generics.RetrieveAPIView):
-    queryset = ChatRoom.objects.all()
-    serializer_class = ChatRoomSerializer
+    def post(self, request, *args, **kwargs):
+        serializer = VendorKYCSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Vendor KYC created successfully'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class VendorKYCListView(APIView):
+    """
+    API view for listing vendor KYC (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
     permission_classes = [IsAuthenticated]
 
-# Chat Message Views
-class ChatMessageCreateView(generics.CreateAPIView):
-    queryset = ChatMessage.objects.all()
-    serializer_class = ChatMessageSerializer
+    def get(self, request, *args, **kwargs):
+        vendor_kyc = VendorKYC.objects.all()
+        serializer = VendorKYCSerializer(vendor_kyc, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class VendorKYCDetailView(APIView):
+    """
+    API view for retrieving a specific vendor KYC (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
     permission_classes = [IsAuthenticated]
 
-class ChatMessageListView(generics.ListAPIView):
-    serializer_class = ChatMessageSerializer
+    def get(self, request, pk, *args, **kwargs):
+        vendor_kyc = VendorKYC.objects.get(pk=pk)
+        serializer = VendorKYCSerializer(vendor_kyc)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class VendorKYCUpdateView(APIView):
+    """
+    API view for updating a specific vendor KYC (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
-        chat_room_id = self.kwargs['chat_room_id']
-        return ChatMessage.objects.filter(chat_room__id=chat_room_id)
+    def put(self, request, pk, *args, **kwargs):
+        vendor_kyc = VendorKYC.objects.get(pk=pk)
+        serializer = VendorKYCSerializer(vendor_kyc, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Vendor KYC updated successfully'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# Vendor KYC Views
-class VendorKYCCreateView(generics.CreateAPIView):
-    queryset = VendorKYC.objects.all()
-    serializer_class = VendorKYCSerializer
+
+class VendorKYCDeleteView(APIView):
+    """
+    API view for deleting a specific vendor KYC (requires authentication).
+    """
+    authentication_classes = [JWTAuthentication] 
     permission_classes = [IsAuthenticated]
 
-    def perform_create(self, serializer):
-        user = self.request.user
-        if serializer.validated_data.get('same_as_personal_phone_number', False):
-            serializer.validated_data['phone_number'] = user.phone_number
-
-        if serializer.validated_data.get('same_as_personal_email_id', False):
-            serializer.validated_data['business_email_id'] = user.email
-
-        serializer.save(user=user)
-
-class VendorKYCListView(generics.ListAPIView):
-    queryset = VendorKYC.objects.all()
-    serializer_class = VendorKYCSerializer
-    permission_classes = [IsAuthenticated]
-
-class VendorKYCDetailView(generics.RetrieveAPIView):
-    queryset = VendorKYC.objects.all()
-    serializer_class = VendorKYCSerializer
-    permission_classes = [IsAuthenticated]
-
-class VendorKYCUpdateView(generics.UpdateAPIView):
-    queryset = VendorKYC.objects.all()
-    serializer_class = VendorKYCSerializer
-    permission_classes = [IsAuthenticated]
-
-class VendorKYCDeleteView(generics.DestroyAPIView):
-    queryset = VendorKYC.objects.all()
-    serializer_class = VendorKYCSerializer
-    permission_classes = [IsAuthenticated]
-
-class ActivityImageCreateView(generics.CreateAPIView):
-    queryset = ActivityImage.objects.all()
-    serializer_class = ActivityImageSerializer
+    def delete(self, request, pk, *args, **kwargs):
+        vendor_kyc = VendorKYC.objects.get(pk=pk)
+        vendor_kyc.delete()
+        return Response({'message': 'Vendor KYC deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
