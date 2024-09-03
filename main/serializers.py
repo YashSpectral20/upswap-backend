@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
@@ -14,11 +14,11 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'name', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password']
+        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password']
 
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
-            raise serializers.ValidationError({"confirm_password": "Password fields didn't match."})
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
         return attrs
 
     def create(self, validated_data):
@@ -27,39 +27,54 @@ class CustomUserSerializer(serializers.ModelSerializer):
         user.set_password(validated_data['password'])
         user.save()
         return user
-
+    
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+    access = serializers.CharField(read_only=True)
+    refresh = serializers.CharField(read_only=True)
 
-    def validate(self, attrs):
-        email = attrs.get('email')
-        password = attrs.get('password')
+    def validate(self, data):
+        email = data.get('email')
+        password = data.get('password')
 
-        if email and password:
-            user = User.objects.filter(email=email).first()
-            if not user or not user.check_password(password):
-                raise serializers.ValidationError("Invalid login credentials.")
-        else:
-            raise serializers.ValidationError("Must include 'email' and 'password'.")
+        user = authenticate(email=email, password=password)
 
-        return user
+        if user is None:
+            raise serializers.ValidationError('Invalid email or password.')
 
-class OTPSerializer(serializers.Serializer):
+        # Create tokens
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        return {
+            'user': user,
+            'access': access_token,
+            'refresh': str(refresh),
+        }
+        
+class VerifyOTPSerializer(serializers.Serializer):
     otp = serializers.CharField(max_length=6)
 
-    def validate(self, attrs):
-        otp = attrs.get('otp')
+    def validate_otp(self, value):
         try:
-            otp_instance = OTP.objects.get(otp=otp)
+            otp_record = OTP.objects.get(otp=value)
         except OTP.DoesNotExist:
-            raise serializers.ValidationError({"otp": "Invalid OTP"})
+            raise serializers.ValidationError("Invalid OTP")
 
-        if otp_instance.is_expired():
-            raise serializers.ValidationError({"otp": "OTP has expired"})
+        if otp_record.is_expired():
+            raise serializers.ValidationError("OTP has expired")
 
-        attrs['user'] = otp_instance.user
-        return attrs
+        self.context['otp_record'] = otp_record
+        return value
+
+    def verify_otp(self):
+        otp_record = self.context.get('otp_record')
+        if otp_record:
+            otp_record.delete()  # Delete the OTP once verified
+            return True
+        return False
 
 class ActivitySerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()  # Use a method field to get the image URLs
@@ -145,7 +160,7 @@ class ActivitySerializer(serializers.ModelSerializer):
 class ActivityImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityImage
-        fields = '__all__' 
+        fields = '__all__'
 
 class ChatRoomSerializer(serializers.ModelSerializer):
     participants = serializers.SlugRelatedField(
@@ -218,25 +233,18 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             'upload_business_related_documents', 'business_related_photos',
             'same_as_personal_phone_number', 'same_as_personal_email_id',
             'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
-            'item_name', 'chosen_item_category', 'item_description', 'item_price', 'business_hours'
+            'item_name', 'chosen_item_category', 'item_description', 'item_price', 'business_hours', 'is_approved'
         ]
-        read_only_fields = ['full_name']
-
-    def validate_business_hours(self, value):
-        days_of_week = set(day[0] for day in BusinessHourSerializer().fields['day'].choices)
-        provided_days = set(hour['day'] for hour in value)
-
-        if not days_of_week.issubset(provided_days):
-            missing_days = days_of_week - provided_days
-            raise serializers.ValidationError(f"Business hours must be provided for all days. Missing: {', '.join(missing_days)}")
-
-        return value
 
     def validate(self, data):
-        if data.get('same_as_personal_phone_number'):
-            data['phone_number'] = data['user'].phone_number
-        if data.get('same_as_personal_email_id'):
-            data['business_email_id'] = data['user'].email
+        if data['phone_number'] and data.get('same_as_personal_phone_number'):
+            if data['phone_number'] != data.get('user').phone_number:
+                raise serializers.ValidationError({"phone_number": "Phone number does not match with user's phone number."})
+        
+        if data['business_email_id'] and data.get('same_as_personal_email_id'):
+            if data['business_email_id'] != data.get('user').email:
+                raise serializers.ValidationError({"business_email_id": "Email ID does not match with user's email ID."})
+
         return data
 
     def create(self, validated_data):
