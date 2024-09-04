@@ -25,9 +25,9 @@ class RegisterView(generics.CreateAPIView):
         user = serializer.save()
 
         # Generate and send OTP
-        generate_otp(user)  # Call the OTP generation function
+        generate_otp(user)
 
-        # Generate JWT token for the user
+        # Generate JWT tokens for the user
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
@@ -35,41 +35,29 @@ class RegisterView(generics.CreateAPIView):
             'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
             'access': access_token,
-            'message': 'OTP sent successfully for login'
+            'message': 'OTP sent successfully for login. Use the access token for OTP verification.'
         }, status=status.HTTP_201_CREATED)
 
-class LoginView(APIView):
-    """
-    API view for user login.
-    """
-    def post(self, request, *args, **kwargs):
-        serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data['user']
-            access_token = serializer.validated_data['access']
-            refresh_token = serializer.validated_data['refresh']
-            return Response({
-                'refresh': refresh_token,
-                'access': access_token,
-            }, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-class VerifyOTPView(APIView):
-    """
-    API view for OTP verification.
-    """
-    authentication_classes = [JWTAuthentication]  # Use JWT Authentication
+class VerifyOTPView(generics.GenericAPIView):
+    serializer_class = VerifyOTPSerializer
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        serializer = VerifyOTPSerializer(data=request.data)
-        if serializer.is_valid():
-            otp_verified = serializer.verify_otp()
-            if otp_verified:
-                return Response({'message': 'OTP verified successfully'}, status=status.HTTP_200_OK)
-            return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
+
+class LoginView(generics.GenericAPIView):
+    serializer_class = LoginSerializer
+    permission_classes = [AllowAny]  # Allows user to attempt login without token
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+    
 class CustomUserCreateView(APIView):
     """
     API view for creating a new CustomUser (requires authentication).
