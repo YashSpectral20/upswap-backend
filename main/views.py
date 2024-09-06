@@ -63,17 +63,10 @@ class LoginView(generics.GenericAPIView):
         access_token = str(refresh.access_token)
 
         return Response({
-            'id': user.id,
-            'name': user.get_full_name(),  # Using the updated get_full_name method
-            'email': user.email,
-            'phone_number': user.phone_number,
-            'date_of_birth': user.date_of_birth,
-            'gender': user.gender,
-            'country_code': user.country_code,
-            'dial_code': user.dial_code,
-            'country': user.country,
+            'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
-            'access': access_token
+            'access': access_token,
+            'message': 'User logged in sucessfully.'
         }, status=status.HTTP_200_OK)
     
 class CustomUserCreateView(APIView):
