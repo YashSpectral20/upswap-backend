@@ -11,10 +11,13 @@ User = get_user_model()
 
 class CustomUserSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
+    country_code = serializers.CharField(required=False, allow_blank=True)
+    dial_code = serializers.CharField(required=False, allow_blank=True)
+    country = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password']
+        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password', 'country_code', 'dial_code', 'country']
         extra_kwargs = {'password': {'write_only': True}}
 
     def validate(self, data):
@@ -54,6 +57,7 @@ class VerifyOTPSerializer(serializers.Serializer):
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
+        # Return the tokens and a success message
         return {
             'refresh': str(refresh),
             'access': access_token,
@@ -62,24 +66,16 @@ class VerifyOTPSerializer(serializers.Serializer):
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
-    
+    password = serializers.CharField()
+
     def validate(self, data):
         email = data.get('email')
         password = data.get('password')
-
         user = authenticate(email=email, password=password)
-        if not user:
-            raise serializers.ValidationError("Invalid email or password.")
-        if not OTP.objects.filter(user=user, is_verified=True).exists():
-            raise serializers.ValidationError("User must verify OTP before logging in.")
-
-        # Generate a new token for the user
-        refresh = RefreshToken.for_user(user)
-        return {
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }
+        if user is None:
+            raise serializers.ValidationError('Invalid credentials')
+        data['user'] = user
+        return data
     
 class ActivitySerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()  # Use a method field to get the image URLs

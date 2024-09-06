@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
 
 # Custom User Models
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email, username, name, phone_number, date_of_birth, gender, password=None):
+    def create_user(self, email, username, name, phone_number, date_of_birth, gender, country_code='', dial_code='', country='', password=None):
         if not email:
             raise ValueError('The Email field is required')
         if not username:
@@ -20,12 +20,15 @@ class CustomUserManager(BaseUserManager):
             phone_number=phone_number,
             date_of_birth=date_of_birth,
             gender=gender,
+            country_code=country_code,
+            dial_code=dial_code,
+            country=country,
         )
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, username, name, phone_number, date_of_birth, gender, password=None):
+    def create_superuser(self, email, username, name, phone_number, date_of_birth, gender, country_code='', dial_code='', country='', password=None):
         user = self.create_user(
             email=email,
             username=username,
@@ -33,6 +36,9 @@ class CustomUserManager(BaseUserManager):
             phone_number=phone_number,
             date_of_birth=date_of_birth,
             gender=gender,
+            country_code=country_code,
+            dial_code=dial_code,
+            country=country,
             password=password,
         )
         user.is_superuser = True
@@ -53,6 +59,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(max_length=255, unique=True)
     name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=15, unique=True)
+    country_code = models.CharField(max_length=10, blank=True, default='')
+    dial_code = models.CharField(max_length=10, blank=True, default='')
+    country = models.CharField(max_length=100, blank=True, default='')
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
     is_active = models.BooleanField(default=True)
@@ -68,6 +77,12 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.email
 
+    def get_full_name(self):
+        return self.name
+
+    def get_short_name(self):
+        return self.username
+    
 class OTP(models.Model):
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
     otp = models.CharField(max_length=6)

@@ -13,7 +13,7 @@ from .serializers import (
 )
 from .utils import generate_otp 
 from django.contrib.auth import authenticate
-
+from rest_framework.exceptions import AuthenticationFailed
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = CustomUserSerializer
@@ -49,14 +49,32 @@ class VerifyOTPView(generics.GenericAPIView):
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
+
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
-    permission_classes = [AllowAny]  # Allows user to attempt login without token
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        user = serializer.validated_data['user']  # Ensure 'user' is correctly accessed
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        return Response({
+            'id': user.id,
+            'name': user.get_full_name(),  # Using the updated get_full_name method
+            'email': user.email,
+            'phone_number': user.phone_number,
+            'date_of_birth': user.date_of_birth,
+            'gender': user.gender,
+            'country_code': user.country_code,
+            'dial_code': user.dial_code,
+            'country': user.country,
+            'refresh': str(refresh),
+            'access': access_token
+        }, status=status.HTTP_200_OK)
     
 class CustomUserCreateView(APIView):
     """
