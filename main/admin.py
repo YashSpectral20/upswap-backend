@@ -31,11 +31,16 @@ class ActivityAdmin(admin.ModelAdmin):
     ]
     readonly_fields = ['activity_id', 'created_by']
     list_filter = ('activity_type', 'infinite_time')
-    # Remove formfield_overrides if not needed
-    # list_editable = ('user_participation',)  # Optional: Allow inline editing in the list view
+
+    def save_model(self, request, obj, form, change):
+        # Set created_by to the current user if it's not already set
+        if not obj.created_by_id:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
     def created_by_display(self, obj):
-        return obj.created_by.username if obj.created_by else 'N/A'
+        # Safely handle the case where created_by might be None
+        return obj.created_by.username if obj.created_by_id else 'N/A'
     created_by_display.short_description = 'Created By'
 
     def max_participations_display(self, obj):
