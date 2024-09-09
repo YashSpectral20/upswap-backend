@@ -20,18 +20,19 @@ class CustomUserAdmin(admin.ModelAdmin):
 
 admin.site.register(CustomUser, CustomUserAdmin)
 
-
-
 # Activity Admin
 @admin.register(Activity)
 class ActivityAdmin(admin.ModelAdmin):
     list_display = [
         'activity_id', 'created_by_display', 'activity_title',
         'activity_type', 'user_participation', 'max_participations_display',
-        'start_date', 'end_date', 'start_time', 'end_time', 'infinite_time', 'created_at'
+        'start_date', 'end_date', 'start_time', 'end_time', 'infinite_time', 'set_current_datetime',
+        'location', 'latitude', 'longitude', 'created_at'
     ]
     readonly_fields = ['activity_id', 'created_by']
     list_filter = ('activity_type', 'infinite_time')
+    # Remove formfield_overrides if not needed
+    # list_editable = ('user_participation',)  # Optional: Allow inline editing in the list view
 
     def created_by_display(self, obj):
         return obj.created_by.username if obj.created_by else 'N/A'
@@ -94,10 +95,10 @@ class VendorKYCAdmin(admin.ModelAdmin):
     list_display = (
         'vendor_id', 'user', 'full_name', 'phone_number', 'business_email_id',
         'business_establishment_year', 'business_description',
-        'upload_business_related_documents', 'profile_pic',  # Ensure these fields exist in the model
+        'upload_business_related_documents', 'profile_pic',
         'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
         'item_name', 'chosen_item_category', 'item_description', 'item_price',
-        'formatted_business_hours'
+        'formatted_business_hours', 'is_approved'
     )
     search_fields = (
         'full_name', 'phone_number', 'business_email_id',
@@ -106,13 +107,13 @@ class VendorKYCAdmin(admin.ModelAdmin):
     readonly_fields = ('vendor_id',)
 
     def formatted_business_hours(self, obj):
-        hours = obj.business_hours  # Assuming business_hours is a list of strings
+        hours = obj.business_hours
         if not hours:
             return 'N/A'
         
         formatted_hours = []
         for entry in hours:
-            formatted_hours.append(entry)  # Each entry should already be in the desired format
+            formatted_hours.append(entry)
         return "\n".join(formatted_hours)
     formatted_business_hours.short_description = 'Business Hours'
 

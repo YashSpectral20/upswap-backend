@@ -1,9 +1,12 @@
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 import uuid
+#from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
+
+#User = get_user_model()
 
 # Custom User Models
 class CustomUserManager(BaseUserManager):
@@ -68,7 +71,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
     otp_verified = models.BooleanField(default=False)
-
+    
     objects = CustomUserManager()
 
     USERNAME_FIELD = 'email'
@@ -112,7 +115,7 @@ class Activity(models.Model):
         OTHERS = 'OTHERS', 'Others'
 
     activity_type = models.CharField(max_length=50, choices=ActivityType.choices)
-    user_participation = models.BooleanField(default=False)
+    user_participation = models.BooleanField(default=True)
     maximum_participants = models.IntegerField(default=0)
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
@@ -120,12 +123,17 @@ class Activity(models.Model):
     end_time = models.TimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    infinite_time = models.BooleanField(default=False)
+    infinite_time = models.BooleanField(default=True)
+    set_current_datetime = models.BooleanField(default=False)
     images = models.JSONField(default=list, blank=True, help_text="List of image paths")
+    location = models.CharField(max_length=255, blank=True, null=True, help_text="Optional description of the location")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True, help_text="Latitude of the location")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True, help_text="Longitude of the location")
 
     def clean(self):
         now = timezone.now().date()
 
+        # Check date validations
         if self.start_date and self.start_date < now:
             raise ValidationError("Start date cannot be in the past.")
         if self.end_date and self.end_date < now:
@@ -134,19 +142,38 @@ class Activity(models.Model):
             raise ValidationError("End date must be after start date.")
         if self.start_time and self.end_time and self.end_time < self.start_time:
             raise ValidationError("End time must be after start time.")
+        
+        # Check maximum participants limit
+        if self.maximum_participants > 1000:
+            raise ValidationError("Maximum participants cannot exceed 1000.")
 
     def save(self, *args, **kwargs):
-        if not self.user_participation:
-            self.maximum_participants = 0
+        # Apply the special condition logic
         if self.infinite_time:
-            future_date = timezone.now() + timezone.timedelta(days=365 * 100)  # 100 years from now
+            future_date = timezone.now() + timezone.timedelta(days=365 * 999)  # 999 years from now
             self.end_date = future_date.date()
             self.end_time = future_date.time()
+        if self.set_current_datetime:
+            current_datetime = timezone.now()
+            self.start_date = current_datetime.date()
+            self.start_time = current_datetime.time()
+        if self.infinite_time and self.set_current_datetime:
+            self.start_date = None
+            self.start_time = None
+            self.end_date = None
+            self.end_time = None
+
+        if not self.user_participation:
+            self.maximum_participants = 0
+
+        # Perform the clean validation before saving
+        self.clean()
+        
         super().save(*args, **kwargs)
 
     def __str__(self):
         return self.activity_title
-
+    
 class ActivityImage(models.Model):
     image_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name='activity_images')
