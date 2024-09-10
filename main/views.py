@@ -1,7 +1,10 @@
+from django.db.models import F, Func, FloatField
+from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework import status, generics
+from rest_framework import status, generics,  permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.generics import CreateAPIView, ListAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
@@ -83,53 +86,54 @@ class CustomUserCreateView(APIView):
             return Response({'message': 'CustomUser created successfully'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-class ActivityListCreateView(APIView):
-    """
-    API view for listing and creating activities (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
+class ActivityCreateView(CreateAPIView):
+    queryset = Activity.objects.all()
+    serializer_class = ActivitySerializer
     permission_classes = [IsAuthenticated]
+    
 
-    def get(self, request, *args, **kwargs):
-        activities = Activity.objects.all()
-        serializer = ActivitySerializer(activities, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+class Distance(Func):
+    function = "6371 * 2 * ATAN2(SQRT(%s), SQRT(1 - %s))"
+    template = "%(function)s"
 
-    def post(self, request, *args, **kwargs):
-        serializer = ActivitySerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Activity created successfully'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def __init__(self, user_lat, user_lon, *args, **kwargs):
+        super().__init__(
+            Cos(Radians(user_lat)) * Cos(Radians(F("latitude"))) * Cos(
+                Radians(F("longitude")) - Radians(user_lon)
+            )
+            + Sin(Radians(user_lat)) * Sin(Radians(F("latitude"))),
+            output_field=FloatField(),
+            **kwargs,
+        )
 
+class ActivityListView(ListAPIView):
+    serializer_class = ActivitySerializer
 
-class ActivityRetrieveUpdateDestroyView(APIView):
-    """
-    API view for retrieving, updating, and deleting a specific activity (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
+    def get_queryset(self):
+        queryset = Activity.objects.all()
+        user_lat = self.request.query_params.get('user_lat', None)
+        user_lon = self.request.query_params.get('user_lon', None)
+        max_distance_km = 15  # Maximum distance in kilometers
 
-    def get(self, request, pk, *args, **kwargs):
-        activity = Activity.objects.get(pk=pk)
-        serializer = ActivitySerializer(activity)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        if user_lat is not None and user_lon is not None:
+            user_lat = float(user_lat)
+            user_lon = float(user_lon)
 
-    def put(self, request, pk, *args, **kwargs):
-        activity = Activity.objects.get(pk=pk)
-        serializer = ActivitySerializer(activity, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Activity updated successfully'}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Cast latitude and longitude fields to FloatField for proper calculation
+            queryset = queryset.annotate(
+                latitude_float=Cast('latitude', FloatField()),
+                longitude_float=Cast('longitude', FloatField())
+            ).annotate(
+                distance=6371 * 2 * ACos(
+                    Cos(Radians(user_lat)) * Cos(Radians(F('latitude_float'))) * Cos(
+                        Radians(F('longitude_float')) - Radians(user_lon)
+                    ) +
+                    Sin(Radians(user_lat)) * Sin(Radians(F('latitude_float')))
+                )
+            ).filter(distance__lte=max_distance_km)
 
-    def delete(self, request, pk, *args, **kwargs):
-        activity = Activity.objects.get(pk=pk)
-        activity.delete()
-        return Response({'message': 'Activity deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
-
-
+        return queryset
+    
 class ActivityImageCreateView(APIView):
     """
     API view for creating activity images (requires authentication).

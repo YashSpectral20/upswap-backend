@@ -4,13 +4,12 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from .views import (
-    RegisterView, VerifyOTPView, LoginView,
-    ActivityListCreateView, ActivityRetrieveUpdateDestroyView,
-    ChatRoomCreateView, ChatRoomRetrieveView,
+    RegisterView, VerifyOTPView, LoginView, CustomUserCreateView,
+    ActivityCreateView, ActivityListView,
+    ActivityImageCreateView, ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCListView, VendorKYCDetailView, VendorKYCUpdateView, VendorKYCDeleteView,
-    ActivityImageCreateView
 )
 
 urlpatterns = [
@@ -20,15 +19,16 @@ urlpatterns = [
     # OTP Verification (Requires Authentication)
     path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
 
-    # Login (Requires Authentication)
+    # Login (No Authentication Required)
     path('login/', LoginView.as_view(), name='login'),
     
     # Custom User Creation (Requires Authentication)
-    #path('custom-user/create/', CustomUserCreateView.as_view(), name='custom-user-create'),
+    path('custom-user/create/', CustomUserCreateView.as_view(), name='custom-user-create'),
 
     # Activities (Requires Authentication)
-    path('activities/', ActivityListCreateView.as_view(), name='activity-list-create'),
-    path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
+    path('activities/create/', ActivityCreateView.as_view(), name='activity-create'),
+    path('activities/', ActivityListView.as_view(), name='activity-list'),
+    #path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
 
     # Activity Images (Requires Authentication)
     path('activity-images/', ActivityImageCreateView.as_view(), name='activity-image-create'),
