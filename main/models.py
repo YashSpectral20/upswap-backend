@@ -185,15 +185,13 @@ class ActivityImage(models.Model):
         # Update the Activity model with the new image path
         image_path = self.image.url.replace('/media/', '')  # Remove media URL base
         activity = self.activity
-        existing_image_paths = activity.images
-        if image_path not in existing_image_paths:
-            existing_image_paths.append(image_path)
-            activity.images = existing_image_paths
+        if image_path not in activity.images:
+            activity.images.append(image_path)
             activity.save()
 
     def __str__(self):
         return f"Image for {self.activity.activity_title}"
-
+    
 class ChatRequest(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
     from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)

@@ -185,7 +185,8 @@ class ActivitySerializer(serializers.ModelSerializer):
 class ActivityImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityImage
-        fields = '__all__'
+        fields = ['image_id', 'activity', 'image', 'uploaded_at']
+        read_only_fields = ['uploaded_at']
 
 class ChatRoomSerializer(serializers.ModelSerializer):
     participants = serializers.SlugRelatedField(

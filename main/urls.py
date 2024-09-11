@@ -6,7 +6,7 @@ from rest_framework_simplejwt.views import (
 from .views import (
     RegisterView, VerifyOTPView, LoginView, CustomUserCreateView,
     ActivityCreateView, ActivityListView,
-    ActivityImageCreateView, ChatRoomCreateView, ChatRoomRetrieveView,
+    ActivityImageListCreateView, ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCListView, VendorKYCDetailView, VendorKYCUpdateView, VendorKYCDeleteView,
@@ -31,7 +31,7 @@ urlpatterns = [
     #path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
 
     # Activity Images (Requires Authentication)
-    path('activity-images/', ActivityImageCreateView.as_view(), name='activity-image-create'),
+    path('activity-images/', ActivityImageListCreateView.as_view(), name='activity-image-create'),
 
     # Chat Rooms (Requires Authentication)
     path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),

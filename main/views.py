@@ -20,7 +20,7 @@ from rest_framework.exceptions import AuthenticationFailed
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = CustomUserSerializer
-    permission_classes = [AllowAny]  # No authentication required for registration
+    permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -108,7 +108,8 @@ class Distance(Func):
 
 class ActivityListView(ListAPIView):
     serializer_class = ActivitySerializer
-
+    permission_classes = [IsAuthenticated]
+    
     def get_queryset(self):
         queryset = Activity.objects.all()
         user_lat = self.request.query_params.get('user_lat', None)
@@ -134,19 +135,16 @@ class ActivityListView(ListAPIView):
 
         return queryset
     
-class ActivityImageCreateView(APIView):
-    """
-    API view for creating activity images (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
+class ActivityImageListCreateView(generics.ListCreateAPIView):
+    queryset = ActivityImage.objects.all()
+    serializer_class = ActivityImageSerializer
+    permission_classes = [IsAuthenticated]  # Use [AllowAny] if you don't want any restrictions for the DRF UI
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-        serializer = ActivityImageSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Activity image created successfully'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return self.create(request, *args, **kwargs)
 
 
 class ChatRoomCreateView(APIView):
