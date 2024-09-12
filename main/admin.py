@@ -114,7 +114,7 @@ class BusinessPhotoInline(admin.TabularInline):
 
 @admin.register(VendorKYC)
 class VendorKYCAdmin(admin.ModelAdmin):
-    list_display = ['full_name', 'phone_number', 'business_email_id', 'business_establishment_year']
+    list_display = ['vendor_id', 'full_name', 'phone_number', 'business_email_id', 'business_establishment_year']
     search_fields = ['full_name', 'business_email_id', 'phone_number']
     list_filter = ['chosen_item_category', 'state', 'city']
     inlines = [BusinessDocumentInline, BusinessPhotoInline]

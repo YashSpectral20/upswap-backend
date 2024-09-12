@@ -65,8 +65,10 @@ class LoginView(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']  # Ensure 'user' is correctly accessed
+        if not serializer.is_valid():
+            return Response({"message": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
@@ -74,8 +76,9 @@ class LoginView(generics.GenericAPIView):
             'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
             'access': access_token,
-            'message': 'User logged in sucessfully.'
+            'message': 'User logged in successfully.'
         }, status=status.HTTP_200_OK)
+
     
 class CustomUserCreateView(APIView):
     """
