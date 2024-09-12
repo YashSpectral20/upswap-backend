@@ -66,7 +66,7 @@ class LoginView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            return Response({"message": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"message" : "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
         user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
