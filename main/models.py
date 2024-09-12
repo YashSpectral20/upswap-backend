@@ -1,10 +1,12 @@
+import os
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 import uuid
-#from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
+from django.contrib.postgres.fields import JSONField
+#from django.contrib.auth import get_user_model
 
 #User = get_user_model()
 
@@ -73,6 +75,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     otp_verified = models.BooleanField(default=False)
     
     objects = CustomUserManager()
+    
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'name', 'phone_number', 'date_of_birth', 'gender']
@@ -236,26 +239,51 @@ class ChatMessage(models.Model):
     def __str__(self):
         return f"Message {self.id} from {self.sender.email}"
 
+
+def validate_file_type(file):
+    """
+    Validator to ensure that uploaded files are either images or specific document types.
+    """
+    ext = os.path.splitext(file.name)[1]
+    valid_extensions = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx']
+
+    if not ext.lower() in valid_extensions:
+        raise ValidationError(f'Unsupported file extension. Allowed extensions are: {", ".join(valid_extensions)}')
+
 class VendorKYC(models.Model):
     vendor_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     profile_pic = models.ImageField(upload_to='vendor_profile_pics/', null=True, blank=True)
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, blank = True, default = '')
     full_name = models.CharField(max_length=255)
-    phone_number = models.CharField(max_length=15)
-    business_email_id = models.EmailField(max_length=255)
+    phone_number = models.CharField(max_length=15, blank=True)
+    business_email_id = models.EmailField(max_length=255, blank=True)
     business_establishment_year = models.IntegerField()
     business_description = models.TextField()
     upload_business_related_documents = models.FileField(upload_to='business_documents/', null=True, blank=True)
     business_related_photos = models.ImageField(upload_to='business_photos/', null=True, blank=True)
     same_as_personal_phone_number = models.BooleanField(default=False)
     same_as_personal_email_id = models.BooleanField(default=False)
+
+    business_related_documents = models.JSONField(default=list, blank=True, help_text="List of document paths")
+    business_related_photos = models.JSONField(default=list, blank=True, help_text="List of photo paths")
+
+    # Address Information
+    house_no_building_name = models.CharField(max_length=255, blank=True)
+    road_name_area_colony = models.CharField(max_length=255, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    pincode = models.CharField(max_length=10, blank=True)
+
+    # Bank Details
     bank_account_number = models.CharField(max_length=50, default='', blank=True)
     retype_bank_account_number = models.CharField(max_length=50, default='', blank=True)
     bank_name = models.CharField(max_length=100, default='', blank=True)
     ifsc_code = models.CharField(max_length=20, default='', blank=True)
+
+    # Services
     item_name = models.CharField(max_length=255)
-    is_approved = models.BooleanField(default=False)
-    
+
     class ItemCategory(models.TextChoices):
         RESTAURANTS = 'Restaurants'
         CONSULTANTS = 'Consultants'
@@ -267,32 +295,135 @@ class VendorKYC(models.Model):
         BAKERY = 'Bakery'
         GROCERIES = 'Groceries'
         OTHERS = 'Others'
-    
+
     chosen_item_category = models.CharField(max_length=50, choices=ItemCategory.choices)
     item_description = models.TextField()
     item_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
-    class DayChoices(models.TextChoices):
-        SUNDAY = 'Sunday'
-        MONDAY = 'Monday'
-        TUESDAY = 'Tuesday'
-        WEDNESDAY = 'Wednesday'
-        THURSDAY = 'Thursday'
-        FRIDAY = 'Friday'
-        SATURDAY = 'Saturday'
+    # Business Hours
+    business_hours = models.JSONField(null=True, blank=True, default=dict)
     
-    business_hours = models.TextField(default='{}', help_text="Business hours stored as JSON string.")
+    is_approved = models.BooleanField(default=False)
 
-    def get_business_hours(self):
-        import json
-        try:
-            return json.loads(self.business_hours)
-        except json.JSONDecodeError:
-            return {}
+    def clean(self):
+        # Validate that business_hours is a valid JSON list
+        if not isinstance(self.business_hours, list):
+            raise ValidationError("Business hours must be a list.")
+        for entry in self.business_hours:
+            if not isinstance(entry, str):
+                raise ValidationError("Each business hour entry must be a string.")
 
-    def set_business_hours(self, hours):
-        import json
-        self.business_hours = json.dumps(hours)
+    def save(self, *args, **kwargs):
+        # Populate phone_number and business_email_id if flags are set
+        if self.same_as_personal_phone_number:
+            if self.user:
+                self.phone_number = self.user.phone_number
+
+        if self.same_as_personal_email_id:
+            if self.user:
+                self.business_email_id = self.user.email
+
+        if not self.phone_number and not self.same_as_personal_phone_number:
+            raise ValidationError("Phone number cannot be blank.")
+
+        if not self.business_email_id and not self.same_as_personal_email_id:
+            raise ValidationError("Business email ID cannot be blank.")
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.user.email} - {self.full_name}"
+        return self.full_name
+
+class BusinessDocument(models.Model):
+    vendor_kyc = models.ForeignKey(VendorKYC, related_name='business_documents', on_delete=models.CASCADE)
+    document = models.FileField(upload_to='business_documents/', validators=[validate_file_type])
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Update the VendorKYC model with the new document path
+        document_path = self.document.url.replace('/media/', '')  # Remove media URL base
+        vendor_kyc = self.vendor_kyc
+        if document_path not in vendor_kyc.business_related_documents:
+            vendor_kyc.business_related_documents.append(document_path)
+            vendor_kyc.save()
+
+    def __str__(self):
+        return f"Document for {self.vendor_kyc.full_name}"
+
+class BusinessPhoto(models.Model):
+    vendor_kyc = models.ForeignKey(VendorKYC, related_name='business_photos', on_delete=models.CASCADE)
+    photo = models.ImageField(upload_to='business_photos/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Update the VendorKYC model with the new photo path
+        photo_path = self.photo.url.replace('/media/', '')  # Remove media URL base
+        vendor_kyc = self.vendor_kyc
+        if photo_path not in vendor_kyc.business_related_photos:
+            vendor_kyc.business_related_photos.append(photo_path)
+            vendor_kyc.save()
+
+    def __str__(self):
+        return f"Photo for {self.vendor_kyc.full_name}"
+    
+class DealImage(models.Model):
+    """Model for storing images related to deals."""
+    image = models.ImageField(upload_to='deal_images/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Image {self.id} for Deal"
+
+    def get_image_path(self):
+        """Return the image path as a string."""
+        return self.image.url if self.image else ''
+
+
+class CreateDeal(models.Model):
+    vendor_kyc = models.OneToOneField('VendorKYC', on_delete=models.CASCADE, related_name='deal')
+
+    deal_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    deal_title = models.CharField(max_length=255)
+    deal_description = models.TextField()
+
+    select_service = models.CharField(max_length=255, blank=True)
+    upload_images = models.TextField(blank=True)
+
+    deal_valid_till_start_time = models.DateTimeField(blank=True, null=True)
+    deal_valid_till_end_time = models.DateTimeField(blank=True, null=True)
+    start_now = models.BooleanField(default=False)
+
+    actual_price = models.DecimalField(max_digits=10, decimal_places=2)
+    deal_price = models.DecimalField(max_digits=10, decimal_places=2)
+    available_deals = models.PositiveIntegerField()
+
+    location_house_no = models.CharField(max_length=255, blank=True)
+    location_road_name = models.CharField(max_length=255, blank=True)
+    location_country = models.CharField(max_length=255, blank=True)
+    location_state = models.CharField(max_length=255, blank=True)
+    location_city = models.CharField(max_length=255, blank=True)
+    location_pincode = models.CharField(max_length=20, blank=True)
+
+    def save(self, *args, **kwargs):
+        # Ensure that the vendor's KYC is approved before allowing the creation of a deal
+        if not self.vendor_kyc.is_approved:
+            raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
+
+        # Automatically populate fields from VendorKYC
+        if self.vendor_kyc:
+            self.select_service = self.vendor_kyc.item_name
+            self.actual_price = self.vendor_kyc.item_price or self.actual_price
+            self.location_house_no = self.vendor_kyc.house_no_building_name or ''
+            self.location_road_name = self.vendor_kyc.road_name_area_colony or ''
+            self.location_country = self.vendor_kyc.country or ''
+            self.location_state = self.vendor_kyc.state or ''
+            self.location_city = self.vendor_kyc.city or ''
+            self.location_pincode = self.vendor_kyc.pincode or ''
+
+        # Set the start time if 'start_now' is True
+        if self.start_now:
+            self.deal_valid_till_start_time = timezone.now()
+
+        super().save(*args, **kwargs)

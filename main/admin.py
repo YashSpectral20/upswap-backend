@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
-    CustomUser, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, ActivityImage, OTP
+    CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage,
+    ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal
 )
 
 # Custom User Admin
@@ -94,36 +94,47 @@ class ChatRequestAdmin(admin.ModelAdmin):
         return obj.to_user.username if obj.to_user else 'N/A'
     to_user_display.short_description = 'To User'
 
-# VendorKYC Admin
-@admin.register(VendorKYC)
-class VendorKYCAdmin(admin.ModelAdmin):
-    list_display = (
-        'vendor_id', 'user', 'full_name', 'phone_number', 'business_email_id',
-        'business_establishment_year', 'business_description',
-        'upload_business_related_documents', 'profile_pic',
-        'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
-        'item_name', 'chosen_item_category', 'item_description', 'item_price',
-        'formatted_business_hours', 'is_approved'
-    )
-    search_fields = (
-        'full_name', 'phone_number', 'business_email_id',
-        'bank_account_number', 'bank_name', 'item_name', 'item_description'
-    )
-    readonly_fields = ('vendor_id',)
-
-    def formatted_business_hours(self, obj):
-        hours = obj.business_hours
-        if not hours:
-            return 'N/A'
-        
-        formatted_hours = []
-        for entry in hours:
-            formatted_hours.append(entry)
-        return "\n".join(formatted_hours)
-    formatted_business_hours.short_description = 'Business Hours'
 
 # ActivityImage Admin
 @admin.register(ActivityImage)
 class ActivityImageAdmin(admin.ModelAdmin):
     list_display = ('image', 'activity')
     readonly_fields = ('image', 'activity')
+
+
+class BusinessDocumentInline(admin.TabularInline):
+    model = BusinessDocument
+    extra = 1
+
+
+class BusinessPhotoInline(admin.TabularInline):
+    model = BusinessPhoto
+    extra = 1
+
+
+@admin.register(VendorKYC)
+class VendorKYCAdmin(admin.ModelAdmin):
+    list_display = ['full_name', 'phone_number', 'business_email_id', 'business_establishment_year']
+    search_fields = ['full_name', 'business_email_id', 'phone_number']
+    list_filter = ['chosen_item_category', 'state', 'city']
+    inlines = [BusinessDocumentInline, BusinessPhotoInline]
+
+    def formatted_business_hours(self, obj):
+        return "\n".join([f"{day}: {hours}" for day, hours in obj.business_hours.items()])
+
+
+@admin.register(BusinessDocument)
+class BusinessDocumentAdmin(admin.ModelAdmin):
+    list_display = ['vendor_kyc', 'document', 'uploaded_at']
+    search_fields = ['vendor_kyc__full_name']
+
+
+@admin.register(BusinessPhoto)
+class BusinessPhotoAdmin(admin.ModelAdmin):
+    list_display = ['vendor_kyc', 'photo', 'uploaded_at']
+    search_fields = ['vendor_kyc__full_name']
+    
+@admin.register(CreateDeal)
+class CreateDealAdmin(admin.ModelAdmin):
+    list_display = ['deal_uuid', 'deal_title', 'vendor_kyc', 'actual_price', 'deal_price', 'deal_valid_till_start_time', 'deal_valid_till_end_time', 'vendor_kyc']
+    search_fields = ['deal_title', 'vendor_kyc__full_name']

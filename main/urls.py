@@ -9,7 +9,8 @@ from .views import (
     ActivityImageListCreateView, ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
-    VendorKYCCreateView, VendorKYCListView, VendorKYCDetailView, VendorKYCUpdateView, VendorKYCDeleteView,
+    VendorKYCListCreateView, VendorKYCDetailView, 
+    BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealListView
 )
 
 urlpatterns = [
@@ -47,11 +48,22 @@ urlpatterns = [
     path('chat-requests/<uuid:pk>/accept/', AcceptChatRequestView.as_view(), name='accept-chat-request'),
 
     # Vendor KYC (Requires Authentication)
-    path('vendor-kyc/', VendorKYCListView.as_view(), name='vendor-kyc-list'),
-    path('vendor-kyc/create/', VendorKYCCreateView.as_view(), name='vendor-kyc-create'),
+    path('vendor-kyc/create/', VendorKYCListCreateView.as_view(), name='vendor-kyc-list-create'),
     path('vendor-kyc/<uuid:pk>/', VendorKYCDetailView.as_view(), name='vendor-kyc-detail'),
-    path('vendor-kyc/<uuid:pk>/update/', VendorKYCUpdateView.as_view(), name='vendor-kyc-update'),
-    path('vendor-kyc/<uuid:pk>/delete/', VendorKYCDeleteView.as_view(), name='vendor-kyc-delete'),
+
+    # Business Document endpoints
+    path('vendor-kyc/documents/', BusinessDocumentListCreateView.as_view(), name='business-document-list-create'),
+
+    # Business Photo endpoints
+    path('vendor-kyc/photos/', BusinessPhotoListCreateView.as_view(), name='business-photo-list-create'),
+    
+    path('deals/create/', CreateDealView.as_view(), name='create-deal'),
+
+    # URL for listing all deals
+    path('deals/', CreateDealListView.as_view(), name='list-deals'),
+
+    # URL for uploading images to a specific deal
+    path('deals/<int:deal_id>/upload-images/', DealImageUploadView.as_view(), name='upload-deal-images'),
 
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

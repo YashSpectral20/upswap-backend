@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, ActivityImage
+    ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage
 )
 
 User = get_user_model()
@@ -227,56 +227,109 @@ class ChatRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
         return attrs
 
-class BusinessHourSerializer(serializers.Serializer):
-    day = serializers.ChoiceField(
-        choices=[
-            ('Sunday', 'Sunday'), ('Monday', 'Monday'), ('Tuesday', 'Tuesday'),
-            ('Wednesday', 'Wednesday'), ('Thursday', 'Thursday'),
-            ('Friday', 'Friday'), ('Saturday', 'Saturday')
-        ]
-    )
-    start_time = serializers.TimeField()
-    end_time = serializers.TimeField()
-
-    def validate(self, data):
-        if data['start_time'] >= data['end_time']:
-            raise serializers.ValidationError("End time must be after start time.")
-        return data
-
 class VendorKYCSerializer(serializers.ModelSerializer):
-    profile_pic = serializers.ImageField(required=False, allow_null=True)
-    upload_business_related_documents = serializers.FileField(required=False, allow_null=True)
-    business_related_photos = serializers.ImageField(required=False, allow_null=True)
-    same_as_personal_phone_number = serializers.BooleanField(write_only=True, required=False, default=False)
-    same_as_personal_email_id = serializers.BooleanField(write_only=True, required=False, default=False)
-    business_hours = BusinessHourSerializer(many=True)
+    business_related_documents = serializers.ListField(
+        child=serializers.CharField(), required=False, allow_empty=True
+    )
+    business_related_photos = serializers.ListField(
+        child=serializers.CharField(), required=False, allow_empty=True
+    )
 
     class Meta:
         model = VendorKYC
         fields = [
-            'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 'business_email_id',
-            'business_establishment_year', 'business_description',
-            'same_as_personal_phone_number', 'same_as_personal_email_id',
-            'item_name', 'chosen_item_category', 'item_description', 'item_price', 
-            'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
-            'business_hours', 'upload_business_related_documents', 'business_related_photos', 'is_approved'
+            'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 'business_email_id', 
+            'business_establishment_year', 'business_description', 'upload_business_related_documents',
+            'business_related_photos', 'same_as_personal_phone_number', 'same_as_personal_email_id',
+            'business_related_documents', 'business_related_photos', 'house_no_building_name', 
+            'road_name_area_colony', 'country', 'state', 'city', 'pincode', 'bank_account_number', 
+            'retype_bank_account_number', 'bank_name', 'ifsc_code', 'item_name', 'chosen_item_category', 
+            'item_description', 'item_price', 'business_hours'
         ]
-        read_only_fields = ['vendor_id', 'is_approved']
 
     def validate(self, data):
-        if data.get('same_as_personal_phone_number'):
-            data['phone_number'] = data['user'].phone_number
-        if data.get('same_as_personal_email_id'):
-            data['business_email_id'] = data['user'].email
+        if data.get('same_as_personal_phone_number') and not data.get('user'):
+            raise ValidationError("User must be provided if 'same_as_personal_phone_number' is True.")
+
+        if data.get('same_as_personal_email_id') and not data.get('user'):
+            raise ValidationError("User must be provided if 'same_as_personal_email_id' is True.")
+        return data
+
+
+class BusinessDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BusinessDocument
+        fields = ['id', 'vendor_kyc', 'document', 'uploaded_at']
+
+
+class BusinessPhotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BusinessPhoto
+        fields = ['id', 'vendor_kyc', 'photo', 'uploaded_at']
+        
+class DealImageSerializer(serializers.ModelSerializer):
+    """Serializer for the DealImage model."""
+    class Meta:
+        model = DealImage
+        fields = ['id', 'image', 'uploaded_at']
+
+
+class CreateDealSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreateDeal
+        fields = [
+            'deal_uuid', 'deal_title', 'deal_description', 'select_service', 
+            'upload_images', 'deal_valid_till_start_time', 'deal_valid_till_end_time', 
+            'start_now', 'actual_price', 'deal_price', 'available_deals', 
+            'location_house_no', 'location_road_name', 'location_country', 
+            'location_state', 'location_city', 'location_pincode', 'vendor_kyc'
+        ]
+        read_only_fields = ['deal_uuid']  # Prevent deal_uuid from being set by the client
+
+    def validate(self, data):
+        # Ensure vendor KYC is provided
+        vendor_kyc = data.get('vendor_kyc')
+        if not vendor_kyc:
+            raise serializers.ValidationError("Vendor KYC must be provided.")
+
+        # Ensure vendor's KYC is approved
+        if not vendor_kyc.is_approved:
+            raise serializers.ValidationError("Cannot create a deal because Vendor KYC is not approved.")
+
+        # Ensure the deal price is less than or equal to the actual price
+        if data.get('deal_price') and data.get('actual_price'):
+            if data['deal_price'] > data['actual_price']:
+                raise serializers.ValidationError("Deal price must be less than or equal to the actual price.")
+
+        # Validate date ranges if 'start_now' is not set
+        if not data.get('start_now') and (data.get('deal_valid_till_start_time') or data.get('deal_valid_till_end_time')):
+            if data['deal_valid_till_start_time'] >= data['deal_valid_till_end_time']:
+                raise serializers.ValidationError("Start time must be earlier than end time.")
+
         return data
 
     def create(self, validated_data):
-        business_hours_data = validated_data.pop('business_hours', [])
-        vendor_kyc = super().create(validated_data)
-        
-        # Save business hours
-        for hour_data in business_hours_data:
-            # Create or update business hours here if needed
-            pass
-        
-        return vendor_kyc
+        # Fetch the actual_price from VendorKYC
+        vendor_kyc = validated_data.get('vendor_kyc')
+        validated_data['actual_price'] = vendor_kyc.item_price
+
+        # Automatically set fields based on the VendorKYC instance
+        validated_data['select_service'] = vendor_kyc.item_name
+        validated_data['location_house_no'] = vendor_kyc.house_no_building_name or ''
+        validated_data['location_road_name'] = vendor_kyc.road_name_area_colony or ''
+        validated_data['location_country'] = vendor_kyc.country or ''
+        validated_data['location_state'] = vendor_kyc.state or ''
+        validated_data['location_city'] = vendor_kyc.city or ''
+        validated_data['location_pincode'] = vendor_kyc.pincode or ''
+
+        return super().create(validated_data)
+
+
+
+class CreateDealImageUploadSerializer(serializers.ModelSerializer):
+    """Serializer to upload images to a deal."""
+    image = serializers.ImageField()
+
+    class Meta:
+        model = DealImage
+        fields = ['image']
