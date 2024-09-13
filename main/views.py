@@ -94,10 +94,17 @@ class CustomUserCreateView(APIView):
             return Response({'message': 'CustomUser created successfully'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class ActivityCreateView(CreateAPIView):
+class ActivityCreateView(generics.CreateAPIView):
     queryset = Activity.objects.all()
     serializer_class = ActivitySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        # Set `user_participation` to True by default if not provided in the request data
+        if 'user_participation' not in serializer.validated_data:
+            serializer.validated_data['user_participation'] = True
+        serializer.save(created_by=self.request.user)
+
     
 
 class Distance(Func):

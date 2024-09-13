@@ -90,7 +90,6 @@ class ActivitySerializer(serializers.ModelSerializer):
     location = serializers.CharField(required=False, allow_blank=True)  # Add location field
     latitude = serializers.FloatField(required=False, allow_null=True)  # Add latitude field
     longitude = serializers.FloatField(required=False, allow_null=True)  # Add longitude field
-    user_participation = serializers.BooleanField(default=True)  # Set default to True
 
     class Meta:
         model = Activity
@@ -109,6 +108,9 @@ class ActivitySerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         now = timezone.now().date()
+
+        # Ensure user_participation is set to True by default
+        data['user_participation'] = data.get('user_participation', True)
 
         # Skip validation for date and time when flags are set
         set_current_datetime = data.get('set_current_datetime', False)
