@@ -8,19 +8,24 @@ from rest_framework.generics import CreateAPIView, ListAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import CustomUser, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage
+from .models import CustomUser, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage
 from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
-    ChatRequestSerializer, VendorKYCSerializer
+    ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
+    CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer
+
 )
 from .utils import generate_otp 
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = CustomUserSerializer
-    permission_classes = [AllowAny]  # No authentication required for registration
+    permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -60,8 +65,10 @@ class LoginView(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']  # Ensure 'user' is correctly accessed
+        if not serializer.is_valid():
+            return Response({"message" : "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
@@ -69,8 +76,9 @@ class LoginView(generics.GenericAPIView):
             'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
             'access': access_token,
-            'message': 'User logged in sucessfully.'
+            'message': 'User logged in successfully.'
         }, status=status.HTTP_200_OK)
+
     
 class CustomUserCreateView(APIView):
     """
@@ -86,10 +94,17 @@ class CustomUserCreateView(APIView):
             return Response({'message': 'CustomUser created successfully'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class ActivityCreateView(CreateAPIView):
+class ActivityCreateView(generics.CreateAPIView):
     queryset = Activity.objects.all()
     serializer_class = ActivitySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        # Set `user_participation` to True by default if not provided in the request data
+        if 'user_participation' not in serializer.validated_data:
+            serializer.validated_data['user_participation'] = True
+        serializer.save(created_by=self.request.user)
+
     
 
 class Distance(Func):
@@ -108,7 +123,8 @@ class Distance(Func):
 
 class ActivityListView(ListAPIView):
     serializer_class = ActivitySerializer
-
+    permission_classes = [IsAuthenticated]
+    
     def get_queryset(self):
         queryset = Activity.objects.all()
         user_lat = self.request.query_params.get('user_lat', None)
@@ -134,19 +150,16 @@ class ActivityListView(ListAPIView):
 
         return queryset
     
-class ActivityImageCreateView(APIView):
-    """
-    API view for creating activity images (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
+class ActivityImageListCreateView(generics.ListCreateAPIView):
+    queryset = ActivityImage.objects.all()
+    serializer_class = ActivityImageSerializer
+    permission_classes = [IsAuthenticated]  # Use [AllowAny] if you don't want any restrictions for the DRF UI
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
-        serializer = ActivityImageSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Activity image created successfully'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return self.create(request, *args, **kwargs)
 
 
 class ChatRoomCreateView(APIView):
@@ -247,71 +260,83 @@ class AcceptChatRequestView(APIView):
         return Response({'message': 'Chat request accepted'}, status=status.HTTP_200_OK)
 
 
-class VendorKYCCreateView(APIView):
-    """
-    API view for creating vendor KYC (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
+class VendorKYCListCreateView(generics.ListCreateAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorKYCSerializer
+    permission_classes = [IsAuthenticated]
+
+class VendorKYCDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorKYCSerializer
+    permission_classes = [IsAuthenticated]
+
+# Business Document views
+class BusinessDocumentListCreateView(generics.ListCreateAPIView):
+    queryset = BusinessDocument.objects.all()  # Make sure BusinessDocument is imported
+    serializer_class = BusinessDocumentSerializer
+    permission_classes = [IsAuthenticated]
+
+# Business Photo views
+class BusinessPhotoListCreateView(generics.ListCreateAPIView):
+    queryset = BusinessPhoto.objects.all()  # Make sure BusinessPhoto is imported
+    serializer_class = BusinessPhotoSerializer
+    permission_classes = [IsAuthenticated]
+    
+
+class CreateDealView(generics.CreateAPIView):
+    serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        serializer = VendorKYCSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Vendor KYC created successfully'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Ensure vendor's KYC is approved
+        vendor_kyc = serializer.validated_data.get('vendor_kyc')
+        if not vendor_kyc.is_approved:
+            return Response(
+                {"detail": "Cannot create a deal because Vendor KYC is not approved."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create the deal
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
+
+    def perform_create(self, serializer):
+        serializer.save()  # Require authentication
 
 
-class VendorKYCListView(APIView):
-    """
-    API view for listing vendor KYC (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
+class DealImageUploadView(APIView):
+    """API view to handle image uploads for a deal."""
+    permission_classes = [IsAuthenticated]  # Require authentication
+
+    def post(self, request, deal_id):
+        # Get the deal instance
+        try:
+            deal = CreateDeal.objects.get(id=deal_id)
+        except CreateDeal.DoesNotExist:
+            return Response({'error': 'Deal not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Handle multiple image uploads
+        images = request.FILES.getlist('images')
+        image_paths = []
+        for img in images:
+            deal_image = DealImage(image=img)
+            deal_image.save()
+            deal.add_image(deal_image)  # Add image path to deal
+            image_paths.append(deal_image.get_image_path())
+
+        return Response({'uploaded_images': image_paths}, status=status.HTTP_201_CREATED)
+
+
+class CreateDealListView(generics.ListAPIView):
+    """API view to list all deals."""
+    queryset = CreateDeal.objects.all()
+    serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        vendor_kyc = VendorKYC.objects.all()
-        serializer = VendorKYCSerializer(vendor_kyc, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class VendorKYCDetailView(APIView):
-    """
-    API view for retrieving a specific vendor KYC (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk, *args, **kwargs):
-        vendor_kyc = VendorKYC.objects.get(pk=pk)
-        serializer = VendorKYCSerializer(vendor_kyc)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class VendorKYCUpdateView(APIView):
-    """
-    API view for updating a specific vendor KYC (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
-
-    def put(self, request, pk, *args, **kwargs):
-        vendor_kyc = VendorKYC.objects.get(pk=pk)
-        serializer = VendorKYCSerializer(vendor_kyc, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Vendor KYC updated successfully'}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class VendorKYCDeleteView(APIView):
-    """
-    API view for deleting a specific vendor KYC (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
-
-    def delete(self, request, pk, *args, **kwargs):
-        vendor_kyc = VendorKYC.objects.get(pk=pk)
-        vendor_kyc.delete()
-        return Response({'message': 'Vendor KYC deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
