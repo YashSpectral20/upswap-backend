@@ -60,8 +60,8 @@ class VerifyOTPView(generics.GenericAPIView):
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    authentication_classes = []  # No authentication required for login
+    permission_classes = [AllowAny]  # Allow any user to access the login API
 
     def post(self, request, *args, **kwargs):
         # Validate login credentials
@@ -71,22 +71,24 @@ class LoginView(generics.GenericAPIView):
 
         user = serializer.validated_data['user']
 
-        # Check if OTP is verified
+        # Check if OTP has been verified
         try:
             otp_instance = OTP.objects.get(user=user)
-            if not otp_instance.is_verified:
-                return Response({"message": "OTP is not verified. Please verify your OTP first."}, status=status.HTTP_403_FORBIDDEN)
+            if not otp_instance.is_verified:  # Check if OTP is verified
+                return Response({"message": "OTP not verified. Please verify your OTP first."},
+                                status=status.HTTP_403_FORBIDDEN)
         except OTP.DoesNotExist:
-            return Response({"message": "OTP not found for this user."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "OTP not found for this user. Please register and verify OTP."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        # Generate tokens if OTP is verified
+        # OTP is verified, proceed with login
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
         return Response({
             'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
-            'access': access_token,
+            'access': access_token,  # Return access token after successful login
             'message': 'User logged in successfully.'
         }, status=status.HTTP_200_OK)
 
