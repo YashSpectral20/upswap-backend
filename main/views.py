@@ -8,7 +8,7 @@ from rest_framework.generics import CreateAPIView, ListAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import CustomUser, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage
+from .models import CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage
 from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
@@ -64,11 +64,22 @@ class LoginView(generics.GenericAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
+        # Validate login credentials
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            return Response({"message" : "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"message": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
         user = serializer.validated_data['user']
+
+        # Check if OTP is verified
+        try:
+            otp_instance = OTP.objects.get(user=user)
+            if not otp_instance.is_verified:
+                return Response({"message": "OTP is not verified. Please verify your OTP first."}, status=status.HTTP_403_FORBIDDEN)
+        except OTP.DoesNotExist:
+            return Response({"message": "OTP not found for this user."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate tokens if OTP is verified
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
