@@ -8,7 +8,7 @@ from rest_framework.generics import CreateAPIView, ListAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import CustomUser, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage
+from .models import CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage
 from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
@@ -60,22 +60,35 @@ class VerifyOTPView(generics.GenericAPIView):
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
-    authentication_classes = []
-    permission_classes = [AllowAny]
+    authentication_classes = []  # No authentication required for login
+    permission_classes = [AllowAny]  # Allow any user to access the login API
 
     def post(self, request, *args, **kwargs):
+        # Validate login credentials
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
-            return Response({"message" : "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"message": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
         user = serializer.validated_data['user']
+
+        # Check if OTP has been verified
+        try:
+            otp_instance = OTP.objects.get(user=user)
+            if not otp_instance.is_verified:  # Check if OTP is verified
+                return Response({"message": "OTP not verified. Please verify your OTP first."},
+                                status=status.HTTP_403_FORBIDDEN)
+        except OTP.DoesNotExist:
+            return Response({"message": "OTP not found for this user. Please register and verify OTP."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # OTP is verified, proceed with login
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
         return Response({
             'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
-            'access': access_token,
+            'access': access_token,  # Return access token after successful login
             'message': 'User logged in successfully.'
         }, status=status.HTTP_200_OK)
 
