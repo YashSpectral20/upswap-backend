@@ -189,6 +189,16 @@ class ActivityImageSerializer(serializers.ModelSerializer):
         model = ActivityImage
         fields = ['image_id', 'activity', 'image', 'uploaded_at']
         read_only_fields = ['uploaded_at']
+        
+class ActivityListSerializer(serializers.ModelSerializer):
+    images = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
+    created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
+
+    class Meta:
+        model = Activity
+        fields = ['images', 'activity_title', 'created_by', 'location']
+
+
 
 class ChatRoomSerializer(serializers.ModelSerializer):
     participants = serializers.SlugRelatedField(
@@ -294,14 +304,14 @@ class VendorDetailSerializer(serializers.ModelSerializer):
 
 
 class VendorListSerializer(serializers.ModelSerializer):
-    #business_related_photos = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
+    business_related_photos = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
     address = serializers.SerializerMethodField()
     services_provided = serializers.SerializerMethodField()
 
     class Meta:
         model = VendorKYC
         fields = [
-            'full_name', 'services_provided', 'address',
+            'business_related_photos', 'full_name', 'services_provided', 'address',
         ]
 
     def get_address(self, obj):

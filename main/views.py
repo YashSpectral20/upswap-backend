@@ -15,7 +15,7 @@ from .serializers import (
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer, VendorDetailSerializer,
-    VendorListSerializer
+    VendorListSerializer, ActivityListSerializer
 
 )
 from .utils import generate_otp 
@@ -30,19 +30,20 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        # Check if user already exists by username, email, or phone number
-        username = request.data.get('username')
-        email = request.data.get('email')
-        phone_number = request.data.get('phone_number')
+        data = request.data
+        
+        # Check if the username, email, or phone number already exists
+        if CustomUser.objects.filter(username=data.get('username')).exists():
+            return Response({'message': 'User already exists with the same username'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if CustomUser.objects.filter(email=data.get('email')).exists():
+            return Response({'message': 'User already exists with the same email'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if CustomUser.objects.filter(phone_number=data.get('phone_number')).exists():
+            return Response({'message': 'User already exists with the same phone number'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check for duplicate user by username, email, or phone number
-        if CustomUser.objects.filter(Q(username=username) | Q(email=email) | Q(phone_number=phone_number)).exists():
-            return Response({
-                "message": "User already exists with same username/email/phone number"
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Proceed with registration if no duplicate user is found
-        serializer = self.get_serializer(data=request.data)
+        # If no duplicate user, proceed with registration
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
@@ -377,4 +378,9 @@ class VendorDetailListView(generics.ListAPIView):
 class VendorListView(generics.ListAPIView):
     queryset = VendorKYC.objects.all()
     serializer_class = VendorListSerializer
+    permission_classes = [AllowAny]
+    
+class ActivityListView(generics.ListAPIView):
+    queryset = Activity.objects.all()  # Retrieves all Activity instances
+    serializer_class = ActivityListSerializer
     permission_classes = [AllowAny]
