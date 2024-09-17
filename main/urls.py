@@ -10,7 +10,8 @@ from .views import (
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCListCreateView, VendorKYCDetailView, 
-    BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealListView
+    BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealListView,
+    VendorDetailListView, VendorListView, ActivityListView
 )
 
 urlpatterns = [
@@ -49,7 +50,7 @@ urlpatterns = [
 
     # Vendor KYC (Requires Authentication)
     path('vendor-kyc/create/', VendorKYCListCreateView.as_view(), name='vendor-kyc-list-create'),
-    path('vendor-kyc/<uuid:pk>/', VendorKYCDetailView.as_view(), name='vendor-kyc-detail'),
+    #path('vendor-kyc/<uuid:pk>/', VendorKYCDetailView.as_view(), name='vendor-kyc-detail'),
 
     # Business Document endpoints (Requires Authentication)
     path('vendor-kyc/documents/', BusinessDocumentListCreateView.as_view(), name='business-document-list-create'),
@@ -61,6 +62,12 @@ urlpatterns = [
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),
     path('deals/', CreateDealListView.as_view(), name='list-deals'),
     path('deals/<int:deal_id>/upload-images/', DealImageUploadView.as_view(), name='upload-deal-images'),
+    
+    path('vendors/details/<uuid:pk>/', VendorDetailListView.as_view(), name='vendor-details'),
+    
+    path('vendors/list/', VendorListView.as_view(), name='vendor-list'),
+    
+    path('activities/list/', ActivityListView.as_view(), name='activity-list'),
 
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

@@ -189,6 +189,16 @@ class ActivityImageSerializer(serializers.ModelSerializer):
         model = ActivityImage
         fields = ['image_id', 'activity', 'image', 'uploaded_at']
         read_only_fields = ['uploaded_at']
+        
+class ActivityListSerializer(serializers.ModelSerializer):
+    images = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
+    created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
+
+    class Meta:
+        model = Activity
+        fields = ['images', 'activity_title', 'created_by', 'location']
+
+
 
 class ChatRoomSerializer(serializers.ModelSerializer):
     participants = serializers.SlugRelatedField(
@@ -257,6 +267,72 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             raise ValidationError("User must be provided if 'same_as_personal_email_id' is True.")
         return data
 
+
+class VendorDetailSerializer(serializers.ModelSerializer):
+    business_related_photos = serializers.ListField(
+        child=serializers.CharField(), required=False, allow_empty=True
+    )
+    address = serializers.SerializerMethodField()
+    services_provided = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VendorKYC
+        fields = [
+            'full_name', 'business_email_id', 'phone_number', 'business_description',
+            'business_related_photos', 'address', 'item_description', 
+            'business_hours', 'services_provided'
+        ]
+
+    def get_address(self, obj):
+        return {
+            'house_no_building_name': obj.house_no_building_name,
+            'road_name_area_colony': obj.road_name_area_colony,
+            'country': obj.country,
+            'state': obj.state,
+            'city': obj.city,
+            'pincode': obj.pincode
+        }
+
+    def get_services_provided(self, obj):
+        return {
+            'item_name': obj.item_name,
+            'item_description': obj.item_description,
+            'item_price': obj.item_price,
+            'chosen_item_category': obj.chosen_item_category
+        }
+        
+
+
+class VendorListSerializer(serializers.ModelSerializer):
+    business_related_photos = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
+    address = serializers.SerializerMethodField()
+    services_provided = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VendorKYC
+        fields = [
+            'business_related_photos', 'full_name', 'services_provided', 'address',
+        ]
+
+    def get_address(self, obj):
+        return {
+            'house_no_building_name': obj.house_no_building_name,
+            'road_name_area_colony': obj.road_name_area_colony,
+            'country': obj.country,
+            'state': obj.state,
+            'city': obj.city,
+            'pincode': obj.pincode
+        }
+
+    def get_services_provided(self, obj):
+        return {
+            'item_name': obj.item_name,
+            'item_description': obj.item_description,
+            'item_price': obj.item_price,
+            'chosen_item_category': obj.chosen_item_category
+        }
+        
+        
 
 class BusinessDocumentSerializer(serializers.ModelSerializer):
     class Meta:

@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.db.models import F, Func, FloatField
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -13,7 +14,8 @@ from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
-    CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer
+    CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer, VendorDetailSerializer,
+    VendorListSerializer, ActivityListSerializer
 
 )
 from .utils import generate_otp 
@@ -28,7 +30,20 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        data = request.data
+        
+        # Check if the username, email, or phone number already exists
+        if CustomUser.objects.filter(username=data.get('username')).exists():
+            return Response({'message': 'User already exists with the same username'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if CustomUser.objects.filter(email=data.get('email')).exists():
+            return Response({'message': 'User already exists with the same email'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if CustomUser.objects.filter(phone_number=data.get('phone_number')).exists():
+            return Response({'message': 'User already exists with the same phone number'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # If no duplicate user, proceed with registration
+        serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
@@ -354,3 +369,18 @@ class CreateDealListView(generics.ListAPIView):
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
     permission_classes = [AllowAny]  # Allow any user to access this view
+
+class VendorDetailListView(generics.ListAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorDetailSerializer
+    permission_classes = [AllowAny]
+    
+class VendorListView(generics.ListAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorListSerializer
+    permission_classes = [AllowAny]
+    
+class ActivityListView(generics.ListAPIView):
+    queryset = Activity.objects.all()  # Retrieves all Activity instances
+    serializer_class = ActivityListSerializer
+    permission_classes = [AllowAny]
