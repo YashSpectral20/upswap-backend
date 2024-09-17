@@ -17,7 +17,7 @@ urlpatterns = [
     # User Registration (No Authentication Required)
     path('register/', RegisterView.as_view(), name='register'),
     
-    # OTP Verification (Requires Authentication)
+    # OTP Verification (No Authentication Required)
     path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
 
     # Login (No Authentication Required)
@@ -29,7 +29,7 @@ urlpatterns = [
     # Activities (Requires Authentication)
     path('activities/create/', ActivityCreateView.as_view(), name='activity-create'),
     path('activities/', ActivityListView.as_view(), name='activity-list'),
-    #path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
+    # path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
 
     # Activity Images (Requires Authentication)
     path('activity-images/', ActivityImageListCreateView.as_view(), name='activity-image-create'),
@@ -51,18 +51,15 @@ urlpatterns = [
     path('vendor-kyc/create/', VendorKYCListCreateView.as_view(), name='vendor-kyc-list-create'),
     path('vendor-kyc/<uuid:pk>/', VendorKYCDetailView.as_view(), name='vendor-kyc-detail'),
 
-    # Business Document endpoints
+    # Business Document endpoints (Requires Authentication)
     path('vendor-kyc/documents/', BusinessDocumentListCreateView.as_view(), name='business-document-list-create'),
 
-    # Business Photo endpoints
+    # Business Photo endpoints (Requires Authentication)
     path('vendor-kyc/photos/', BusinessPhotoListCreateView.as_view(), name='business-photo-list-create'),
     
+    # Deals (Requires Authentication)
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),
-
-    # URL for listing all deals
     path('deals/', CreateDealListView.as_view(), name='list-deals'),
-
-    # URL for uploading images to a specific deal
     path('deals/<int:deal_id>/upload-images/', DealImageUploadView.as_view(), name='upload-deal-images'),
 
     # JWT Authentication
