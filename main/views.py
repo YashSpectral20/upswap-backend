@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.db.models import F, Func, FloatField
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -13,7 +14,8 @@ from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
-    CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer
+    CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer, VendorDetailSerializer,
+    VendorListSerializer
 
 )
 from .utils import generate_otp 
@@ -28,6 +30,18 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
+        # Check if user already exists by username, email, or phone number
+        username = request.data.get('username')
+        email = request.data.get('email')
+        phone_number = request.data.get('phone_number')
+
+        # Check for duplicate user by username, email, or phone number
+        if CustomUser.objects.filter(Q(username=username) | Q(email=email) | Q(phone_number=phone_number)).exists():
+            return Response({
+                "message": "User already exists with same username/email/phone number"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Proceed with registration if no duplicate user is found
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
@@ -354,3 +368,13 @@ class CreateDealListView(generics.ListAPIView):
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
     permission_classes = [AllowAny]  # Allow any user to access this view
+
+class VendorDetailListView(generics.ListAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorDetailSerializer
+    permission_classes = [AllowAny]
+    
+class VendorListView(generics.ListAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorListSerializer
+    permission_classes = [AllowAny]
