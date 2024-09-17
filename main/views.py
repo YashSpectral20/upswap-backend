@@ -136,7 +136,7 @@ class Distance(Func):
 
 class ActivityListView(ListAPIView):
     serializer_class = ActivitySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Allow any user, including guests, to access this view
     
     def get_queryset(self):
         queryset = Activity.objects.all()
@@ -162,6 +162,7 @@ class ActivityListView(ListAPIView):
             ).filter(distance__lte=max_distance_km)
 
         return queryset
+
     
 class ActivityImageListCreateView(generics.ListCreateAPIView):
     queryset = ActivityImage.objects.all()
@@ -281,7 +282,8 @@ class VendorKYCListCreateView(generics.ListCreateAPIView):
 class VendorKYCDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = VendorKYC.objects.all()
     serializer_class = VendorKYCSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Allow any user to access this view
+
 
 # Business Document views
 class BusinessDocumentListCreateView(generics.ListCreateAPIView):
@@ -349,7 +351,6 @@ class DealImageUploadView(APIView):
 
 
 class CreateDealListView(generics.ListAPIView):
-    """API view to list all deals."""
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Allow any user to access this view
