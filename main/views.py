@@ -30,6 +30,7 @@ User = get_user_model()
 USERNAME_REGEX = r'^[a-z0-9]{6,}$'  # Adjust the pattern as needed
 PASSWORD_REGEX = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$'  # At least 8 characters, 1 letter and 1 number
 
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = CustomUserSerializer
     permission_classes = [AllowAny]
@@ -53,6 +54,7 @@ class RegisterView(generics.CreateAPIView):
             if data['password'] != data['confirm_password']:
                 raise serializers.ValidationError({"confirm_password": "Passwords must match."})
             return data
+        
 
         # Check if the username, email, or phone number already exists
         if CustomUser.objects.filter(username=username).exists():
