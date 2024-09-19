@@ -1,3 +1,4 @@
+import re
 from django.db.models import Q
 from django.db.models import F, Func, FloatField
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
@@ -26,6 +27,9 @@ from rest_framework.exceptions import ValidationError
 
 User = get_user_model()
 
+USERNAME_REGEX = r'^[a-z0-9]{6,}$'  # Adjust the pattern as needed
+PASSWORD_REGEX = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$'  # At least 8 characters, 1 letter and 1 number
+
 class RegisterView(generics.CreateAPIView):
     serializer_class = CustomUserSerializer
     permission_classes = [AllowAny]
@@ -33,8 +37,25 @@ class RegisterView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data
 
+        # Regex validation for username and password
+        username = data.get('username', '')
+        password = data.get('password', '')
+
+        if not re.match(USERNAME_REGEX, username):
+            return Response({'message': 'Username does not meet the required format. It should be at least 6 characters long and can include only small letters, numbers'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if not re.match(PASSWORD_REGEX, password):
+            return Response({'message': 'Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a digit, and a special character.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+            
+        def validate(self, data):
+            if data['password'] != data['confirm_password']:
+                raise serializers.ValidationError({"confirm_password": "Passwords must match."})
+            return data
+
         # Check if the username, email, or phone number already exists
-        if CustomUser.objects.filter(username=data.get('username')).exists():
+        if CustomUser.objects.filter(username=username).exists():
             return Response({'message': 'User already exists with the same username'}, status=status.HTTP_400_BAD_REQUEST)
         
         if CustomUser.objects.filter(email=data.get('email')).exists():
@@ -77,6 +98,7 @@ class RegisterView(generics.CreateAPIView):
             return Response({
                 'message': list(error_message.values())[0][0] if error_message else "Validation error occurred."
             }, status=status.HTTP_400_BAD_REQUEST)
+            
 
 class VerifyOTPView(generics.GenericAPIView):
     serializer_class = VerifyOTPSerializer
