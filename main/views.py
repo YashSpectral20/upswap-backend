@@ -1,3 +1,4 @@
+import re
 from django.db.models import Q
 from django.db.models import F, Func, FloatField
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
@@ -22,8 +23,13 @@ from .utils import generate_otp
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
+from rest_framework.exceptions import ValidationError
 
 User = get_user_model()
+
+USERNAME_REGEX = r'^[a-z0-9]{6,}$'  # Adjust the pattern as needed
+PASSWORD_REGEX = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$'  # At least 8 characters, 1 letter and 1 number
+
 
 class RegisterView(generics.CreateAPIView):
     serializer_class = CustomUserSerializer
@@ -31,9 +37,27 @@ class RegisterView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         data = request.data
+
+        # Regex validation for username and password
+        username = data.get('username', '')
+        password = data.get('password', '')
+
+        if not re.match(USERNAME_REGEX, username):
+            return Response({'message': 'Username does not meet the required format. It should be at least 6 characters long and can include only small letters, numbers'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if not re.match(PASSWORD_REGEX, password):
+            return Response({'message': 'Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a digit, and a special character.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+            
+        def validate(self, data):
+            if data['password'] != data['confirm_password']:
+                raise serializers.ValidationError({"confirm_password": "Passwords must match."})
+            return data
         
+
         # Check if the username, email, or phone number already exists
-        if CustomUser.objects.filter(username=data.get('username')).exists():
+        if CustomUser.objects.filter(username=username).exists():
             return Response({'message': 'User already exists with the same username'}, status=status.HTTP_400_BAD_REQUEST)
         
         if CustomUser.objects.filter(email=data.get('email')).exists():
@@ -44,22 +68,39 @@ class RegisterView(generics.CreateAPIView):
 
         # If no duplicate user, proceed with registration
         serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
 
-        # Generate and send OTP
-        generate_otp(user)
+            # Generate and send OTP
+            generate_otp(user)
 
-        # Generate JWT tokens for the user
-        refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)
+            # Generate JWT tokens for the user
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
 
-        return Response({
-            'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
-            'refresh': str(refresh),
-            'access': access_token,
-            'message': 'OTP sent successfully for login. Use the access token for OTP verification.'
-        }, status=status.HTTP_201_CREATED)
+            return Response({
+                'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
+                'refresh': str(refresh),
+                'access': access_token,
+                'message': 'OTP sent successfully for login. Use the access token for OTP verification.'
+            }, status=status.HTTP_201_CREATED)
+
+        except ValidationError as e:
+            error_message = e.detail
+
+            # Handle specific 'date_of_birth' validation error
+            if isinstance(error_message, dict) and 'date_of_birth' in error_message:
+                return Response({
+                    "message": "Date has wrong format. Use one of these formats instead: YYYY-MM-DD."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # General validation error handling
+            return Response({
+                'message': list(error_message.values())[0][0] if error_message else "Validation error occurred."
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
 
 class VerifyOTPView(generics.GenericAPIView):
     serializer_class = VerifyOTPSerializer
