@@ -196,7 +196,7 @@ class ActivityListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Activity
-        fields = ['images', 'activity_title', 'created_by', 'location']
+        fields = ['images', 'activity_id', 'activity_title', 'created_by', 'location']
 
 
 

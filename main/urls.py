@@ -29,7 +29,7 @@ urlpatterns = [
 
     # Activities (Requires Authentication)
     path('activities/create/', ActivityCreateView.as_view(), name='activity-create'),
-    path('activities/<uuid:pk>/', ActivityListView.as_view(), name='activity-list'),
+    path('activities/<uuid:pk>/', ActivityListView.as_view(), name='activity-details'),
     # path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
 
     # Activity Images (Requires Authentication)
