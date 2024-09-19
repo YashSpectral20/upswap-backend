@@ -22,6 +22,7 @@ from .utils import generate_otp
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
+from rest_framework.exceptions import ValidationError
 
 User = get_user_model()
 
@@ -31,7 +32,7 @@ class RegisterView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         data = request.data
-        
+
         # Check if the username, email, or phone number already exists
         if CustomUser.objects.filter(username=data.get('username')).exists():
             return Response({'message': 'User already exists with the same username'}, status=status.HTTP_400_BAD_REQUEST)
@@ -44,22 +45,38 @@ class RegisterView(generics.CreateAPIView):
 
         # If no duplicate user, proceed with registration
         serializer = self.get_serializer(data=data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        
+        try:
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
 
-        # Generate and send OTP
-        generate_otp(user)
+            # Generate and send OTP
+            generate_otp(user)
 
-        # Generate JWT tokens for the user
-        refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)
+            # Generate JWT tokens for the user
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
 
-        return Response({
-            'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
-            'refresh': str(refresh),
-            'access': access_token,
-            'message': 'OTP sent successfully for login. Use the access token for OTP verification.'
-        }, status=status.HTTP_201_CREATED)
+            return Response({
+                'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
+                'refresh': str(refresh),
+                'access': access_token,
+                'message': 'OTP sent successfully for login. Use the access token for OTP verification.'
+            }, status=status.HTTP_201_CREATED)
+
+        except ValidationError as e:
+            error_message = e.detail
+
+            # Handle specific 'date_of_birth' validation error
+            if isinstance(error_message, dict) and 'date_of_birth' in error_message:
+                return Response({
+                    "message": "Date has wrong format. Use one of these formats instead: YYYY-MM-DD."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # General validation error handling
+            return Response({
+                'message': list(error_message.values())[0][0] if error_message else "Validation error occurred."
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class VerifyOTPView(generics.GenericAPIView):
     serializer_class = VerifyOTPSerializer
