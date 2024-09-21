@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage
+    ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage, 
 )
 
 User = get_user_model()
@@ -196,7 +196,9 @@ class ActivityListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Activity
-        fields = ['images', 'activity_id', 'activity_title', 'created_by', 'location']
+        fields = ['images', 'activity_id', 'activity_title', 'created_by', 'user_participation', 'infinite_time', 'activity_type',
+                  'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
+                  'location']
 
 
 
@@ -411,3 +413,14 @@ class CreateDealImageUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = DealImage
         fields = ['image']
+        
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+
+    def validate(self, attrs):
+        # Ensure the refresh token is provided
+        refresh_token = attrs.get('refresh')
+        if not refresh_token:
+            raise serializers.ValidationError('Refresh token is required.')
+        return attrs

@@ -16,14 +16,14 @@ from .serializers import (
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer, VendorDetailSerializer,
-    VendorListSerializer, ActivityListSerializer
-
+    VendorListSerializer, ActivityListSerializer, LogoutSerializer
 )
 from .utils import generate_otp 
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import ValidationError
+
 
 User = get_user_model()
 
@@ -425,3 +425,19 @@ class ActivityListView(generics.ListAPIView):
     queryset = Activity.objects.all()  # Retrieves all Activity instances
     serializer_class = ActivityListSerializer
     permission_classes = [AllowAny]
+    
+
+class LogoutView(APIView):
+    def post(self, request):
+        serializer = LogoutSerializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            refresh_token = serializer.validated_data['refresh']
+            try:
+                # Manually blacklist the refresh token
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+
+                return Response({"message": "Successfully logged out"}, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Response({"detail": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

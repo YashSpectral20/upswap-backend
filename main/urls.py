@@ -11,7 +11,7 @@ from .views import (
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCListCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealListView,
-    VendorDetailListView, VendorListView, ActivityListView
+    VendorDetailListView, VendorListView, ActivityListView, LogoutView
 )
 
 urlpatterns = [
@@ -68,7 +68,9 @@ urlpatterns = [
     path('vendors/list/', VendorListView.as_view(), name='vendor-list'),
     
     path('activities/list/', ActivityListView.as_view(), name='activity-list'),
-
+    
+    path('logout/', LogoutView.as_view(), name='logout'),
+    
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
