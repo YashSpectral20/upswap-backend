@@ -2,7 +2,8 @@ import re
 from django.db.models import Q
 from django.db.models import F, Func, FloatField
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken, TokenError
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from rest_framework import status, generics,  permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -431,27 +432,32 @@ class ActivityListView(generics.ListAPIView):
 
 
 class LogoutView(APIView):
-    permission_classes = [IsAuthenticated]  # Ensure the user is authenticated
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Get the refresh token from the request
+        # Extract tokens from request data
         refresh_token = request.data.get('refresh')
+        access_token = request.data.get('access')
 
-        if not refresh_token:
-            return Response({"message": "Refresh token required."}, status=status.HTTP_400_BAD_REQUEST)
+        # Check for presence of both tokens
+        if not refresh_token or not access_token:
+            return Response({"message": "Refresh and Access tokens are required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Handle refresh token
         try:
-            # Find the token in the outstanding tokens
-            token = OutstandingToken.objects.get(token=refresh_token)
+            refresh = RefreshToken(refresh_token)
+            refresh.blacklist()  # Blacklists the refresh token
+        except TokenError:
+            return Response({"message": "User already logged out."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Check if the token is already blacklisted
-            if BlacklistedToken.objects.filter(token=token).exists():
-                return Response({"message": "User already logged out."}, status=status.HTTP_400_BAD_REQUEST)
+        # Handle access token
+        try:
+            access = AccessToken(access_token)
+            # Blacklist access token logic can be implemented here if supported by the application.
+            # In many cases, logging out only invalidates the refresh token.
+            # Custom handling can be done to add access tokens to blacklist manually if required.
+        except TokenError:
+            # Access token is either already expired or invalid.
+            return Response({"message": "Access token invalid or already expired."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Blacklist the refresh token if it's not already blacklisted
-            BlacklistedToken.objects.create(token=token)
-
-            return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
-
-        except OutstandingToken.DoesNotExist:
-            return Response({"message": "Token is invalid or expired."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
