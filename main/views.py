@@ -16,13 +16,15 @@ from .serializers import (
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer, VendorDetailSerializer,
-    VendorListSerializer, ActivityListSerializer, LogoutSerializer
+    VendorListSerializer, ActivityListSerializer
 )
 from .utils import generate_otp 
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import ValidationError
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+
 
 
 User = get_user_model()
@@ -427,17 +429,22 @@ class ActivityListView(generics.ListAPIView):
     permission_classes = [AllowAny]
     
 
-class LogoutView(APIView):
-    def post(self, request):
-        serializer = LogoutSerializer(data=request.data)
-        if serializer.is_valid(raise_exception=True):
-            refresh_token = serializer.validated_data['refresh']
-            try:
-                # Manually blacklist the refresh token
-                token = RefreshToken(refresh_token)
-                token.blacklist()
 
-                return Response({"message": "Successfully logged out"}, status=status.HTTP_200_OK)
-            except Exception as e:
-                return Response({"detail": "Invalid token"}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]  # Ensure the user is authenticated
+
+    def post(self, request):
+        # Get the refresh token from the request
+        refresh_token = request.data.get('refresh')
+
+        if not refresh_token:
+            return Response({"message": "Refresh token required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Blacklist the refresh token
+            token = OutstandingToken.objects.get(token=refresh_token)
+            BlacklistedToken.objects.create(token=token)
+            
+            return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
+        except OutstandingToken.DoesNotExist:
+            return Response({"message": "Token is invalid or expired."}, status=status.HTTP_400_BAD_REQUEST)
