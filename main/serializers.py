@@ -196,7 +196,9 @@ class ActivityListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Activity
-        fields = ['images', 'activity_id', 'activity_title', 'created_by', 'location']
+        fields = ['images', 'activity_id', 'activity_title', 'created_by', 'user_participation', 'infinite_time', 'activity_type',
+                  'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
+                  'location']
 
 
 
@@ -411,3 +413,4 @@ class CreateDealImageUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = DealImage
         fields = ['image']
+        

@@ -9,3 +9,4 @@ channels
 channels_redis
 daphne>=4.0.0
 python-magic
+djangorestframework-simplejwt[blacklist]
