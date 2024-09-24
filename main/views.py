@@ -441,10 +441,17 @@ class LogoutView(APIView):
             return Response({"message": "Refresh token required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Blacklist the refresh token
+            # Find the token in the outstanding tokens
             token = OutstandingToken.objects.get(token=refresh_token)
+
+            # Check if the token is already blacklisted
+            if BlacklistedToken.objects.filter(token=token).exists():
+                return Response({"message": "User already logged out."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Blacklist the refresh token if it's not already blacklisted
             BlacklistedToken.objects.create(token=token)
-            
+
             return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
+
         except OutstandingToken.DoesNotExist:
             return Response({"message": "Token is invalid or expired."}, status=status.HTTP_400_BAD_REQUEST)
