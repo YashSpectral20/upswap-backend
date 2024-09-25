@@ -3,7 +3,7 @@ from django.db.models import Q
 from django.db.models import F, Func, FloatField
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken, TokenError
-from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from rest_framework import status, generics,  permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -25,7 +25,6 @@ from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
-
 
 
 User = get_user_model()
@@ -431,7 +430,7 @@ class ActivityListView(generics.ListAPIView):
     
 
 
-class LogoutView(APIView):
+class LogoutAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
