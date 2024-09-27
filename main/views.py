@@ -32,8 +32,13 @@ from django.utils.encoding import force_str
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.contrib.auth import get_user_model
 from rest_framework import generics
-from .serializers import ResetPasswordSerializer
 
+
+from django.core.mail import send_mail
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.urls import reverse
 
 User = get_user_model()
 token_generator = PasswordResetTokenGenerator()
