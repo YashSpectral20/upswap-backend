@@ -278,6 +278,12 @@ class VendorKYC(models.Model):
     state = models.CharField(max_length=100, blank=True)
     city = models.CharField(max_length=100, blank=True)
     pincode = models.CharField(max_length=10, blank=True)
+    
+    #Latitude and Longitude
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
+
+    
 
     # Bank Details
     bank_account_number = models.CharField(max_length=50, default='', blank=True)
@@ -287,6 +293,7 @@ class VendorKYC(models.Model):
 
     # Services
     item_name = models.CharField(max_length=255)
+    
 
     class ItemCategory(models.TextChoices):
         RESTAURANTS = 'Restaurants'
@@ -387,7 +394,8 @@ class DealImage(models.Model):
 
 class CreateDeal(models.Model):
     vendor_kyc = models.OneToOneField('VendorKYC', on_delete=models.CASCADE, related_name='deal')
-
+    
+    deal_post_time = models.DateTimeField(default=timezone.now)
     deal_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     deal_title = models.CharField(max_length=255)
     deal_description = models.TextField()
@@ -425,6 +433,8 @@ class CreateDeal(models.Model):
             self.location_state = self.vendor_kyc.state or ''
             self.location_city = self.vendor_kyc.city or ''
             self.location_pincode = self.vendor_kyc.pincode or ''
+            
+            
 
         # Set the start time if 'start_now' is True
         if self.start_now:
@@ -433,5 +443,11 @@ class CreateDeal(models.Model):
         super().save(*args, **kwargs)
         
         
-
+@property
+def discount_percentage(self):
+        """Calculate and return the discount percentage."""
+        if self.actual_price > 0:  # Ensure no division by zero
+            discount = ((self.actual_price - self.deal_price) / self.actual_price) * 100
+            return round(discount, 2)  # Return discount percentage rounded to 2 decimal places
+        return 0.0
 

@@ -254,6 +254,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
     business_related_photos = serializers.ListField(
         child=serializers.CharField(), required=False, allow_empty=True
     )
+    
 
     class Meta:
         model = VendorKYC
@@ -315,11 +316,12 @@ class VendorListSerializer(serializers.ModelSerializer):
     business_related_photos = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
     address = serializers.SerializerMethodField()
     services_provided = serializers.SerializerMethodField()
+    
 
     class Meta:
         model = VendorKYC
         fields = [
-            'business_related_photos', 'full_name', 'services_provided', 'address',
+            'business_related_photos', 'full_name', 'services_provided', 'address', 'latitude', 'longitude',
         ]
 
     def get_address(self, obj):
@@ -361,16 +363,35 @@ class DealImageSerializer(serializers.ModelSerializer):
 
 
 class CreateDealSerializer(serializers.ModelSerializer):
+    vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
+    vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
+    country = serializers.CharField(source='vendor_kyc.country', read_only=True)
+    vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
+    vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
+    discount_percentage = serializers.SerializerMethodField()
+    latitude = serializers.DecimalField(source='vendor_kyc.latitude', read_only=True, max_digits=9, decimal_places=6)
+    longitude = serializers.DecimalField(source='vendor_kyc.longitude', read_only=True, max_digits=9, decimal_places=6)
+    
+
     class Meta:
         model = CreateDeal
         fields = [
-            'deal_uuid', 'deal_title', 'deal_description', 'select_service', 
-            'upload_images', 'deal_valid_till_start_time', 'deal_valid_till_end_time', 
-            'start_now', 'actual_price', 'deal_price', 'available_deals', 
-            'location_house_no', 'location_road_name', 'location_country', 
-            'location_state', 'location_city', 'location_pincode', 'vendor_kyc'
+            'deal_uuid','deal_post_time', 'deal_title', 'deal_description', 'select_service',
+            'upload_images', 'deal_valid_till_start_time', 'deal_valid_till_end_time',
+            'start_now', 'actual_price', 'deal_price', 'available_deals',
+            'location_house_no', 'location_road_name', 'location_country',
+            'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
+            'vendor_name', 'vendor_uuid', 'country', 'vendor_email', 'vendor_number',
+            'discount_percentage', 'latitude', 'longitude'
         ]
-        read_only_fields = ['deal_uuid']  # Prevent deal_uuid from being set by the client
+        read_only_fields = ['deal_uuid', 'discount_percentage']  # Prevent client from setting these fields
+
+    def get_discount_percentage(self, obj):
+        """Calculate and return the discount percentage."""
+        if obj.actual_price and obj.deal_price:
+            discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
+            return round(discount, 2)
+        return 0
 
     def validate(self, data):
         # Ensure vendor KYC is provided
@@ -407,18 +428,19 @@ class CreateDealSerializer(serializers.ModelSerializer):
         validated_data['location_state'] = vendor_kyc.state or ''
         validated_data['location_city'] = vendor_kyc.city or ''
         validated_data['location_pincode'] = vendor_kyc.pincode or ''
+        validated_data['latitude'] = vendor_kyc.latitude or None
+        validated_data['longitude'] = vendor_kyc.longitude or None
+        
 
         return super().create(validated_data)
-
-
 
 class CreateDealImageUploadSerializer(serializers.ModelSerializer):
     """Serializer to upload images to a deal."""
     image = serializers.ImageField()
-
+ 
     class Meta:
         model = DealImage
-        fields = ['image']
+        fields = ['image']        
         
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
