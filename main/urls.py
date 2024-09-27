@@ -11,7 +11,7 @@ from .views import (
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCListCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealListView,
-    VendorDetailListView, VendorListView, ActivityListView, LogoutAPI
+    VendorDetailListView, VendorListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView
 )
 
 urlpatterns = [
@@ -70,6 +70,9 @@ urlpatterns = [
     path('activities/list/', ActivityListView.as_view(), name='activity-list'),
     
     path('logout/', LogoutAPI.as_view(), name='logout'),
+    
+    path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
+    path('password-reset-confirm/<uidb64>/<token>/', ResetPasswordView.as_view(), name='password-reset-confirm'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

@@ -17,7 +17,8 @@ from .serializers import (
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer, VendorDetailSerializer,
-    VendorListSerializer, ActivityListSerializer
+    VendorListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
+
 )
 from .utils import generate_otp 
 from django.contrib.auth import authenticate
@@ -26,8 +27,16 @@ from django.contrib.auth import get_user_model
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.contrib.auth import get_user_model
+from rest_framework import generics
+from .serializers import ResetPasswordSerializer
+
 
 User = get_user_model()
+token_generator = PasswordResetTokenGenerator()
 
 USERNAME_REGEX = r'^[a-z0-9]{6,}$'  # Adjust the pattern as needed
 PASSWORD_REGEX = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$'  # At least 8 characters, 1 letter and 1 number
@@ -460,3 +469,42 @@ class LogoutAPI(APIView):
             return Response({"message": "Access token invalid or already expired."}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
+    
+class ForgotPasswordView(generics.GenericAPIView):
+    serializer_class = ForgotPasswordSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Send reset password email
+        user = User.objects.get(email=serializer.validated_data['email'])
+        token = token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        reset_url = request.build_absolute_uri(
+            reverse('password-reset-confirm', kwargs={'uidb64': uid, 'token': token})
+        )
+
+        send_mail(
+            'Password Reset Request',
+            f'Click the link to reset your password: {reset_url}',
+            'admin@example.com',  # From email
+            [user.email],
+            fail_silently=False,
+        )
+
+        return Response({"message": "Password reset link has been sent to your email."}, status=status.HTTP_200_OK)
+    
+class ResetPasswordView(generics.GenericAPIView):
+    serializer_class = ResetPasswordSerializer
+
+    def post(self, request, uidb64, token):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            serializer.save(uidb64=uidb64, token=token)
+        except serializers.ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)

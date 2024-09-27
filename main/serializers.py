@@ -6,6 +6,12 @@ from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
     ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage
 )
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_decode
+from django.contrib.auth import get_user_model
+from django.utils.encoding import force_str
+from .validators import validate_password_strength
+
 
 User = get_user_model()
 
@@ -414,3 +420,34 @@ class CreateDealImageUploadSerializer(serializers.ModelSerializer):
         model = DealImage
         fields = ['image']
         
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        try:
+            user = User.objects.get(email=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("This email is not registered.")
+        return value
+    
+class ResetPasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(write_only=True, validators=[validate_password_strength])
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match.")
+        return data
+
+    def save(self, uidb64, token):
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError("Invalid token.")
+
+        if not PasswordResetTokenGenerator().check_token(user, token):
+            raise serializers.ValidationError("Invalid or expired token.")
+
+        user.set_password(self.validated_data['new_password'])
+        user.save()
