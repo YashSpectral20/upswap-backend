@@ -422,7 +422,7 @@ class DealImageUploadView(APIView):
         return Response({'uploaded_images': image_paths}, status=status.HTTP_201_CREATED)
 
 
-class CreateDealListView(generics.ListAPIView):
+class CreateDealDetailView(generics.ListAPIView):
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
     permission_classes = [AllowAny]  # Allow any user to access this view

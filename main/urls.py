@@ -10,7 +10,7 @@ from .views import (
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCListCreateView, VendorKYCDetailView, 
-    BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealListView,
+    BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView,
     VendorDetailListView, VendorListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView
 )
 
@@ -60,7 +60,7 @@ urlpatterns = [
     
     # Deals (Requires Authentication)
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),
-    path('deals/', CreateDealListView.as_view(), name='list-deals'),
+    path('deals/details/', CreateDealDetailView.as_view(), name='details-deals'),
     path('deals/<int:deal_id>/upload-images/', DealImageUploadView.as_view(), name='upload-deal-images'),
     
     path('vendors/details/<uuid:pk>/', VendorDetailListView.as_view(), name='vendor-details'),
