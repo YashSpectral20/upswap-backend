@@ -403,6 +403,8 @@ class CreateDeal(models.Model):
     select_service = models.CharField(max_length=255, blank=True)
     upload_images = models.TextField(blank=True)
 
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
     deal_valid_till_start_time = models.DateTimeField(blank=True, null=True)
     deal_valid_till_end_time = models.DateTimeField(blank=True, null=True)
     start_now = models.BooleanField(default=False)

@@ -17,7 +17,7 @@ from .serializers import (
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer, VendorDetailSerializer,
-    VendorListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer
+    VendorListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer
 
 )
 from .utils import generate_otp 
@@ -425,7 +425,12 @@ class DealImageUploadView(APIView):
 class CreateDealDetailView(generics.ListAPIView):
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
-    permission_classes = [AllowAny]  # Allow any user to access this view
+    permission_classes = [AllowAny]
+    
+class CreateDeallistView(generics.ListAPIView):
+    queryset = CreateDeal.objects.all()
+    serializer_class = CreateDeallistSerializer
+    permission_classes = [AllowAny] # Allow any user to access this view
 
 class VendorDetailListView(generics.ListAPIView):
     queryset = VendorKYC.objects.all()
