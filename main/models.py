@@ -378,18 +378,6 @@ class BusinessPhoto(models.Model):
 
     def __str__(self):
         return f"Photo for {self.vendor_kyc.full_name}"
-    
-class DealImage(models.Model):
-    """Model for storing images related to deals."""
-    image = models.ImageField(upload_to='deal_images/')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f"Image {self.id} for Deal"
-
-    def get_image_path(self):
-        """Return the image path as a string."""
-        return self.image.url if self.image else ''
 
 
 class CreateDeal(models.Model):
@@ -401,12 +389,12 @@ class CreateDeal(models.Model):
     deal_description = models.TextField()
 
     select_service = models.CharField(max_length=255, blank=True)
-    upload_images = models.TextField(blank=True)
+    upload_images = models.TextField(default='', blank=True, help_text="List of deals images paths")
 
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-    deal_valid_till_start_time = models.TimeField(blank=True, null=True)
-    deal_valid_till_end_time = models.TimeField(blank=True, null=True)
+    start_time = models.TimeField(blank=True, null=True)
+    end_time = models.TimeField(blank=True, null=True)
     start_now = models.BooleanField(default=False)
 
     actual_price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -440,10 +428,21 @@ class CreateDeal(models.Model):
 
         # Set the start time if 'start_now' is True
         if self.start_now:
-            self.deal_valid_till_start_time = timezone.now()
+            # Capture the current date and time
+            now = timezone.now()
+            self.start_date = now.date()
+            self.start_time = now.time()
+
 
         super().save(*args, **kwargs)
         
+    def get_upload_images(self):
+        # Split the comma-separated string back into a list
+        return self.upload_images.split(',') if self.upload_images else []
+
+    def set_upload_images(self, images_list):
+        # Join the list into a comma-separated string
+        self.upload_images = ','.join(images_list)
         
 @property
 def discount_percentage(self):
@@ -453,3 +452,21 @@ def discount_percentage(self):
             return round(discount, 2)  # Return discount percentage rounded to 2 decimal places
         return 0.0
 
+class DealImage(models.Model):
+    create_deal = models.ForeignKey(CreateDeal, related_name='deal_images', on_delete=models.CASCADE, null=True, blank=True)
+    images = models.ImageField(upload_to='deal_images/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # Update the CreateDeal model with the new image path
+        image_path = self.images.url.replace('/media/', '')  # Remove media URL base
+        create_deal = self.create_deal
+        if image_path not in create_deal.get_upload_images():
+            current_images = create_deal.get_upload_images()
+            current_images.append(image_path)
+            create_deal.set_upload_images(current_images)
+            create_deal.save()
+
+    def __str__(self):
+        return f"Image for {self.create_deal.deal_title}"

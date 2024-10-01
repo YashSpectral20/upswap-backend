@@ -359,12 +359,13 @@ class DealImageSerializer(serializers.ModelSerializer):
     """Serializer for the DealImage model."""
     class Meta:
         model = DealImage
-        fields = ['id', 'image', 'uploaded_at']
+        fields = ['id', 'create_deal', 'images', 'uploaded_at']
 
 
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
+    actual_price = serializers.CharField(source='vendor_kyc.item_price')
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
@@ -376,8 +377,8 @@ class CreateDealSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreateDeal
         fields = [
-            'deal_uuid','deal_post_time', 'deal_title', 'deal_description', 'select_service',
-            'upload_images', 'deal_valid_till_start_time', 'deal_valid_till_end_time',
+            'deal_uuid', 'deal_title', 'deal_description', 'select_service',
+            'upload_images', 'start_date', 'end_date', 'start_time', 'end_time',
             'start_now', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
@@ -409,13 +410,14 @@ class CreateDealSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Deal price must be less than or equal to the actual price.")
 
         # Validate date ranges if 'start_now' is not set
-        if not data.get('start_now') and (data.get('deal_valid_till_start_time') or data.get('deal_valid_till_end_time')):
-            if data['deal_valid_till_start_time'] >= data['deal_valid_till_end_time']:
-                raise serializers.ValidationError("Start time must be earlier than end time.")
+        if not data.get('start_now') and (data.get('start_date') or data.get('end_date')):
+            if data['start_date'] and data['end_date'] and data['start_date'] >= data['end_date']:
+                raise serializers.ValidationError("Start date must be earlier than end date.")
 
         return data
 
     def create(self, validated_data):
+        
         # Fetch the actual_price from VendorKYC
         vendor_kyc = validated_data.get('vendor_kyc')
         validated_data['actual_price'] = vendor_kyc.item_price
@@ -447,8 +449,8 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreateDeal
         fields = [
-            'deal_uuid','deal_post_time', 'deal_title',
-            'upload_images', 'start_date', 'end_date', 'deal_valid_till_start_time', 'deal_valid_till_end_time',
+            'deal_uuid','deal_post_time', 'deal_title', 'select_service',
+            'upload_images', 'start_date', 'end_date', 'start_time', 'end_time',
             'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',

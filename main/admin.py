@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal
+    ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, DealImage
 )
 
 # Custom User Admin
@@ -134,7 +134,18 @@ class BusinessPhotoAdmin(admin.ModelAdmin):
     list_display = ['vendor_kyc', 'photo', 'uploaded_at']
     search_fields = ['vendor_kyc__full_name']
     
+class DealImageInline(admin.TabularInline):
+    model = DealImage
+    extra = 1
+    
 @admin.register(CreateDeal)
 class CreateDealAdmin(admin.ModelAdmin):
-    list_display = ['deal_uuid', 'deal_title', 'vendor_kyc', 'actual_price', 'deal_price', 'deal_valid_till_start_time', 'deal_valid_till_end_time', 'vendor_kyc']
+    list_display = ['deal_uuid', 'deal_title', 'vendor_kyc', 'actual_price', 'deal_price', 'start_date', 'end_date', 'start_time', 'end_time', 'vendor_kyc', 'deal_post_time']
     search_fields = ['deal_title', 'vendor_kyc__full_name']
+    inlines = [DealImageInline]
+    
+    
+@admin.register(DealImage)
+class DealImageAdmin(admin.ModelAdmin):
+    list_display = ['create_deal', 'images', 'uploaded_at']
+    search_fields = ['create_deal__deal_title', 'create_deal__vendor_kyc__full_name']
