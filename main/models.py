@@ -431,7 +431,8 @@ class CreateDeal(models.Model):
             # Capture the current date and time
             now = timezone.now()
             self.start_date = now.date()
-            self.start_time = now.time()
+            self.start_time = now.time().replace(microsecond=0)
+            
 
 
         super().save(*args, **kwargs)

@@ -373,6 +373,8 @@ class CreateDealSerializer(serializers.ModelSerializer):
     latitude = serializers.DecimalField(source='vendor_kyc.latitude', read_only=True, max_digits=9, decimal_places=6)
     longitude = serializers.DecimalField(source='vendor_kyc.longitude', read_only=True, max_digits=9, decimal_places=6)
     
+    start_time = serializers.SerializerMethodField()  
+    end_time = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
@@ -393,6 +395,14 @@ class CreateDealSerializer(serializers.ModelSerializer):
             discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
             return round(discount, 2)
         return 0
+    
+    def get_start_time(self, obj):
+        """Return start_time in HH:MM:SS format."""
+        return obj.start_time.strftime('%H:%M:%S') if obj.start_time else None
+
+    def get_end_time(self, obj):
+        """Return end_time in HH:MM:SS format."""
+        return obj.end_time.strftime('%H:%M:%S') if obj.end_time else None
 
     def validate(self, data):
         # Ensure vendor KYC is provided
@@ -432,6 +442,14 @@ class CreateDealSerializer(serializers.ModelSerializer):
         validated_data['location_pincode'] = vendor_kyc.pincode or ''
         validated_data['latitude'] = vendor_kyc.latitude or None
         validated_data['longitude'] = vendor_kyc.longitude or None
+        
+        if validated_data.get('start_now'):
+            now = timezone.now()
+            validated_data['start_time'] = now.time().replace(microsecond=0)
+            #validated_data['end_time'] = now.time().replace(microsecond=0)  
+        else:
+            validated_data['start_time'] = validated_data.get('start_time')  
+            validated_data['end_time'] = validated_data.get('end_time')
         
 
         return super().create(validated_data)
