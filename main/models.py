@@ -405,8 +405,8 @@ class CreateDeal(models.Model):
 
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-    deal_valid_till_start_time = models.DateTimeField(blank=True, null=True)
-    deal_valid_till_end_time = models.DateTimeField(blank=True, null=True)
+    deal_valid_till_start_time = models.TimeField(blank=True, null=True)
+    deal_valid_till_end_time = models.TimeField(blank=True, null=True)
     start_now = models.BooleanField(default=False)
 
     actual_price = models.DecimalField(max_digits=10, decimal_places=2)
