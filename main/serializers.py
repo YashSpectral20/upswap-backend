@@ -366,12 +366,12 @@ class DealImageSerializer(serializers.ModelSerializer):
 class CreateDealImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = DealImage
-        fields = ['images']
-        
-    def validate_images(self, value):
+        fields = ['images']  # Make sure 'image' is the field name
+
+    def validate_image(self, value):
         if not value:
-            raise serializers.ValidationError("Image field cannot be empty.")
-        return value 
+            raise serializers.ValidationError("No image provided.")
+        return value
 
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)

@@ -399,35 +399,29 @@ class CreateDealView(generics.CreateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class DealImageUploadView(APIView):
+class DealImageUploadView(generics.CreateAPIView):
+    serializer_class = CreateDealImageSerializer
     permission_classes = [IsAuthenticated]
-    parser_classes = (MultiPartParser, FormParser)  # Make sure MultiPartParser is included
+    parser_classes = (MultiPartParser, FormParser)
 
     def post(self, request, deal_uuid, *args, **kwargs):
-        # Get the authenticated user
         user = request.user
 
         try:
-            # Ensure that the deal belongs to the user
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid, vendor_kyc__user=user)
         except CreateDeal.DoesNotExist:
-            return Response({"detail": "Deal not found or you don't have permission to upload images for this deal."}, 
-                            status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": "Deal not found or you don't have permission to upload images for this deal."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if an image is provided in the request
-        if 'image' not in request.FILES:
+        if 'images' not in request.FILES:
             return Response({"detail": "No image provided."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Get the uploaded image from the request
-        image = request.FILES['image']
+        images = request.FILES.getlist('images')  # Get the list of images
 
-        # Create and save the DealImage instance
-        deal_image = DealImage.objects.create(create_deal=deal, images=image)
+        for image in images:
+            DealImage.objects.create(create_deal=deal, images=image)
 
-        return Response({
-            "detail": "Image uploaded successfully!",
-            "image_url": deal_image.images.url
-        }, status=status.HTTP_201_CREATED)
+        return Response({"detail": "Images uploaded successfully!"}, status=status.HTTP_201_CREATED)
+
 
 
 
