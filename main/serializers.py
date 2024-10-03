@@ -263,7 +263,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             'business_establishment_year', 'business_description', 'upload_business_related_documents',
             'business_related_photos', 'same_as_personal_phone_number', 'same_as_personal_email_id',
             'business_related_documents', 'business_related_photos', 'house_no_building_name', 
-            'road_name_area_colony', 'country', 'state', 'city', 'pincode', 'bank_account_number', 
+            'road_name_area_colony', 'country', 'state', 'city', 'pincode', 'latitude', 'longitude', 'bank_account_number', 
             'retype_bank_account_number', 'bank_name', 'ifsc_code', 'item_name', 'chosen_item_category', 
             'item_description', 'item_price', 'business_hours'
         ]
@@ -354,13 +354,24 @@ class BusinessPhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessPhoto
         fields = ['id', 'vendor_kyc', 'photo', 'uploaded_at']
-        
+"""     
 class DealImageSerializer(serializers.ModelSerializer):
-    """Serializer for the DealImage model."""
+   
     class Meta:
         model = DealImage
         fields = ['id', 'create_deal', 'images', 'uploaded_at']
+"""
 
+
+class CreateDealImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DealImage
+        fields = ['images']
+        
+    def validate_images(self, value):
+        if not value:
+            raise serializers.ValidationError("Image field cannot be empty.")
+        return value 
 
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
@@ -370,11 +381,17 @@ class CreateDealSerializer(serializers.ModelSerializer):
     vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
+    
+    """
     latitude = serializers.DecimalField(source='vendor_kyc.latitude', read_only=True, max_digits=9, decimal_places=6)
     longitude = serializers.DecimalField(source='vendor_kyc.longitude', read_only=True, max_digits=9, decimal_places=6)
+    """
     
+    """
     start_time = serializers.SerializerMethodField()  
     end_time = serializers.SerializerMethodField()
+    """
+    images = CreateDealImageSerializer(many=True, required=False)
 
     class Meta:
         model = CreateDeal
@@ -385,7 +402,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
             'vendor_name', 'vendor_uuid', 'country', 'vendor_email', 'vendor_number',
-            'discount_percentage', 'latitude', 'longitude'
+            'discount_percentage', 'latitude', 'longitude', 'images'
         ]
         read_only_fields = ['deal_uuid', 'discount_percentage']  # Prevent client from setting these fields
 
@@ -428,6 +445,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         
+        images_data = validated_data.pop('images', [])
         # Fetch the actual_price from VendorKYC
         vendor_kyc = validated_data.get('vendor_kyc')
         validated_data['actual_price'] = vendor_kyc.item_price
@@ -440,8 +458,8 @@ class CreateDealSerializer(serializers.ModelSerializer):
         validated_data['location_state'] = vendor_kyc.state or ''
         validated_data['location_city'] = vendor_kyc.city or ''
         validated_data['location_pincode'] = vendor_kyc.pincode or ''
-        validated_data['latitude'] = vendor_kyc.latitude or None
-        validated_data['longitude'] = vendor_kyc.longitude or None
+        validated_data['latitude'] = vendor_kyc.latitude or ''
+        validated_data['longitude'] = vendor_kyc.longitude or ''
         
         if validated_data.get('start_now'):
             now = timezone.now()
@@ -453,6 +471,14 @@ class CreateDealSerializer(serializers.ModelSerializer):
         
 
         return super().create(validated_data)
+    
+        deal = super().create(validated_data)
+
+        # Handle images if provided
+        for image_data in images_data:
+            DealImage.objects.create(create_deal=deal, images=image_data['images'])
+
+        return deal
     
     
 class CreateDeallistSerializer(serializers.ModelSerializer):
@@ -501,15 +527,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         
 
         return super().create(validated_data)    
-    
-
-class CreateDealImageUploadSerializer(serializers.ModelSerializer):
-    """Serializer to upload images to a deal."""
-    image = serializers.ImageField()
- 
-    class Meta:
-        model = DealImage
-        fields = ['image']        
+           
         
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()

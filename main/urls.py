@@ -62,7 +62,7 @@ urlpatterns = [
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),
     path('deals/details/', CreateDealDetailView.as_view(), name='details-deals'),
     path('deals/lists/', CreateDeallistView.as_view(), name='list-deals'),
-    path('deals/<int:deal_id>/upload-images/', DealImageUploadView.as_view(), name='upload-deal-images'),
+    path('deals/upload-deal-image/<uuid:deal_uuid>/', DealImageUploadView.as_view(), name='upload-deal-image'),
     
     #Vendors URLs
     path('vendors/details/<uuid:pk>/', VendorDetailListView.as_view(), name='vendor-details'),

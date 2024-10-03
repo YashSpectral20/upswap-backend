@@ -16,7 +16,7 @@ from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
-    CreateDealSerializer, DealImageSerializer, CreateDealImageUploadSerializer, VendorDetailSerializer,
+    CreateDealSerializer, CreateDealImageSerializer, VendorDetailSerializer,
     VendorListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer
 
 )
@@ -39,6 +39,8 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.urls import reverse
+
+from rest_framework.parsers import MultiPartParser, FormParser
 
 User = get_user_model()
 token_generator = PasswordResetTokenGenerator()
@@ -375,51 +377,59 @@ class CreateDealView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        # Ensure vendor's KYC is approved
-        vendor_kyc = serializer.validated_data.get('vendor_kyc')
+        # Fetch the vendor's KYC details
+        try:
+            vendor_kyc = VendorKYC.objects.get(user=request.user)
+        except VendorKYC.DoesNotExist:
+            return Response({"error": "Vendor KYC not found for this user."}, status=status.HTTP_404_NOT_FOUND)
+
         if not vendor_kyc.is_approved:
-            return Response(
-                {"detail": "Cannot create a deal because Vendor KYC is not approved."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Vendor KYC is not approved."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create the deal
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            serializer.data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
-        )
+        # Copy request data and add vendor KYC to the data
+        data = request.data.copy()
+        data['vendor_kyc'] = vendor_kyc.vendor_id
 
-    def perform_create(self, serializer):
-        serializer.save()  # Require authentication
+        # Create the deal using the serializer
+        serializer = self.get_serializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class DealImageUploadView(APIView):
-    """API view to handle image uploads for a deal."""
-    permission_classes = [IsAuthenticated]  # Require authentication
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)  # Make sure MultiPartParser is included
 
-    def post(self, request, deal_id):
-        # Get the deal instance
+    def post(self, request, deal_uuid, *args, **kwargs):
+        # Get the authenticated user
+        user = request.user
+
         try:
-            deal = CreateDeal.objects.get(id=deal_id)
+            # Ensure that the deal belongs to the user
+            deal = CreateDeal.objects.get(deal_uuid=deal_uuid, vendor_kyc__user=user)
         except CreateDeal.DoesNotExist:
-            return Response({'error': 'Deal not found.'}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Handle multiple image uploads
-        images = request.FILES.getlist('images')
-        image_paths = []
-        for img in images:
-            deal_image = DealImage(image=img)
-            deal_image.save()
-            deal.add_image(deal_image)  # Add image path to deal
-            image_paths.append(deal_image.get_image_path())
+            return Response({"detail": "Deal not found or you don't have permission to upload images for this deal."}, 
+                            status=status.HTTP_404_NOT_FOUND)
 
-        return Response({'uploaded_images': image_paths}, status=status.HTTP_201_CREATED)
+        # Check if an image is provided in the request
+        if 'image' not in request.FILES:
+            return Response({"detail": "No image provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get the uploaded image from the request
+        image = request.FILES['image']
+
+        # Create and save the DealImage instance
+        deal_image = DealImage.objects.create(create_deal=deal, images=image)
+
+        return Response({
+            "detail": "Image uploaded successfully!",
+            "image_url": deal_image.images.url
+        }, status=status.HTTP_201_CREATED)
+
+
 
 
 class CreateDealDetailView(generics.ListAPIView):

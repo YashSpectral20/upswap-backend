@@ -381,7 +381,7 @@ class BusinessPhoto(models.Model):
 
 
 class CreateDeal(models.Model):
-    vendor_kyc = models.OneToOneField('VendorKYC', on_delete=models.CASCADE, related_name='deal')
+    vendor_kyc = models.ForeignKey('VendorKYC', on_delete=models.CASCADE, related_name='deal')
     
     deal_post_time = models.DateTimeField(default=timezone.now)
     deal_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
@@ -407,6 +407,9 @@ class CreateDeal(models.Model):
     location_state = models.CharField(max_length=255, blank=True)
     location_city = models.CharField(max_length=255, blank=True)
     location_pincode = models.CharField(max_length=20, blank=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
+
 
     def save(self, *args, **kwargs):
         # Ensure that the vendor's KYC is approved before allowing the creation of a deal
@@ -423,6 +426,8 @@ class CreateDeal(models.Model):
             self.location_state = self.vendor_kyc.state or ''
             self.location_city = self.vendor_kyc.city or ''
             self.location_pincode = self.vendor_kyc.pincode or ''
+            self.latitude = self.vendor_kyc.latitude or ''
+            self.longitude = self.vendor_kyc.longitude or ''
             
             
 
@@ -460,14 +465,17 @@ class DealImage(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        # Update the CreateDeal model with the new image path
-        image_path = self.images.url.replace('/media/', '')  # Remove media URL base
+        # Ensure the image path is updated in the CreateDeal model
+        image_path = self.images.url.replace('/media/', '')  # Remove the media URL base from the image path
         create_deal = self.create_deal
-        if image_path not in create_deal.get_upload_images():
+        
+        if create_deal:
             current_images = create_deal.get_upload_images()
-            current_images.append(image_path)
-            create_deal.set_upload_images(current_images)
-            create_deal.save()
+            if image_path not in current_images:
+                # Append the new image path if it's not already in the list
+                current_images.append(image_path)
+                create_deal.set_upload_images(current_images)
+                create_deal.save()  # Save the updated list of image paths
 
     def __str__(self):
-        return f"Image for {self.create_deal.deal_title}"
+        return f"Image for {self.create_deal.deal_title if self.create_deal else 'No Deal'}"
