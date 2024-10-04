@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.urls import path
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -60,7 +62,7 @@ urlpatterns = [
     
     # Deals (Requires Authentication)
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),
-    path('deals/details/', CreateDealDetailView.as_view(), name='details-deals'),
+    path('deals/details/<uuid:deal_uuid>/', CreateDealDetailView.as_view(), name='details-deals'),
     path('deals/lists/', CreateDeallistView.as_view(), name='list-deals'),
     path('deals/upload-deal-image/<uuid:deal_uuid>/', DealImageUploadView.as_view(), name='upload-deal-image'),
     
@@ -80,3 +82,6 @@ urlpatterns = [
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -475,8 +475,15 @@ class CreateDealSerializer(serializers.ModelSerializer):
         deal = super().create(validated_data)
 
         # Handle images if provided
+        image_paths = []
         for image_data in images_data:
-            DealImage.objects.create(create_deal=deal, images=image_data['images'])
+            deal_image = DealImage.objects.create(create_deal=deal, images=image_data['images'])
+            image_paths.append(deal_image.images.url)
+
+        # Save the image paths in the upload_images field
+        if image_paths:
+            deal.set_upload_images(image_paths)
+            deal.save()
 
         return deal
     

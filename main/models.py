@@ -389,7 +389,7 @@ class CreateDeal(models.Model):
     deal_description = models.TextField()
 
     select_service = models.CharField(max_length=255, blank=True)
-    upload_images = models.TextField(default='', blank=True, help_text="List of deals images paths")
+    upload_images = models.TextField(null=True, blank=True)
 
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
@@ -446,9 +446,9 @@ class CreateDeal(models.Model):
         # Split the comma-separated string back into a list
         return self.upload_images.split(',') if self.upload_images else []
 
-    def set_upload_images(self, images_list):
+    def set_upload_images(self, image_paths):
         # Join the list into a comma-separated string
-        self.upload_images = ','.join(images_list)
+        self.upload_images = ','.join(image_paths)
         
 @property
 def discount_percentage(self):
@@ -465,14 +465,14 @@ class DealImage(models.Model):
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
-        # Ensure the image path is updated in the CreateDeal model
-        image_path = self.images.url.replace('/media/', '')  # Remove the media URL base from the image path
+
+        # Store the full path of the image
+        image_path = os.path.join(settings.MEDIA_ROOT, self.images.name)  # Full path of the uploaded image
         create_deal = self.create_deal
         
         if create_deal:
             current_images = create_deal.get_upload_images()
             if image_path not in current_images:
-                # Append the new image path if it's not already in the list
                 current_images.append(image_path)
                 create_deal.set_upload_images(current_images)
                 create_deal.save()  # Save the updated list of image paths

@@ -426,6 +426,7 @@ class DealImageUploadView(generics.CreateAPIView):
 
 
 
+
 class CreateDealDetailView(generics.ListAPIView):
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
