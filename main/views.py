@@ -7,7 +7,7 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from rest_framework import status, generics,  permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
@@ -17,7 +17,7 @@ from .serializers import (
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, CreateDealImageSerializer, VendorDetailSerializer,
-    VendorListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer
+    VendorListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer
 
 )
 from .utils import generate_otp 
@@ -427,10 +427,16 @@ class DealImageUploadView(generics.CreateAPIView):
 
 
 
-class CreateDealDetailView(generics.ListAPIView):
+class CreateDealDetailView(RetrieveAPIView):
     queryset = CreateDeal.objects.all()
-    serializer_class = CreateDealSerializer
+    serializer_class = CreateDealDetailSerializer
     permission_classes = [AllowAny]
+    lookup_field = 'deal_uuid'  # This should match the URL pattern
+    
+    def get_queryset(self):
+        # Now use deal_uuid instead of pk
+        return CreateDeal.objects.filter(deal_uuid=self.kwargs['deal_uuid'])
+
     
 class CreateDeallistView(generics.ListAPIView):
     queryset = CreateDeal.objects.all()

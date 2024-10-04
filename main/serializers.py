@@ -533,6 +533,56 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         validated_data['longitude'] = vendor_kyc.longitude or None
         
 
+        return super().create(validated_data)
+    
+    
+    
+class CreateDealDetailSerializer(serializers.ModelSerializer):
+    vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
+    vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
+    vendor_email = serializers.CharField(source='vendor_kyc.business_email_id', read_only=True)
+    vendor_phone_number = serializers.UUIDField(source='vendor_kyc.phone_number', read_only=True)
+    country = serializers.CharField(source='vendor_kyc.country', read_only=True)
+    discount_percentage = serializers.SerializerMethodField()
+    latitude = serializers.DecimalField(source='vendor_kyc.latitude', read_only=True, max_digits=9, decimal_places=6)
+    longitude = serializers.DecimalField(source='vendor_kyc.longitude', read_only=True, max_digits=9, decimal_places=6)
+    
+    class Meta:
+        model = CreateDeal
+        fields = [
+            'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number','deal_uuid','deal_post_time', 'deal_title', 'select_service',
+            'upload_images', 'start_date', 'end_date', 'start_time', 'end_time',
+            'actual_price', 'deal_price', 'available_deals',
+            'location_house_no', 'location_road_name', 'location_country',
+            'location_state', 'location_city', 'location_pincode',
+            'vendor_name', 'vendor_uuid', 'country',
+            'discount_percentage', 'latitude', 'longitude'
+        ]
+        read_only_fields = ['deal_uuid', 'discount_percentage']  # Prevent client from setting these fields
+        
+    def get_discount_percentage(self, obj):
+        """Calculate and return the discount percentage."""
+        if obj.actual_price and obj.deal_price:
+            discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
+            return round(discount, 2)
+        return 0    
+
+    def create(self, validated_data):
+        # Fetch the actual_price from VendorKYC
+        vendor_kyc = validated_data.get('vendor_kyc')
+        validated_data['actual_price'] = vendor_kyc.item_price
+
+        # Automatically set fields based on the VendorKYC instance
+        validated_data['location_house_no'] = vendor_kyc.house_no_building_name or ''
+        validated_data['location_road_name'] = vendor_kyc.road_name_area_colony or ''
+        validated_data['location_country'] = vendor_kyc.country or ''
+        validated_data['location_state'] = vendor_kyc.state or ''
+        validated_data['location_city'] = vendor_kyc.city or ''
+        validated_data['location_pincode'] = vendor_kyc.pincode or ''
+        validated_data['latitude'] = vendor_kyc.latitude or None
+        validated_data['longitude'] = vendor_kyc.longitude or None
+        
+
         return super().create(validated_data)    
            
         
