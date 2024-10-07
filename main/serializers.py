@@ -550,7 +550,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreateDeal
         fields = [
-            'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number','deal_uuid','deal_post_time', 'deal_title', 'select_service',
+            'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number','deal_uuid','deal_post_time', 'deal_title', 'deal_description', 'select_service',
             'upload_images', 'start_date', 'end_date', 'start_time', 'end_time',
             'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
