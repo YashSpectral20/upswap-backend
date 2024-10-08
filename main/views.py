@@ -348,7 +348,7 @@ class AcceptChatRequestView(APIView):
         return Response({'message': 'Chat request accepted'}, status=status.HTTP_200_OK)
 
 
-class VendorKYCListCreateView(generics.ListCreateAPIView):
+class VendorKYCCreateView(generics.CreateAPIView):
     queryset = VendorKYC.objects.all()
     serializer_class = VendorKYCSerializer
     permission_classes = [IsAuthenticated]

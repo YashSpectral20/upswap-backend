@@ -11,7 +11,7 @@ from .views import (
     ActivityImageListCreateView, ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
-    VendorKYCListCreateView, VendorKYCDetailView, 
+    VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
     VendorDetailListView, VendorListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView
 )
@@ -51,7 +51,7 @@ urlpatterns = [
     path('chat-requests/<uuid:pk>/accept/', AcceptChatRequestView.as_view(), name='accept-chat-request'),
 
     # Vendor KYC (Requires Authentication)
-    path('vendor-kyc/create/', VendorKYCListCreateView.as_view(), name='vendor-kyc-list-create'),
+    path('vendor-kyc/create/', VendorKYCCreateView.as_view(), name='vendor-kyc-list-create'),
     #path('vendor-kyc/<uuid:pk>/', VendorKYCDetailView.as_view(), name='vendor-kyc-detail'),
 
     # Business Document endpoints (Requires Authentication)

@@ -279,6 +279,9 @@ class VendorKYC(models.Model):
     city = models.CharField(max_length=100, blank=True)
     pincode = models.CharField(max_length=10, blank=True)
     
+    country_code = models.CharField(max_length=10, blank=True)
+    dial_code = models.CharField(max_length=10, blank=True)
+    
     #Latitude and Longitude
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
@@ -339,6 +342,10 @@ class VendorKYC(models.Model):
 
         if not self.business_email_id and not self.same_as_personal_email_id:
             raise ValidationError("Business email ID cannot be blank.")
+        
+        if self.user:
+            self.country_code = self.user.country_code
+            self.dial_code = self.user.dial_code or self.dial_code
 
         super().save(*args, **kwargs)
 

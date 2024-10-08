@@ -263,7 +263,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             'business_establishment_year', 'business_description', 'upload_business_related_documents',
             'business_related_photos', 'same_as_personal_phone_number', 'same_as_personal_email_id',
             'business_related_documents', 'business_related_photos', 'house_no_building_name', 
-            'road_name_area_colony', 'country', 'state', 'city', 'pincode', 'latitude', 'longitude', 'bank_account_number', 
+            'road_name_area_colony', 'country', 'state', 'city', 'pincode', 'country_code', 'dial_code', 'latitude', 'longitude', 'bank_account_number', 
             'retype_bank_account_number', 'bank_name', 'ifsc_code', 'item_name', 'chosen_item_category', 
             'item_description', 'item_price', 'business_hours'
         ]
@@ -275,6 +275,12 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         if data.get('same_as_personal_email_id') and not data.get('user'):
             raise ValidationError("User must be provided if 'same_as_personal_email_id' is True.")
         return data
+    
+    def create(self, validated_data):
+        validated_data['country_code'] = user.country_code or ''
+        validated_data['dial_code'] = user.dial_code or ''
+        
+        return super().create(validated_data)
 
 
 class VendorDetailSerializer(serializers.ModelSerializer):
