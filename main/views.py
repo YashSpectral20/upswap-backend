@@ -348,10 +348,16 @@ class AcceptChatRequestView(APIView):
         return Response({'message': 'Chat request accepted'}, status=status.HTTP_200_OK)
 
 
+
 class VendorKYCCreateView(generics.CreateAPIView):
     queryset = VendorKYC.objects.all()
     serializer_class = VendorKYCSerializer
     permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        # Perform any custom logic here if needed before saving
+        serializer.save(user=self.request.user)
+
 
 class VendorKYCDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = VendorKYC.objects.all()

@@ -1,6 +1,7 @@
 import os
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
+import json
 import uuid
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -257,7 +258,7 @@ def validate_file_type(file):
 class VendorKYC(models.Model):
     vendor_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     profile_pic = models.ImageField(upload_to='vendor_profile_pics/', null=True, blank=True)
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, blank = True, default = '')
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, blank=True, default='')
     full_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=15, blank=True)
     business_email_id = models.EmailField(max_length=255, blank=True)
@@ -270,33 +271,39 @@ class VendorKYC(models.Model):
 
     business_related_documents = models.JSONField(default=list, blank=True, help_text="List of document paths")
     business_related_photos = models.JSONField(default=list, blank=True, help_text="List of photo paths")
-
-    # Address Information
-    house_no_building_name = models.CharField(max_length=255, blank=True)
-    road_name_area_colony = models.CharField(max_length=255, blank=True)
-    country = models.CharField(max_length=100, blank=True)
-    state = models.CharField(max_length=100, blank=True)
-    city = models.CharField(max_length=100, blank=True)
-    pincode = models.CharField(max_length=10, blank=True)
     
     country_code = models.CharField(max_length=10, blank=True)
     dial_code = models.CharField(max_length=10, blank=True)
     
-    #Latitude and Longitude
+    # Latitude and Longitude
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
-
-    
 
     # Bank Details
     bank_account_number = models.CharField(max_length=50, default='', blank=True)
     retype_bank_account_number = models.CharField(max_length=50, default='', blank=True)
     bank_name = models.CharField(max_length=100, default='', blank=True)
     ifsc_code = models.CharField(max_length=20, default='', blank=True)
-
-    # Services
-    item_name = models.CharField(max_length=255)
     
+    business_hours = models.JSONField(default=list, blank=True, null=True)
+    
+    def clean(self):
+        # Validate that business_hours is a valid JSON list
+        if not isinstance(self.business_hours, list):
+            raise ValidationError("Business hours must be a list.")
+        for entry in self.business_hours:
+            if not isinstance(entry, str):
+                raise ValidationError("Each business hour entry must be a string.")
+    
+    is_approved = models.BooleanField(default=False)
+
+class Service(models.Model):
+    vendor_kyc = models.ForeignKey(VendorKYC, related_name='services', on_delete=models.CASCADE)
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    item_name = models.CharField(max_length=255)
+    item_category = models.CharField(max_length=100)
+    item_description = models.TextField()
+    item_price = models.DecimalField(max_digits=10, decimal_places=2)
 
     class ItemCategory(models.TextChoices):
         RESTAURANTS = 'Restaurants'
@@ -310,47 +317,47 @@ class VendorKYC(models.Model):
         GROCERIES = 'Groceries'
         OTHERS = 'Others'
 
-    chosen_item_category = models.CharField(max_length=50, choices=ItemCategory.choices)
-    item_description = models.TextField()
-    item_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-
-    # Business Hours
-    business_hours = models.JSONField(null=True, blank=True, default=dict)
-    
-    is_approved = models.BooleanField(default=False)
-
-    def clean(self):
-        # Validate that business_hours is a valid JSON list
-        if not isinstance(self.business_hours, list):
-            raise ValidationError("Business hours must be a list.")
-        for entry in self.business_hours:
-            if not isinstance(entry, str):
-                raise ValidationError("Each business hour entry must be a string.")
+    def __str__(self):
+        return self.item_name
 
     def save(self, *args, **kwargs):
+        vendor_kyc = self.vendor_kyc  # Get the VendorKYC instance
+
         # Populate phone_number and business_email_id if flags are set
-        if self.same_as_personal_phone_number:
-            if self.user:
-                self.phone_number = self.user.phone_number
+        if vendor_kyc.same_as_personal_phone_number:
+            self.phone_number = vendor_kyc.phone_number
 
-        if self.same_as_personal_email_id:
-            if self.user:
-                self.business_email_id = self.user.email
+        if vendor_kyc.same_as_personal_email_id:
+            self.business_email_id = vendor_kyc.business_email_id
 
-        if not self.phone_number and not self.same_as_personal_phone_number:
+        if not self.phone_number and not vendor_kyc.same_as_personal_phone_number:
             raise ValidationError("Phone number cannot be blank.")
 
-        if not self.business_email_id and not self.same_as_personal_email_id:
+        if not self.business_email_id and not vendor_kyc.same_as_personal_email_id:
             raise ValidationError("Business email ID cannot be blank.")
         
-        if self.user:
-            self.country_code = self.user.country_code
-            self.dial_code = self.user.dial_code or self.dial_code
+        # Set country code and dial code from VendorKYC
+        self.country_code = vendor_kyc.country_code
+        self.dial_code = vendor_kyc.dial_code or self.dial_code
 
         super().save(*args, **kwargs)
 
+class Address(models.Model):
+    vendor = models.ForeignKey(VendorKYC, related_name='addresses', on_delete=models.CASCADE)
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)
+    house_no_building_name = models.CharField(max_length=255, blank=True)
+    road_name_area_colony = models.CharField(max_length=255, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    pincode = models.CharField(max_length=10, blank=True)
+    
+    # Latitude and Longitude
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
+
     def __str__(self):
-        return self.full_name
+        return f"{self.house_no_building_name}, {self.road_name_area_colony}, {self.city}, {self.state}, {self.country}, {self.pincode}"
 
 class BusinessDocument(models.Model):
     vendor_kyc = models.ForeignKey(VendorKYC, related_name='business_documents', on_delete=models.CASCADE)

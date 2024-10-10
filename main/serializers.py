@@ -1,17 +1,19 @@
+import json
+import uuid
 from rest_framework import serializers
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth import get_user_model
 from django.utils.encoding import force_str
 from .validators import validate_password_strength
-
+from rest_framework.exceptions import ValidationError
 
 User = get_user_model()
 
@@ -247,6 +249,30 @@ class ChatRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
         return attrs
 
+
+
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = ['house_no_building_name', 'road_name_area_colony', 'country', 
+                  'state', 'city', 'pincode', 'latitude', 'longitude']
+
+
+class AddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = ['uuid', 'house_no_building_name', 'road_name_area_colony', 'country', 
+                  'state', 'city', 'pincode', 'latitude', 'longitude']
+        read_only_fields = ['uuid']
+
+
+class ServiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Service
+        fields = ['uuid', 'item_name', 'item_category', 'item_description', 'item_price']
+        read_only_fields = ['uuid']
+        
+        
 class VendorKYCSerializer(serializers.ModelSerializer):
     business_related_documents = serializers.ListField(
         child=serializers.CharField(), required=False, allow_empty=True
@@ -255,32 +281,83 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         child=serializers.CharField(), required=False, allow_empty=True
     )
     
+    business_hours = serializers.JSONField(required=False, allow_null=True)
+    
+    addresses = AddressSerializer(many=True, required=False)
+    services = ServiceSerializer(many=True, required=True)  # Updated to include services correctly
 
     class Meta:
         model = VendorKYC
         fields = [
-            'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 'business_email_id', 
-            'business_establishment_year', 'business_description', 'upload_business_related_documents',
-            'business_related_photos', 'same_as_personal_phone_number', 'same_as_personal_email_id',
-            'business_related_documents', 'business_related_photos', 'house_no_building_name', 
-            'road_name_area_colony', 'country', 'state', 'city', 'pincode', 'country_code', 'dial_code', 'latitude', 'longitude', 'bank_account_number', 
-            'retype_bank_account_number', 'bank_name', 'ifsc_code', 'item_name', 'chosen_item_category', 
-            'item_description', 'item_price', 'business_hours'
+            'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 
+            'business_email_id', 'business_establishment_year', 'business_description', 
+            'upload_business_related_documents', 'business_related_documents', 
+            'business_related_photos', 'same_as_personal_phone_number', 
+            'same_as_personal_email_id', 'addresses',  # Include addresses field
+            'country_code', 'dial_code', 
+            'bank_account_number', 
+            'retype_bank_account_number', 'bank_name', 'ifsc_code', 
+            'services', 'business_hours'
         ]
-
-    def validate(self, data):
-        if data.get('same_as_personal_phone_number') and not data.get('user'):
-            raise ValidationError("User must be provided if 'same_as_personal_phone_number' is True.")
-
-        if data.get('same_as_personal_email_id') and not data.get('user'):
-            raise ValidationError("User must be provided if 'same_as_personal_email_id' is True.")
-        return data
-    
-    def create(self, validated_data):
-        validated_data['country_code'] = user.country_code or ''
-        validated_data['dial_code'] = user.dial_code or ''
         
-        return super().create(validated_data)
+    def validate_business_hours(self, value):
+        # Validate the business hours format
+        if not isinstance(value, list):
+            raise serializers.ValidationError("Business hours must be a list.")
+
+        for item in value:
+            if not isinstance(item, dict) or 'day' not in item or 'time' not in item:
+                raise serializers.ValidationError("Each business hour entry must be a dictionary with 'day' and 'time'.")
+        
+        return value
+
+    def create(self, validated_data):
+        services_data = validated_data.pop('services', [])  # Extract services data
+        addresses_data = validated_data.pop('addresses', [])  # Extract addresses data
+        vendor_kyc = VendorKYC.objects.create(**validated_data)  # Create VendorKYC instance
+
+        # Create addresses
+        for address_data in addresses_data:
+            Address.objects.create(vendor=vendor_kyc, **address_data)
+
+        # Create services
+        for service_data in services_data:
+            Service.objects.create(vendor_kyc=vendor_kyc, **service_data)
+
+        return vendor_kyc
+
+    def update(self, instance, validated_data):
+        services_data = validated_data.pop('services', None)
+        addresses_data = validated_data.pop('addresses', None)
+
+        # Update VendorKYC instance
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # Update addresses
+        if addresses_data is not None:
+            instance.addresses.all().delete()  # Remove old addresses
+            for address_data in addresses_data:
+                Address.objects.create(vendor=instance, **address_data)
+
+        # Update services
+        if services_data is not None:
+            instance.services.all().delete()  # Remove old services
+            for service_data in services_data:
+                Service.objects.create(vendor_kyc=instance, **service_data)
+
+        return instance
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        
+        # Convert services and addresses back to list for response
+        representation['services'] = ServiceSerializer(instance.services.all(), many=True).data
+        representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
+        
+        return representation
+
 
 
 class VendorDetailSerializer(serializers.ModelSerializer):

@@ -106,28 +106,24 @@ class BusinessDocumentInline(admin.TabularInline):
     model = BusinessDocument
     extra = 1
 
-
 class BusinessPhotoInline(admin.TabularInline):
     model = BusinessPhoto
     extra = 1
-
 
 @admin.register(VendorKYC)
 class VendorKYCAdmin(admin.ModelAdmin):
     list_display = ['vendor_id', 'full_name', 'phone_number', 'business_email_id', 'business_establishment_year', 'country_code', 'dial_code']
     search_fields = ['full_name', 'business_email_id', 'phone_number']
-    list_filter = ['chosen_item_category', 'state', 'city']
+    list_filter = ['addresses__state', 'addresses__city']  # Updated to access Address fields
     inlines = [BusinessDocumentInline, BusinessPhotoInline]
 
     def formatted_business_hours(self, obj):
         return "\n".join([f"{day}: {hours}" for day, hours in obj.business_hours.items()])
 
-
 @admin.register(BusinessDocument)
 class BusinessDocumentAdmin(admin.ModelAdmin):
     list_display = ['vendor_kyc', 'document', 'uploaded_at']
     search_fields = ['vendor_kyc__full_name']
-
 
 @admin.register(BusinessPhoto)
 class BusinessPhotoAdmin(admin.ModelAdmin):
