@@ -258,7 +258,7 @@ def validate_file_type(file):
 class VendorKYC(models.Model):
     vendor_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     profile_pic = models.ImageField(upload_to='vendor_profile_pics/', null=True, blank=True)
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, blank=True, default='')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, blank=True, default='')
     full_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=15, blank=True)
     business_email_id = models.EmailField(max_length=255, blank=True)
@@ -287,15 +287,32 @@ class VendorKYC(models.Model):
     
     business_hours = models.JSONField(default=list, blank=True, null=True)
     
-    def clean(self):
-        # Validate that business_hours is a valid JSON list
-        if not isinstance(self.business_hours, list):
-            raise ValidationError("Business hours must be a list.")
-        for entry in self.business_hours:
-            if not isinstance(entry, str):
-                raise ValidationError("Each business hour entry must be a string.")
+    def set_business_hours(self, hours):
+        """
+        Helper method to format and store business hours as strings.
+        Expects hours to be a list of dicts like:
+        [
+            {"day": "Sunday", "time": "10:00 AM - 6:00 PM"},
+            {"day": "Monday", "time": "10:00 AM - 6:00 PM"},
+            ...
+        ]
+        """
+        if isinstance(hours, list):
+            self.business_hours = [
+                f"{entry['day']}: {entry['time']}" for entry in hours
+            ]
+        else:
+            raise ValueError("Invalid format for business hours.")
+
+    def get_business_hours(self):
+        """
+        Returns business hours in the same format that was set.
+        """
+        return self.business_hours
     
     is_approved = models.BooleanField(default=False)
+    
+    
 
 class Service(models.Model):
     vendor_kyc = models.ForeignKey(VendorKYC, related_name='services', on_delete=models.CASCADE)

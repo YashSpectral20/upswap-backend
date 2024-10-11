@@ -355,8 +355,29 @@ class VendorKYCCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        # Perform any custom logic here if needed before saving
-        serializer.save(user=self.request.user)
+        user = self.request.user
+
+        # Check if VendorKYC instance already exists for this user
+        try:
+            vendor_kyc = VendorKYC.objects.get(user=user)
+            # If the instance exists, update it instead of creating a new one
+            serializer.instance = vendor_kyc
+            # Reset is_approved to False since the vendor is making changes
+            serializer.validated_data['is_approved'] = False
+        except VendorKYC.DoesNotExist:
+            # If no instance exists, create a new one
+            vendor_kyc = None
+        
+        # Save the instance (either create or update)
+        serializer.save(user=user)
+
+    def get_serializer_context(self):
+        """
+        Provide any extra context to the serializer, if necessary.
+        """
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
 
 class VendorKYCDetailView(generics.RetrieveUpdateDestroyAPIView):

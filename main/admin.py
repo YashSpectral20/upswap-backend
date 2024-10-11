@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, DealImage
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, DealImage
 )
 
 # Custom User Admin
@@ -110,15 +110,37 @@ class BusinessPhotoInline(admin.TabularInline):
     model = BusinessPhoto
     extra = 1
 
+class AddressInline(admin.TabularInline):
+    model = Address
+    extra = 1
+
+class ServiceInline(admin.TabularInline):
+    model = Service
+    extra = 1
+
 @admin.register(VendorKYC)
 class VendorKYCAdmin(admin.ModelAdmin):
-    list_display = ['vendor_id', 'full_name', 'phone_number', 'business_email_id', 'business_establishment_year', 'country_code', 'dial_code']
+    list_display = [
+        'vendor_id', 'full_name', 'phone_number', 'business_email_id', 
+        'business_establishment_year', 'country_code', 'dial_code', 'is_approved'
+    ]
     search_fields = ['full_name', 'business_email_id', 'phone_number']
-    list_filter = ['addresses__state', 'addresses__city']  # Updated to access Address fields
-    inlines = [BusinessDocumentInline, BusinessPhotoInline]
+    list_filter = ['addresses__state', 'addresses__city', 'is_approved']  # Filter by addresses and approval status
+    inlines = [BusinessDocumentInline, BusinessPhotoInline, AddressInline, ServiceInline]
 
     def formatted_business_hours(self, obj):
-        return "\n".join([f"{day}: {hours}" for day, hours in obj.business_hours.items()])
+        """
+        Formats the business hours in the admin panel display.
+        """
+        if obj.business_hours:
+            return "\n".join(obj.business_hours)
+        return "No business hours set"
+
+    formatted_business_hours.short_description = 'Business Hours'
+
+    def save_model(self, request, obj, form, change):
+        # Custom logic before saving
+        super().save_model(request, obj, form, change)
 
 @admin.register(BusinessDocument)
 class BusinessDocumentAdmin(admin.ModelAdmin):
@@ -129,6 +151,16 @@ class BusinessDocumentAdmin(admin.ModelAdmin):
 class BusinessPhotoAdmin(admin.ModelAdmin):
     list_display = ['vendor_kyc', 'photo', 'uploaded_at']
     search_fields = ['vendor_kyc__full_name']
+
+@admin.register(Address)
+class AddressAdmin(admin.ModelAdmin):
+    list_display = ['vendor', 'house_no_building_name', 'road_name_area_colony', 'city', 'state', 'pincode', 'country', 'latitude', 'longitude']
+    search_fields = ['vendor__full_name', 'city', 'state']
+
+@admin.register(Service)
+class ServiceAdmin(admin.ModelAdmin):
+    list_display = ['vendor_kyc', 'item_name', 'item_description', 'item_price']
+    search_fields = ['vendor_kyc__full_name', 'item_name']
     
 class DealImageInline(admin.TabularInline):
     model = DealImage
