@@ -311,9 +311,9 @@ class VendorKYC(models.Model):
         return self.business_hours
     
     is_approved = models.BooleanField(default=False)
-    
-    
 
+
+    
 class Service(models.Model):
     vendor_kyc = models.ForeignKey(VendorKYC, related_name='services', on_delete=models.CASCADE)
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
