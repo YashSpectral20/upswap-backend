@@ -287,7 +287,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         fields = [
             'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 
             'business_email_id', 'business_establishment_year', 'business_description', 
-            'upload_business_related_documents', 'business_related_documents', 
+            'business_related_documents', 
             'business_related_photos', 'same_as_personal_phone_number', 
             'same_as_personal_email_id', 'addresses',  # Include addresses field
             'country_code', 'dial_code', 
@@ -380,21 +380,16 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         representation['is_approved'] = instance.is_approved
         return representation
 
-
-
-class VendorDetailSerializer(serializers.ModelSerializer):
-    business_related_photos = serializers.ListField(
-        child=serializers.CharField(), required=False, allow_empty=True
-    )
+class VendorKYCListSerializer(serializers.ModelSerializer):
+    business_related_photos = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
     address = serializers.SerializerMethodField()
     services_provided = serializers.SerializerMethodField()
+    
 
     class Meta:
         model = VendorKYC
         fields = [
-            'full_name', 'business_email_id', 'phone_number', 'business_description',
-            'business_related_photos', 'address', 'item_description', 
-            'business_hours', 'services_provided'
+            'business_related_photos', 'full_name', 'services', 'addresses'
         ]
 
     def get_address(self, obj):
@@ -416,17 +411,19 @@ class VendorDetailSerializer(serializers.ModelSerializer):
         }
         
 
-
-class VendorListSerializer(serializers.ModelSerializer):
-    business_related_photos = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
+class VendorDetailSerializer(serializers.ModelSerializer):
+    business_related_photos = serializers.ListField(
+        child=serializers.CharField(), required=False, allow_empty=True
+    )
     address = serializers.SerializerMethodField()
     services_provided = serializers.SerializerMethodField()
-    
 
     class Meta:
         model = VendorKYC
         fields = [
-            'business_related_photos', 'full_name', 'services_provided', 'address', 'latitude', 'longitude',
+            'full_name', 'business_email_id', 'phone_number', 'business_description',
+            'business_related_photos', 'address', 'item_description', 
+            'business_hours', 'services_provided'
         ]
 
     def get_address(self, obj):

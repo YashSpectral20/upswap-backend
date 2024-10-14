@@ -17,7 +17,7 @@ from .serializers import (
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, CreateDealImageSerializer, VendorDetailSerializer,
-    VendorListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer
+    VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer
 
 )
 from .utils import generate_otp 
@@ -390,6 +390,11 @@ class VendorKYCCreateView(generics.CreateAPIView):
         return context
 
 
+class VendorKYCListView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorKYCListSerializer
+    permission_classes = [AllowAny]
+
 class VendorKYCDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = VendorKYC.objects.all()
     serializer_class = VendorKYCSerializer
@@ -485,10 +490,6 @@ class VendorDetailListView(generics.ListAPIView):
     serializer_class = VendorDetailSerializer
     permission_classes = [AllowAny]
     
-class VendorListView(generics.ListAPIView):
-    queryset = VendorKYC.objects.all()
-    serializer_class = VendorListSerializer
-    permission_classes = [AllowAny]
     
 class ActivityListView(generics.ListAPIView):
     queryset = Activity.objects.all()  # Retrieves all Activity instances

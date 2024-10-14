@@ -13,7 +13,7 @@ from .views import (
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
-    VendorDetailListView, VendorListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView
+    VendorDetailListView, VendorKYCListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView
 )
 
 urlpatterns = [
@@ -52,6 +52,9 @@ urlpatterns = [
 
     # Vendor KYC (Requires Authentication)
     path('vendor-kyc/create/', VendorKYCCreateView.as_view(), name='vendor-kyc-list-create'),
+    
+    path('vendor-kyc/lists/', VendorKYCListView.as_view(), name='vendor-kyc-list-view'),
+    
     #path('vendor-kyc/<uuid:pk>/', VendorKYCDetailView.as_view(), name='vendor-kyc-detail'),
 
     # Business Document endpoints (Requires Authentication)
@@ -69,7 +72,7 @@ urlpatterns = [
     #Vendors URLs
     path('vendors/details/<uuid:pk>/', VendorDetailListView.as_view(), name='vendor-details'),
     
-    path('vendors/list/', VendorListView.as_view(), name='vendor-list'),
+    #path('vendors/list/', VendorListView.as_view(), name='vendor-list'),
     
     path('activities/list/', ActivityListView.as_view(), name='activity-list'),
     
