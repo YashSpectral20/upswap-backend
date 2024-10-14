@@ -159,12 +159,22 @@ class LoginView(generics.GenericAPIView):
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
+        # Check if user has VendorKYC
+        vendor_kyc = VendorKYC.objects.filter(user=user).first()
+        is_approved = False  # Default value
+
+        if vendor_kyc:
+            is_approved = vendor_kyc.is_approved  # Fetch is_approved status if VendorKYC exists
+
+        # Prepare response
         return Response({
             'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
             'access': access_token,  # Return access token after successful login
+            'is_approved': is_approved,  # Include is_approved status
             'message': 'User logged in successfully.'
         }, status=status.HTTP_200_OK)
+
 
     
 class CustomUserCreateView(APIView):
