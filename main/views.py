@@ -381,6 +381,26 @@ class VendorKYCCreateView(generics.CreateAPIView):
         # Save the instance (either create or update)
         serializer.save(user=user)
 
+    def create(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return Response({
+                'message': 'Vendor KYC created successfully.',
+                'vendor_kyc': serializer.data  # Optionally return the saved data
+            }, status=status.HTTP_201_CREATED)
+        except ValidationError as e:
+            error_message = e.detail
+            return Response({
+                'message': list(error_message.values())[0][0] if error_message else "Validation error occurred."
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # Catch any unexpected exceptions
+            return Response({
+                'message': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+
     def get_serializer_context(self):
         """
         Provide any extra context to the serializer, if necessary.
@@ -388,6 +408,7 @@ class VendorKYCCreateView(generics.CreateAPIView):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+
 
 
 class VendorKYCListView(generics.RetrieveUpdateDestroyAPIView):
