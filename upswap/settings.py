@@ -17,7 +17,32 @@ from pathlib import Path
 # Build paths inside the project likessh this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Define the environment (local or production)
+ENVIRONMENT = os.getenv('DJANGO_ENVIRONMENT', 'development')
 
+# Local development settings (unchanged)
+if ENVIRONMENT == 'development':
+    STATIC_URL = '/static/'
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Production settings (using BunnyCDN Storage Zone)
+elif ENVIRONMENT == 'production':
+    # Static and Media file paths served from BunnyCDN Storage Zone
+    STATIC_URL = 'https://upswap-assets.b-cdn.net/static/'
+    MEDIA_URL = 'https://upswap-assets.b-cdn.net/media/'
+
+    # Local file paths (for possible local file backups)
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    
+    
+#DEFAULT_FILE_STORAGE = 'django_bunny_storage.BunnyStorage'
+BUNNYCDN_ACCESS_KEY = 'e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d'
+BUNNYCDN_STORAGE_ZONE = 'upswap-assets'
+BUNNYCDN_STORAGE_REGION = 'SG'
+    
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
@@ -151,15 +176,20 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
+
+"""
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+"""
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 AUTH_USER_MODEL = 'main.CustomUser'

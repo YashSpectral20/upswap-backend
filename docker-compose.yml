@@ -67,6 +67,7 @@ services:
     environment:
       - DATABASE_URL=postgres://myuser:mypassword@db:5432/mydatabase
       - REDIS_URL=redis://redis:6379/0
+      - BUNNYCDN_ACCESS_KEY=e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d 
 
   adminer:
     image: adminer

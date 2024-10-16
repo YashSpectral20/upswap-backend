@@ -287,6 +287,25 @@ class VendorKYC(models.Model):
     
     business_hours = models.JSONField(default=list, blank=True, null=True)
     
+    def populate_contact_details(self):
+        """
+        Populates the phone_number and business_email_id fields based on the vendor's preferences.
+        """
+        if self.same_as_personal_phone_number:
+            if not self.user.phone_number:
+                raise ValidationError("Personal phone number is missing.")
+            self.phone_number = self.user.phone_number
+
+        if self.same_as_personal_email_id:
+            if not self.user.email:
+                raise ValidationError("Personal email is missing.")
+            self.business_email_id = self.user.email
+
+    def save(self, *args, **kwargs):
+        # Ensure contact details are correctly populated before saving
+        self.populate_contact_details()
+        super().save(*args, **kwargs)
+    
     def set_business_hours(self, hours):
         """
         Helper method to format and store business hours as strings.
@@ -338,24 +357,6 @@ class Service(models.Model):
         return self.item_name
 
     def save(self, *args, **kwargs):
-        vendor_kyc = self.vendor_kyc  # Get the VendorKYC instance
-
-        # Populate phone_number and business_email_id if flags are set
-        if vendor_kyc.same_as_personal_phone_number:
-            self.phone_number = vendor_kyc.phone_number
-
-        if vendor_kyc.same_as_personal_email_id:
-            self.business_email_id = vendor_kyc.business_email_id
-
-        if not self.phone_number and not vendor_kyc.same_as_personal_phone_number:
-            raise ValidationError("Phone number cannot be blank.")
-
-        if not self.business_email_id and not vendor_kyc.same_as_personal_email_id:
-            raise ValidationError("Business email ID cannot be blank.")
-        
-        # Set country code and dial code from VendorKYC
-        self.country_code = vendor_kyc.country_code
-        self.dial_code = vendor_kyc.dial_code or self.dial_code
 
         super().save(*args, **kwargs)
 

@@ -10,3 +10,6 @@ channels_redis
 daphne>=4.0.0
 python-magic
 djangorestframework-simplejwt[blacklist]
+bunnycdn
+django-bunny-storage==0.1.2
+

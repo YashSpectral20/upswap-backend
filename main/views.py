@@ -388,7 +388,7 @@ class VendorKYCCreateView(generics.CreateAPIView):
             self.perform_create(serializer)
             return Response({
                 'message': 'Vendor KYC created successfully.',
-                'vendor_kyc': serializer.data  # Optionally return the saved data
+                'vendor_kyc': serializer.data  
             }, status=status.HTTP_201_CREATED)
         except ValidationError as e:
             error_message = e.detail
