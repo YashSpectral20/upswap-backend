@@ -53,7 +53,7 @@ urlpatterns = [
     # Vendor KYC (Requires Authentication)
     path('vendor-kyc/create/', VendorKYCCreateView.as_view(), name='vendor-kyc-list-create'),
     
-    path('vendorKYC/lists/', VendorKYCListView.as_view(), name='vendor-kyc-list'),
+    path('vendor/lists/', VendorKYCListView.as_view(), name='vendor-kyc-list'),
     
     path('vendorKYC/details/<uuid:uuid>/', VendorKYCDetailView.as_view(), name='vendorKYC-details'),
     
