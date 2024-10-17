@@ -2,9 +2,7 @@ from django.conf import settings
 from django.core.files import File
 from django.core.files.storage import Storage
 from django.core.exceptions import ImproperlyConfigured
-
 import requests
-
 
 class BunnyStorage(Storage):
     """ Implementation of Django's storage module using Bunny.net. 
@@ -71,7 +69,9 @@ class BunnyStorage(Storage):
         return True
 
     def url(self, name):
-        """Return the full URL to the given file name."""
+        """Return the full URL to the given file name in the Storage Zone."""
         # Debugging log or print statement for confirmation
         print(f"Generating URL for file: {name}")
-        return f"{self.base_url}{name}"
+        
+        # Generating the URL based on the user's Bunny storage username
+        return f'https://{self.username}.storage.bunnycdn.com/{name}'
