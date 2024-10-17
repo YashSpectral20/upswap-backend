@@ -16,7 +16,7 @@ from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
-    CreateDealSerializer, CreateDealImageSerializer, VendorDetailSerializer,
+    CreateDealSerializer, CreateDealImageSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer
 
 )
@@ -416,10 +416,34 @@ class VendorKYCListView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = VendorKYCListSerializer
     permission_classes = [AllowAny]
 
-class VendorKYCDetailView(generics.RetrieveUpdateDestroyAPIView):
+class VendorKYCDetailView(generics.RetrieveAPIView):
+    """
+    View to fetch the VendorKYC details based on the user's uuid.
+    Only authenticated users can access this endpoint.
+    """
     queryset = VendorKYC.objects.all()
-    serializer_class = VendorKYCSerializer
-    permission_classes = [AllowAny]  # Allow any user to access this view
+    permission_classes = [AllowAny]
+    serializer_class = VendorKYCDetailSerializer
+
+    def get(self, request, *args, **kwargs):
+        # Get the user's uuid from the URL
+        user_uuid = self.kwargs.get('uuid')  # Assuming UUID is passed
+
+        try:
+            # Find the user by uuid
+            user = CustomUser.objects.get(uuid=user_uuid)
+        except CustomUser.DoesNotExist:
+            return Response({"message": "User not found"}, status=404)
+
+        try:
+            # Find the VendorKYC entry associated with the user
+            vendor_kyc = VendorKYC.objects.get(user=user)
+        except VendorKYC.DoesNotExist:
+            return Response({"message": "VendorKYC for this user is not exists."}, status=404)
+
+        # If VendorKYC exists, return the details
+        serializer = self.get_serializer(vendor_kyc)
+        return Response(serializer.data)  # Allow any user to access this view
 
 
 # Business Document views
@@ -505,11 +529,6 @@ class CreateDeallistView(generics.ListAPIView):
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDeallistSerializer
     permission_classes = [AllowAny] # Allow any user to access this view
-
-class VendorDetailListView(generics.ListAPIView):
-    queryset = VendorKYC.objects.all()
-    serializer_class = VendorDetailSerializer
-    permission_classes = [AllowAny]
     
     
 class ActivityListView(generics.ListAPIView):

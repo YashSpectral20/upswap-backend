@@ -38,10 +38,12 @@ elif ENVIRONMENT == 'production':
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
     
     
-#DEFAULT_FILE_STORAGE = 'django_bunny_storage.BunnyStorage'
+DEFAULT_FILE_STORAGE = 'django_bunny_storage.storage.BunnyStorage'
 BUNNYCDN_ACCESS_KEY = 'e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d'
+BUNNY_USERNAME = 'upswap-assets'  
+BUNNY_PASSWORD = '9ab0b8b6-2eab-417c-958e06bfb892-431a-4080'
 BUNNYCDN_STORAGE_ZONE = 'upswap-assets'
-BUNNYCDN_STORAGE_REGION = 'SG'
+BUNNY_REGION = 'SG'
     
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/

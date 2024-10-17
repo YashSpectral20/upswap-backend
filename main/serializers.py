@@ -25,7 +25,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password', 'country_code', 'dial_code', 'country']
+        fields = ['uuid', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password', 'country_code', 'dial_code', 'country']
         extra_kwargs = {'password': {'write_only': True}}
 
     def validate(self, data):
@@ -411,38 +411,45 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         }
         
 
-class VendorDetailSerializer(serializers.ModelSerializer):
+class VendorKYCDetailSerializer(serializers.ModelSerializer):
+    # Include related fields for addresses, services, business documents, and photos
+    addresses = AddressSerializer(many=True, read_only=True)
+    services = ServiceSerializer(many=True, read_only=True)
+
+    # Handling the business related documents and photos as lists of strings
+    business_related_documents = serializers.ListField(
+        child=serializers.CharField(), required=False, allow_empty=True
+    )
     business_related_photos = serializers.ListField(
         child=serializers.CharField(), required=False, allow_empty=True
     )
-    address = serializers.SerializerMethodField()
-    services_provided = serializers.SerializerMethodField()
+    
+    business_hours = serializers.JSONField(required=False, allow_null=True)
 
     class Meta:
         model = VendorKYC
         fields = [
-            'full_name', 'business_email_id', 'phone_number', 'business_description',
-            'business_related_photos', 'address', 'item_description', 
-            'business_hours', 'services_provided'
+            'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 'business_email_id',
+            'business_establishment_year', 'business_description', 'business_related_documents',
+            'business_related_photos', 'same_as_personal_phone_number', 
+            'same_as_personal_email_id', 'addresses', 'country_code', 'dial_code', 
+            'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
+            'services', 'business_hours', 'is_approved'
         ]
+        read_only_fields = ['user', 'is_approved']  # Keep read-only fields to avoid updates during detail fetching
 
-    def get_address(self, obj):
-        return {
-            'house_no_building_name': obj.house_no_building_name,
-            'road_name_area_colony': obj.road_name_area_colony,
-            'country': obj.country,
-            'state': obj.state,
-            'city': obj.city,
-            'pincode': obj.pincode
-        }
+    def to_representation(self, instance):
+        """
+        Customize the representation of the VendorKYC instance
+        to include nested relationships like addresses and services,
+        and business-related documents and photos.
+        """
+        representation = super().to_representation(instance)
+        # Format services and addresses for response
+        representation['services'] = ServiceSerializer(instance.services.all(), many=True).data
+        representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
 
-    def get_services_provided(self, obj):
-        return {
-            'item_name': obj.item_name,
-            'item_description': obj.item_description,
-            'item_price': obj.item_price,
-            'chosen_item_category': obj.chosen_item_category
-        }
+        return representation
         
         
 
