@@ -458,12 +458,12 @@ class VendorKYCDetailView(generics.RetrieveAPIView):
     serializer_class = VendorKYCDetailSerializer
 
     def get(self, request, *args, **kwargs):
-        # Get the user's uuid from the URL
-        user_uuid = self.kwargs.get('uuid')  # Assuming UUID is passed
+        # Get the user's id from the URL
+        user_id = self.kwargs.get('id')  # Assuming ID is passed
 
         try:
-            # Find the user by uuid
-            user = CustomUser.objects.get(uuid=user_uuid)
+            # Find the user by id
+            user = CustomUser.objects.get(id=user_id)
         except CustomUser.DoesNotExist:
             return Response({"message": "User not found"}, status=404)
 
@@ -471,7 +471,7 @@ class VendorKYCDetailView(generics.RetrieveAPIView):
             # Find the VendorKYC entry associated with the user
             vendor_kyc = VendorKYC.objects.get(user=user)
         except VendorKYC.DoesNotExist:
-            return Response({"message": "VendorKYC for this user is not exists."}, status=404)
+            return Response({"message": "VendorKYC for this user does not exist."}, status=404)
 
         # If VendorKYC exists, return the details
         serializer = self.get_serializer(vendor_kyc)
