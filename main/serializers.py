@@ -380,35 +380,25 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         representation['is_approved'] = instance.is_approved
         return representation
 
+
+
 class VendorKYCListSerializer(serializers.ModelSerializer):
-    business_related_photos = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
-    address = serializers.SerializerMethodField()
-    services_provided = serializers.SerializerMethodField()
-    
+    full_name = serializers.CharField(source='user.name', read_only=True)
+    listOfServices = serializers.SerializerMethodField()
+    listOfAddress = serializers.SerializerMethodField()
 
     class Meta:
         model = VendorKYC
-        fields = [
-            'business_related_photos', 'full_name', 'services', 'addresses'
-        ]
+        fields = ['full_name', 'business_related_photos', 'listOfServices', 'listOfAddress']
 
-    def get_address(self, obj):
-        return {
-            'house_no_building_name': obj.house_no_building_name,
-            'road_name_area_colony': obj.road_name_area_colony,
-            'country': obj.country,
-            'state': obj.state,
-            'city': obj.city,
-            'pincode': obj.pincode
-        }
+    def get_listOfServices(self, obj):
+        services = obj.services.all()  # Assuming 'services' is a related field
+        return ServiceSerializer(services, many=True).data
 
-    def get_services_provided(self, obj):
-        return {
-            'item_name': obj.item_name,
-            'item_description': obj.item_description,
-            'item_price': obj.item_price,
-            'chosen_item_category': obj.chosen_item_category
-        }
+    def get_listOfAddress(self, obj):
+        addresses = obj.addresses.all()  # Assuming 'addresses' is a related field
+        return AddressSerializer(addresses, many=True).data
+
         
 
 class VendorKYCDetailSerializer(serializers.ModelSerializer):

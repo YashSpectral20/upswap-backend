@@ -410,11 +410,43 @@ class VendorKYCCreateView(generics.CreateAPIView):
         return context
 
 
-
+"""
 class VendorKYCListView(generics.RetrieveUpdateDestroyAPIView):
     queryset = VendorKYC.objects.all()
     serializer_class = VendorKYCListSerializer
     permission_classes = [AllowAny]
+"""
+
+
+class VendorKYCListView(ListAPIView):
+    queryset = VendorKYC.objects.all()
+    serializer_class = VendorKYCListSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        country = self.request.query_params.get('country', None)
+        queryset = VendorKYC.objects.all()
+
+        if country:
+            queryset = queryset.filter(addresses__country=country)  # Filter based on related 'Address' country field
+
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+
+        # Prepare the response structure
+        response_data = {
+            "message": "No Vendor KYC entries available for the specified country." if not queryset.exists() else "Lists of Vendors",
+            "vendors": []
+        }
+
+        if queryset.exists():
+            serializer = self.get_serializer(queryset, many=True)
+            response_data["vendors"] = serializer.data
+
+        return Response(response_data, status=status.HTTP_200_OK)
+    
 
 class VendorKYCDetailView(generics.RetrieveAPIView):
     """
