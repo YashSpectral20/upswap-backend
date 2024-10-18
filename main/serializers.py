@@ -476,7 +476,6 @@ class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
     actual_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    country = serializers.CharField(source='vendor_kyc.addresses.0.country', read_only=True)  # Adjusting to get from Address
     vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
@@ -491,10 +490,10 @@ class CreateDealSerializer(serializers.ModelSerializer):
             'start_now', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
-            'vendor_name', 'vendor_uuid', 'country', 'vendor_email', 'vendor_number',
+            'vendor_name', 'vendor_uuid', 'vendor_email', 'vendor_number',
             'discount_percentage', 'latitude', 'longitude', 'images'
         ]
-        read_only_fields = ['deal_uuid', 'discount_percentage']
+        read_only_fields = ['deal_uuid', 'discount_percentage', 'actual_price']
 
     def get_discount_percentage(self, obj):
         if obj.actual_price and obj.deal_price:
@@ -502,43 +501,42 @@ class CreateDealSerializer(serializers.ModelSerializer):
             return round(discount, 2)
         return 0
 
+    def validate(self, data):
+        """ Validate select_service and address fields, ensure they are provided manually. """
+        vendor_kyc = data.get('vendor_kyc')
+        select_service = data.get('select_service')
+
+        # Check if the 'select_service' field is provided
+        if not select_service:
+            raise serializers.ValidationError("First provide Select Service.")
+
+        # Fetch the service corresponding to 'select_service' and retrieve the item_price
+        try:
+            service = vendor_kyc.services.get(item_name=select_service)
+            data['actual_price'] = service.item_price  # Fetch the price from the Service model
+        except Service.DoesNotExist:
+            raise serializers.ValidationError("Selected service does not exist for the vendor.")
+
+        # Ensure that all address-related fields are provided manually by the vendor
+        address_fields = [
+            'location_house_no', 'location_road_name', 'location_country',
+            'location_state', 'location_city', 'location_pincode', 'latitude', 'longitude'
+        ]
+        for field in address_fields:
+            if not data.get(field):
+                raise serializers.ValidationError(f"{field.replace('_', ' ').capitalize()} is required.")
+
+        return data
+
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])
         vendor_kyc = validated_data.get('vendor_kyc')
-        select_service = validated_data.get('select_service')
 
-        # Fetch the service corresponding to 'select_service' and retrieve the item_price
-        actual_price = None
-        if select_service:
-            try:
-                service = vendor_kyc.services.get(item_name=select_service)
-                actual_price = service.item_price  # Fetch the price from the Service model
-            except Service.DoesNotExist:
-                raise serializers.ValidationError({"message":"Selected service does not exist for the vendor."})
-        if actual_price is None:
-            raise serializers.ValidationError({"message":"Provide Service."})
-        
-        # Automatically set other fields based on the VendorKYC instance
-        if vendor_kyc.addresses.exists():  # Check if there are addresses available
-            address = vendor_kyc.addresses.first()  # Get the first address
-            validated_data['location_house_no'] = address.house_no_building_name or ''
-            validated_data['location_road_name'] = address.road_name_area_colony or ''
-            validated_data['location_country'] = address.country or ''
-            validated_data['location_state'] = address.state or ''
-            validated_data['location_city'] = address.city or ''
-            validated_data['location_pincode'] = address.pincode or ''
-            validated_data['latitude'] = address.latitude or ''
-            validated_data['longitude'] = address.longitude or ''
-            
-        if actual_price:
-            validated_data['actual_price'] = actual_price
-
+        # If 'start_now' is set, automatically set start time and date to the current time
         if validated_data.get('start_now'):
             now = timezone.now()
             validated_data['start_time'] = now.time().replace(microsecond=0)
-        else:
-            validated_data['start_time'] = validated_data.get('start_time')
-            validated_data['end_time'] = validated_data.get('end_time')
+            validated_data['start_date'] = now.date()
 
         deal = super().create(validated_data)
 
@@ -554,6 +552,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
             deal.save()
 
         return deal
+
     
     
 class CreateDeallistSerializer(serializers.ModelSerializer):

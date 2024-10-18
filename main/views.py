@@ -500,10 +500,10 @@ class CreateDealView(generics.CreateAPIView):
         try:
             vendor_kyc = VendorKYC.objects.get(user=request.user)
         except VendorKYC.DoesNotExist:
-            return Response({"error": "Vendor KYC not found for this user."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Vendor KYC not found for this user."}, status=status.HTTP_404_NOT_FOUND)
 
         if not vendor_kyc.is_approved:
-            return Response({"error": "Vendor KYC is not approved."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Vendor KYC is not approved."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Copy request data and add vendor KYC to the data
         data = request.data.copy()
@@ -512,10 +512,28 @@ class CreateDealView(generics.CreateAPIView):
         # Create the deal using the serializer
         serializer = self.get_serializer(data=data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            deal = serializer.save()
+            response_data = serializer.data
+            response_data['message'] = "Deal created successfully."
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        # Handle errors and convert to the desired format
+        error_message = self.format_errors(serializer.errors)
+        return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+    def format_errors(self, errors):
+        """
+        Convert all validation errors to a single message format.
+        """
+        # If there are non-field-specific errors
+        if 'non_field_errors' in errors:
+            return errors['non_field_errors'][0]
+
+        # If there are field-specific errors, pick the first error message
+        for field, messages in errors.items():
+            return messages[0]  # Take the first message for each field error
+
+
 
 
 class DealImageUploadView(generics.CreateAPIView):
