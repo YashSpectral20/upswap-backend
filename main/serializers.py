@@ -514,8 +514,10 @@ class CreateDealSerializer(serializers.ModelSerializer):
                 service = vendor_kyc.services.get(item_name=select_service)
                 actual_price = service.item_price  # Fetch the price from the Service model
             except Service.DoesNotExist:
-                raise serializers.ValidationError("Selected service does not exist for the vendor.")
-
+                raise serializers.ValidationError({"message":"Selected service does not exist for the vendor."})
+        if actual_price is None:
+            raise serializers.ValidationError({"message":"Provide Service."})
+        
         # Automatically set other fields based on the VendorKYC instance
         if vendor_kyc.addresses.exists():  # Check if there are addresses available
             address = vendor_kyc.addresses.first()  # Get the first address
