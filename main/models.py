@@ -450,16 +450,23 @@ class CreateDeal(models.Model):
 
         # Automatically populate fields from VendorKYC
         if self.vendor_kyc:
-            self.select_service = self.vendor_kyc.item_name
-            self.actual_price = self.vendor_kyc.item_price or self.actual_price
-            self.location_house_no = self.vendor_kyc.house_no_building_name or ''
-            self.location_road_name = self.vendor_kyc.road_name_area_colony or ''
-            self.location_country = self.vendor_kyc.country or ''
-            self.location_state = self.vendor_kyc.state or ''
-            self.location_city = self.vendor_kyc.city or ''
-            self.location_pincode = self.vendor_kyc.pincode or ''
-            self.latitude = self.vendor_kyc.latitude or ''
-            self.longitude = self.vendor_kyc.longitude or ''
+            # Get the first service related to this vendor KYC
+            services = self.vendor_kyc.services.first()  # Assuming you want to use the first service
+            if services:
+                self.select_service = services.item_name
+                self.actual_price = services.item_price or self.actual_price
+            
+        # You might also want to get the address details from the Address model, if necessary
+            address = self.vendor_kyc.addresses.first()  # Assuming you want to use the first address
+            if address:
+                self.location_house_no = address.house_no_building_name or ''
+                self.location_road_name = address.road_name_area_colony or ''
+                self.location_country = address.country or ''
+                self.location_state = address.state or ''
+                self.location_city = address.city or ''
+                self.location_pincode = address.pincode or ''
+                self.latitude = address.latitude or ''
+                self.longitude = address.longitude or ''
             
             
 
