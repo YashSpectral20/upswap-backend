@@ -475,21 +475,12 @@ class CreateDealImageSerializer(serializers.ModelSerializer):
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
-    actual_price = serializers.CharField(source='vendor_kyc.item_price')
+    actual_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)  # Adjusted to decimal for accuracy
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
-    
-    """
-    latitude = serializers.DecimalField(source='vendor_kyc.latitude', read_only=True, max_digits=9, decimal_places=6)
-    longitude = serializers.DecimalField(source='vendor_kyc.longitude', read_only=True, max_digits=9, decimal_places=6)
-    """
-    
-    """
-    start_time = serializers.SerializerMethodField()  
-    end_time = serializers.SerializerMethodField()
-    """
+
     images = CreateDealImageSerializer(many=True, required=False)
 
     class Meta:
@@ -503,54 +494,27 @@ class CreateDealSerializer(serializers.ModelSerializer):
             'vendor_name', 'vendor_uuid', 'country', 'vendor_email', 'vendor_number',
             'discount_percentage', 'latitude', 'longitude', 'images'
         ]
-        read_only_fields = ['deal_uuid', 'discount_percentage']  # Prevent client from setting these fields
+        read_only_fields = ['deal_uuid', 'discount_percentage']
 
     def get_discount_percentage(self, obj):
-        """Calculate and return the discount percentage."""
         if obj.actual_price and obj.deal_price:
             discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
             return round(discount, 2)
         return 0
-    
-    def get_start_time(self, obj):
-        """Return start_time in HH:MM:SS format."""
-        return obj.start_time.strftime('%H:%M:%S') if obj.start_time else None
-
-    def get_end_time(self, obj):
-        """Return end_time in HH:MM:SS format."""
-        return obj.end_time.strftime('%H:%M:%S') if obj.end_time else None
-
-    def validate(self, data):
-        # Ensure vendor KYC is provided
-        vendor_kyc = data.get('vendor_kyc')
-        if not vendor_kyc:
-            raise serializers.ValidationError("Vendor KYC must be provided.")
-
-        # Ensure vendor's KYC is approved
-        if not vendor_kyc.is_approved:
-            raise serializers.ValidationError("Cannot create a deal because Vendor KYC is not approved.")
-
-        # Ensure the deal price is less than or equal to the actual price
-        if data.get('deal_price') and data.get('actual_price'):
-            if data['deal_price'] > data['actual_price']:
-                raise serializers.ValidationError("Deal price must be less than or equal to the actual price.")
-
-        # Validate date ranges if 'start_now' is not set
-        if not data.get('start_now') and (data.get('start_date') or data.get('end_date')):
-            if data['start_date'] and data['end_date'] and data['start_date'] >= data['end_date']:
-                raise serializers.ValidationError("Start date must be earlier than end date.")
-
-        return data
 
     def create(self, validated_data):
-        
         images_data = validated_data.pop('images', [])
-        # Fetch the actual_price from VendorKYC
         vendor_kyc = validated_data.get('vendor_kyc')
-        validated_data['actual_price'] = vendor_kyc.item_price
+        select_service = validated_data.get('select_service')
 
-        # Automatically set fields based on the VendorKYC instance
-        validated_data['select_service'] = vendor_kyc.item_name
+        # Fetch the service corresponding to 'select_service' and retrieve the item_price
+        try:
+            service = vendor_kyc.services.get(item_name=select_service)
+            validated_data['actual_price'] = service.item_price  # Assign item_price from Service
+        except Service.DoesNotExist:
+            raise serializers.ValidationError("Selected service does not exist for the vendor.")
+
+        # Automatically set other fields based on the VendorKYC instance
         validated_data['location_house_no'] = vendor_kyc.house_no_building_name or ''
         validated_data['location_road_name'] = vendor_kyc.road_name_area_colony or ''
         validated_data['location_country'] = vendor_kyc.country or ''
@@ -559,18 +523,14 @@ class CreateDealSerializer(serializers.ModelSerializer):
         validated_data['location_pincode'] = vendor_kyc.pincode or ''
         validated_data['latitude'] = vendor_kyc.latitude or ''
         validated_data['longitude'] = vendor_kyc.longitude or ''
-        
+
         if validated_data.get('start_now'):
             now = timezone.now()
             validated_data['start_time'] = now.time().replace(microsecond=0)
-            #validated_data['end_time'] = now.time().replace(microsecond=0)  
         else:
-            validated_data['start_time'] = validated_data.get('start_time')  
+            validated_data['start_time'] = validated_data.get('start_time')
             validated_data['end_time'] = validated_data.get('end_time')
-        
 
-        return super().create(validated_data)
-    
         deal = super().create(validated_data)
 
         # Handle images if provided
