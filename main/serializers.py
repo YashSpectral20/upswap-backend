@@ -718,3 +718,5 @@ class ResetPasswordSerializer(serializers.Serializer):
 
         user.set_password(self.validated_data['new_password'])
         user.save()
+        
+"Everything is fine"
