@@ -449,24 +449,13 @@ class CreateDeal(models.Model):
             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
         # Automatically populate fields from VendorKYC
-        if self.vendor_kyc:
-            # Get the first service related to this vendor KYC
-            services = self.vendor_kyc.services.first()  # Assuming you want to use the first service
-            if services:
-                self.select_service = services.item_name
-                self.actual_price = services.item_price or self.actual_price
-            
-        # You might also want to get the address details from the Address model, if necessary
-            address = self.vendor_kyc.addresses.first()  # Assuming you want to use the first address
-            if address:
-                self.location_house_no = address.house_no_building_name or ''
-                self.location_road_name = address.road_name_area_colony or ''
-                self.location_country = address.country or ''
-                self.location_state = address.state or ''
-                self.location_city = address.city or ''
-                self.location_pincode = address.pincode or ''
-                self.latitude = address.latitude or ''
-                self.longitude = address.longitude or ''
+        if self.select_service:
+            try:
+                # Find the service by name
+                service = self.vendor_kyc.services.get(item_name=self.select_service)
+                self.actual_price = service.item_price  # Fetch the price from the Service model
+            except Service.DoesNotExist:
+                raise ValidationError(f"The service '{self.select_service}' does not exist.")
             
             
 

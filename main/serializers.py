@@ -508,11 +508,13 @@ class CreateDealSerializer(serializers.ModelSerializer):
         select_service = validated_data.get('select_service')
 
         # Fetch the service corresponding to 'select_service' and retrieve the item_price
-        try:
-            service = vendor_kyc.services.get(item_name=select_service)
-            validated_data['actual_price'] = service.item_price
-        except Service.DoesNotExist:
-            raise serializers.ValidationError("Selected service does not exist for the vendor.")
+        actual_price = None
+        if select_service:
+            try:
+                service = vendor_kyc.services.get(item_name=select_service)
+                actual_price = service.item_price  # Fetch the price from the Service model
+            except Service.DoesNotExist:
+                raise serializers.ValidationError("Selected service does not exist for the vendor.")
 
         # Automatically set other fields based on the VendorKYC instance
         if vendor_kyc.addresses.exists():  # Check if there are addresses available
@@ -525,6 +527,9 @@ class CreateDealSerializer(serializers.ModelSerializer):
             validated_data['location_pincode'] = address.pincode or ''
             validated_data['latitude'] = address.latitude or ''
             validated_data['longitude'] = address.longitude or ''
+            
+        if actual_price:
+            validated_data['actual_price'] = actual_price
 
         if validated_data.get('start_now'):
             now = timezone.now()
