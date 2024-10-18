@@ -475,8 +475,8 @@ class CreateDealImageSerializer(serializers.ModelSerializer):
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
-    actual_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)  # Adjusted to decimal for accuracy
-    country = serializers.CharField(source='vendor_kyc.country', read_only=True)
+    actual_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    country = serializers.CharField(source='vendor_kyc.addresses.0.country', read_only=True)  # Adjusting to get from Address
     vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
@@ -510,19 +510,21 @@ class CreateDealSerializer(serializers.ModelSerializer):
         # Fetch the service corresponding to 'select_service' and retrieve the item_price
         try:
             service = vendor_kyc.services.get(item_name=select_service)
-            validated_data['actual_price'] = service.item_price  # Assign item_price from Service
+            validated_data['actual_price'] = service.item_price
         except Service.DoesNotExist:
             raise serializers.ValidationError("Selected service does not exist for the vendor.")
 
         # Automatically set other fields based on the VendorKYC instance
-        validated_data['location_house_no'] = vendor_kyc.house_no_building_name or ''
-        validated_data['location_road_name'] = vendor_kyc.road_name_area_colony or ''
-        validated_data['location_country'] = vendor_kyc.country or ''
-        validated_data['location_state'] = vendor_kyc.state or ''
-        validated_data['location_city'] = vendor_kyc.city or ''
-        validated_data['location_pincode'] = vendor_kyc.pincode or ''
-        validated_data['latitude'] = vendor_kyc.latitude or ''
-        validated_data['longitude'] = vendor_kyc.longitude or ''
+        if vendor_kyc.addresses.exists():  # Check if there are addresses available
+            address = vendor_kyc.addresses.first()  # Get the first address
+            validated_data['location_house_no'] = address.house_no_building_name or ''
+            validated_data['location_road_name'] = address.road_name_area_colony or ''
+            validated_data['location_country'] = address.country or ''
+            validated_data['location_state'] = address.state or ''
+            validated_data['location_city'] = address.city or ''
+            validated_data['location_pincode'] = address.pincode or ''
+            validated_data['latitude'] = address.latitude or ''
+            validated_data['longitude'] = address.longitude or ''
 
         if validated_data.get('start_now'):
             now = timezone.now()
