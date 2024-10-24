@@ -11,13 +11,13 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage
+from .models import CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage, PlaceOrder
 from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, CreateDealImageSerializer, VendorKYCDetailSerializer,
-    VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer
+    VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer
 
 )
 from .utils import generate_otp 
@@ -31,7 +31,7 @@ from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import force_str
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.contrib.auth import get_user_model
-from rest_framework import generics
+from rest_framework import generics, serializers
 
 
 from django.core.mail import send_mail
@@ -249,15 +249,22 @@ class ActivityListView(ListAPIView):
 
     
 class ActivityImageListCreateView(generics.ListCreateAPIView):
-    queryset = ActivityImage.objects.all()
     serializer_class = ActivityImageSerializer
-    permission_classes = [IsAuthenticated]  # Use [AllowAny] if you don't want any restrictions for the DRF UI
+    permission_classes = [IsAuthenticated]
 
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
+    def get_queryset(self):
+        activity_id = self.kwargs.get('activity_id')
+        return ActivityImage.objects.filter(activity__activity_id=activity_id)
 
-    def post(self, request, *args, **kwargs):
-        return self.create(request, *args, **kwargs)
+    def post(self, request, activity_id=None, *args, **kwargs):
+        # Instead of checking the body for activity_id, we can use the URL
+        if not activity_id:
+            return Response({"error": "Activity ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Pass activity_id to the serializer
+        request.data['activity_id'] = activity_id
+        return super().post(request, *args, **kwargs)
+
 
 
 class ChatRoomCreateView(APIView):
@@ -657,3 +664,43 @@ class ResetPasswordView(generics.GenericAPIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)
+    
+
+
+#PlaceOrder
+class PlaceOrderView(generics.CreateAPIView):
+    queryset = PlaceOrder.objects.all()
+    serializer_class = PlaceOrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data, context={'request': request})
+
+        # Validate the serializer and check for errors
+        if not serializer.is_valid():
+            # Flatten the error response
+            error_message = list(serializer.errors.values())[0][0]  # Get the first error message
+            return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Save the order if everything is valid
+        place_order = serializer.save()
+
+        # Custom response for successful order creation
+        response_data = {
+            "order_id": str(place_order.order_id),  # Ensure UUID is string
+            "deal_uuid": str(place_order.deal.deal_uuid),  # Ensure UUID is string
+            "user_id": str(place_order.user.id),  # Ensure UUID is string
+            "vendor_id": str(place_order.vendor.vendor_id),  # Ensure UUID is string
+            "quantity": place_order.quantity,
+            "country": place_order.country,
+            "latitude": place_order.latitude,
+            "longitude": place_order.longitude,
+            "total_amount": str(place_order.total_amount),  # Convert Decimal to string
+            "transaction_id": str(place_order.transaction_id),  # Ensure UUID is string
+            "payment_status": place_order.payment_status,
+            "payment_mode": place_order.payment_mode,
+            "created_at": place_order.created_at.isoformat()  # Convert datetime to ISO 8601 string
+        }
+
+        # Return the response with the message and data
+        return Response({"message": "Order placed successfully", **response_data}, status=status.HTTP_201_CREATED)

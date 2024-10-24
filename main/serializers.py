@@ -1,12 +1,13 @@
 import json
 import uuid
 from rest_framework import serializers
+from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage, PlaceOrder
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
@@ -111,8 +112,8 @@ class ActivitySerializer(serializers.ModelSerializer):
         read_only_fields = ['created_by', 'created_at']
 
     def get_images(self, obj):
-        # Get all image URLs stored in the Activity model's images JSONField
-        return obj.images if obj.images else []
+        # Generate the full URL for each image
+        return [f"{settings.BUNNYCDN_STORAGE_URL}{image}" for image in obj.images]
 
     def validate(self, data):
         now = timezone.now().date()
@@ -193,10 +194,28 @@ class ActivitySerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
     
 class ActivityImageSerializer(serializers.ModelSerializer):
+    storage_url = serializers.ReadOnlyField()# Removed the source argument
+    activity_id = serializers.UUIDField(source='activity.activity_id', write_only=True)
+
     class Meta:
         model = ActivityImage
-        fields = ['image_id', 'activity', 'image', 'uploaded_at']
-        read_only_fields = ['uploaded_at']
+        fields = ['image_id', 'activity_id', 'image', 'storage_url', 'uploaded_at']
+        read_only_fields = ['uploaded_at', 'storage_url']
+        
+    def create(self, validated_data):
+        # Extract the activity_id from the validated data
+        activity_id = validated_data.pop('activity_id')
+
+        # Fetch the Activity object using the UUID
+        try:
+            activity = Activity.objects.get(activity_id=activity_id)
+        except Activity.DoesNotExist:
+            raise serializers.ValidationError({"activity_id": "Activity not found."})
+
+        # Create and return the new ActivityImage object
+        activity_image = ActivityImage.objects.create(activity=activity, **validated_data)
+        return activity_image
+        
         
 class ActivityListSerializer(serializers.ModelSerializer):
     images = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
@@ -687,4 +706,68 @@ class ResetPasswordSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         
-"Everything is fine"
+#PlacingOrder
+class PlaceOrderSerializer(serializers.ModelSerializer):
+    deal_uuid = serializers.UUIDField(write_only=True)  # Allow user to send deal_uuid
+    user_id = serializers.UUIDField(source='user.id', read_only=True)
+    vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
+    transaction_id = serializers.UUIDField(read_only=True)
+
+    class Meta:
+        model = PlaceOrder
+        fields = [
+            'order_id', 'deal_uuid', 'user_id', 'vendor_id', 'quantity', 'country',
+            'latitude', 'longitude', 'total_amount', 'transaction_id', 'payment_status',
+            'payment_mode', 'created_at'
+        ]
+        read_only_fields = ['order_id', 'transaction_id', 'user_id', 'vendor_id', 'total_amount']
+
+    def validate_deal_uuid(self, value):
+        try:
+            uuid.UUID(str(value))  # Attempt to parse the UUID
+        except ValueError:
+            raise serializers.ValidationError("Must be a valid UUID.")  # Simple string message
+        
+        return value
+
+    def create(self, validated_data):
+        user = self.context['request'].user  # Get the logged-in user
+
+        # Retrieve the deal based on the provided deal_uuid
+        deal_uuid = validated_data.pop('deal_uuid')
+        try:
+            deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
+        except CreateDeal.DoesNotExist:
+            raise serializers.ValidationError("Deal not found")
+
+        vendor = deal.vendor_kyc  # Assuming the relationship field for vendor in the deal
+
+        quantity = validated_data.get('quantity', 1)
+
+        # Check if the quantity exceeds available quantity in the deal
+        if quantity > deal.available_deals:
+            raise serializers.ValidationError({"message":"The ordered quantity exceeds the available deals."})
+
+        total_amount = deal.deal_price * quantity
+
+        payment_status = validated_data.get('payment_status', 'pending')
+
+        # Create the PlaceOrder entry
+        place_order = PlaceOrder.objects.create(
+            user=user,
+            deal=deal,
+            vendor=vendor,
+            quantity=quantity,
+            country=validated_data.get('country', ''),
+            latitude=validated_data.get('latitude', None),
+            longitude=validated_data.get('longitude', None),
+            total_amount=total_amount,
+            payment_mode=validated_data.get('payment_mode', ''),
+            payment_status=payment_status,
+        )
+
+        # Optionally update available quantity after the order is placed
+        deal.available_deals -= quantity
+        deal.save()
+
+        return place_order

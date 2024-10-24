@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, DealImage
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, DealImage, PlaceOrder
 )
 
 # Custom User Admin
@@ -168,12 +168,51 @@ class DealImageInline(admin.TabularInline):
     
 @admin.register(CreateDeal)
 class CreateDealAdmin(admin.ModelAdmin):
-    list_display = ['deal_uuid', 'deal_title', 'vendor_kyc', 'actual_price', 'deal_price', 'start_date', 'end_date', 'start_time', 'end_time', 'vendor_kyc', 'deal_post_time']
+    list_display = [
+        'deal_uuid', 'deal_title', 'vendor_kyc', 'actual_price', 'deal_price', 
+        'start_date', 'end_date', 'start_time', 'end_time', 'vendor_kyc', 
+        'deal_post_time', 'get_discount_percentage'
+    ]
     search_fields = ['deal_title', 'vendor_kyc__full_name']
     inlines = [DealImageInline]
     
+    def get_discount_percentage(self, obj):
+        return obj.discount_percentage  # Access the @property correctly
+    get_discount_percentage.short_description = 'Discount (%)'
+
     
 @admin.register(DealImage)
 class DealImageAdmin(admin.ModelAdmin):
     list_display = ['create_deal', 'images', 'uploaded_at']
     search_fields = ['create_deal__deal_title', 'create_deal__vendor_kyc__full_name']
+    
+    
+    
+@admin.register(PlaceOrder)
+class PlaceOrderAdmin(admin.ModelAdmin):
+    # Fields to be displayed in the list view
+    list_display = ('order_id', 'user', 'vendor', 'deal', 'quantity', 'total_amount', 'payment_status', 'payment_mode', 'created_at')
+
+    # Fields to search in the admin
+    search_fields = ('order_id', 'user__username', 'deal__deal_uuid', 'vendor__vendor_id', 'payment_status')
+
+    # Filters to use in the admin list view
+    list_filter = ('payment_status', 'payment_mode', 'created_at')
+
+    # Fields to be read-only in the detail view
+    readonly_fields = ('order_id', 'transaction_id', 'created_at', 'total_amount')
+
+    # Fields to display in the form in the detail view
+    fields = (
+        'order_id', 'user', 'deal', 'vendor', 'quantity', 'country', 'latitude', 'longitude',
+        'total_amount', 'transaction_id', 'payment_status', 'payment_mode', 'created_at'
+    )
+
+    # Ordering in the list view
+    ordering = ('-created_at',)
+
+    # Related models to show when managing PlaceOrder
+    raw_id_fields = ('user', 'deal', 'vendor')
+
+    # Add date hierarchy to filter by date in the admin
+    date_hierarchy = 'created_at'

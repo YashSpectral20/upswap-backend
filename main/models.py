@@ -181,17 +181,22 @@ class Activity(models.Model):
 
     def __str__(self):
         return self.activity_title
-    
+
 class ActivityImage(models.Model):
     image_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name='activity_images')
     image = models.ImageField(upload_to='activity_images/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def storage_url(self):
+        activity_uuid = self.activity.activity_id
+        return f"https://upswap-assets.storage.bunnycdn.com/activity_images/{activity_uuid}/{self.image.name}"
+
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         # Update the Activity model with the new image path
-        image_path = self.image.url.replace('/media/', '')  # Remove media URL base
+        image_path = self.storage_url  # Use the storage_url property
         activity = self.activity
         if image_path not in activity.images:
             activity.images.append(image_path)
@@ -440,51 +445,40 @@ class CreateDeal(models.Model):
     location_city = models.CharField(max_length=255, blank=True)
     location_pincode = models.CharField(max_length=20, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
-
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
 
     def save(self, *args, **kwargs):
-        # Ensure that the vendor's KYC is approved before allowing the creation of a deal
         if not self.vendor_kyc.is_approved:
             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
-        # Automatically populate fields from VendorKYC
         if self.select_service:
             try:
-                # Find the service by name
                 service = self.vendor_kyc.services.get(item_name=self.select_service)
-                self.actual_price = service.item_price  # Fetch the price from the Service model
+                self.actual_price = service.item_price
             except Service.DoesNotExist:
                 raise ValidationError(f"The service '{self.select_service}' does not exist.")
-            
-            
 
-        # Set the start time if 'start_now' is True
         if self.start_now:
-            # Capture the current date and time
             now = timezone.now()
             self.start_date = now.date()
             self.start_time = now.time().replace(microsecond=0)
-            
-
 
         super().save(*args, **kwargs)
-        
+
     def get_upload_images(self):
-        # Split the comma-separated string back into a list
         return self.upload_images.split(',') if self.upload_images else []
 
     def set_upload_images(self, image_paths):
-        # Join the list into a comma-separated string
         self.upload_images = ','.join(image_paths)
-        
-@property
-def discount_percentage(self):
+
+    @property
+    def discount_percentage(self):
         """Calculate and return the discount percentage."""
         if self.actual_price > 0:  # Ensure no division by zero
             discount = ((self.actual_price - self.deal_price) / self.actual_price) * 100
-            return round(discount, 2)  # Return discount percentage rounded to 2 decimal places
+            return round(discount, 2)
         return 0.0
+
 
 class DealImage(models.Model):
     create_deal = models.ForeignKey(CreateDeal, related_name='deal_images', on_delete=models.CASCADE, null=True, blank=True)
@@ -507,3 +501,22 @@ class DealImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.create_deal.deal_title if self.create_deal else 'No Deal'}"
+    
+#PlacingOrders
+class PlaceOrder(models.Model):
+    order_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    deal = models.ForeignKey('CreateDeal', on_delete=models.CASCADE)  # Replace 'CreateDeal' with the actual model name for deals
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # Fetches user from CustomUser table
+    vendor = models.ForeignKey('VendorKYC', on_delete=models.CASCADE)  # Fetches vendor details from VendorKYC table
+    quantity = models.PositiveIntegerField(default=1)
+    country = models.CharField(max_length=100, blank=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    transaction_id = models.UUIDField(default=uuid.uuid4, editable=False)  # Generates a unique UUID for each transaction
+    payment_status = models.CharField(max_length=20, blank=True, null=True)
+    payment_mode = models.CharField(max_length=50, blank=True, null=True)  # Store payment mode like 'Credit Card', 'PayPal', etc.
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Order {self.order_id} by {self.user.username}"

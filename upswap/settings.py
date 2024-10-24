@@ -44,6 +44,7 @@ BUNNY_USERNAME = 'upswap-assets'
 BUNNY_PASSWORD = '9ab0b8b6-2eab-417c-958e06bfb892-431a-4080'
 BUNNYCDN_STORAGE_ZONE = 'upswap-assets'
 BUNNY_REGION = 'SG'
+BUNNYCDN_STORAGE_URL = "https://upswap-assets.storage.bunnycdn.com/"
     
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/

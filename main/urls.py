@@ -13,7 +13,7 @@ from .views import (
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
-    VendorKYCListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView
+    VendorKYCListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView
 )
 
 urlpatterns = [
@@ -35,7 +35,7 @@ urlpatterns = [
     # path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
 
     # Activity Images (Requires Authentication)
-    path('activity-images/', ActivityImageListCreateView.as_view(), name='activity-image-create'),
+    path('activities/<uuid:activity_id>/images/', ActivityImageListCreateView.as_view(), name='activity-images'),
 
     # Chat Rooms (Requires Authentication)
     path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),
@@ -77,6 +77,9 @@ urlpatterns = [
     
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('password-reset-confirm/<uidb64>/<token>/', ResetPasswordView.as_view(), name='password-reset-confirm'),
+    
+    #PlaceOrder
+    path('place-order/', PlaceOrderView.as_view(), name='place-order'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
