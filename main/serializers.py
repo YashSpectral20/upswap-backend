@@ -738,7 +738,7 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
         try:
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
         except CreateDeal.DoesNotExist:
-            raise serializers.ValidationError("Deal not found")
+            raise serializers.ValidationError({"message":"Deal not found"})
 
         vendor = deal.vendor_kyc  # Assuming the relationship field for vendor in the deal
 
