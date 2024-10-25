@@ -686,6 +686,22 @@ class PlaceOrderView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
+        # Expecting deal_uuid in the request data
+        deal_uuid = request.data.get('deal_uuid')
+        if not deal_uuid:
+            return Response({"message": "Deal UUID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Fetch the deal using the deal_uuid
+        try:
+            deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
+        except CreateDeal.DoesNotExist:
+            return Response({"message": "Deal not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if the user is attempting to purchase their own deal
+        if VendorKYC.objects.filter(user=request.user, vendor_id=deal.vendor_kyc.vendor_id).exists():
+            return Response({"message": "You cannot purchase your own deal."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Create the order using the deal and request data
         serializer = self.get_serializer(data=request.data, context={'request': request})
 
         # Validate the serializer and check for errors
@@ -695,14 +711,14 @@ class PlaceOrderView(generics.CreateAPIView):
             return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
         # Save the order if everything is valid
-        place_order = serializer.save()
+        place_order = serializer.save(user=request.user, deal=deal)  # Pass the deal to the save method
 
         # Custom response for successful order creation
         response_data = {
             "order_id": str(place_order.order_id),  # Ensure UUID is string
             "deal_uuid": str(place_order.deal.deal_uuid),  # Ensure UUID is string
             "user_id": str(place_order.user.id),  # Ensure UUID is string
-            "vendor_id": str(place_order.vendor.vendor_id),  # Ensure UUID is string
+            "vendor_id": str(deal.vendor_kyc.vendor_id),  # Ensure UUID is string
             "quantity": place_order.quantity,
             "country": place_order.country,
             "latitude": place_order.latitude,
