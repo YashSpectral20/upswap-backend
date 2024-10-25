@@ -12,4 +12,4 @@ python-magic
 djangorestframework-simplejwt[blacklist]
 bunnycdn
 django-bunny-storage==0.1.2
-
+django-cors-headers
