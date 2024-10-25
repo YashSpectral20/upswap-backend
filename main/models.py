@@ -513,7 +513,7 @@ class PlaceOrder(models.Model):
     latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    transaction_id = models.UUIDField(default=uuid.uuid4, editable=False)  # Generates a unique UUID for each transaction
+    transaction_id = models.CharField(max_length=20, blank=True, null=True)  # Generates a unique UUID for each transaction
     payment_status = models.CharField(max_length=20, blank=True, null=True)
     payment_mode = models.CharField(max_length=50, blank=True, null=True)  # Store payment mode like 'Credit Card', 'PayPal', etc.
     created_at = models.DateTimeField(auto_now_add=True)

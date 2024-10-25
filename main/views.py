@@ -149,7 +149,7 @@ class LoginView(generics.GenericAPIView):
         # Check if OTP has been verified
         try:
             otp_instance = OTP.objects.get(user=user)
-            if not otp_instance.is_verified:  # Check if OTP is verified
+            if not otp_instance.is_verified:
                 return Response({"message": "OTP not verified. Please verify your OTP first."},
                                 status=status.HTTP_403_FORBIDDEN)
         except OTP.DoesNotExist:
@@ -163,9 +163,11 @@ class LoginView(generics.GenericAPIView):
         # Check if user has VendorKYC
         vendor_kyc = VendorKYC.objects.filter(user=user).first()
         is_approved = False  # Default value
+        vendor_id = ""  # Default empty string for non-vendors
 
         if vendor_kyc:
-            is_approved = vendor_kyc.is_approved  # Fetch is_approved status if VendorKYC exists
+            is_approved = vendor_kyc.is_approved
+            vendor_id = str(vendor_kyc.vendor_id)  # Use vendor_id instead of vendor_uuid
 
         # Prepare response
         return Response({
@@ -173,8 +175,11 @@ class LoginView(generics.GenericAPIView):
             'refresh': str(refresh),
             'access': access_token,  # Return access token after successful login
             'is_approved': is_approved,  # Include is_approved status
+            'vendor_id': vendor_id,  # Include vendor_id if the user is a vendor
             'message': 'User logged in successfully.'
         }, status=status.HTTP_200_OK)
+
+
 
 
     
@@ -703,7 +708,7 @@ class PlaceOrderView(generics.CreateAPIView):
             "latitude": place_order.latitude,
             "longitude": place_order.longitude,
             "total_amount": str(place_order.total_amount),  # Convert Decimal to string
-            "transaction_id": str(place_order.transaction_id),  # Ensure UUID is string
+            "transaction_id": place_order.transaction_id,
             "payment_status": place_order.payment_status,
             "payment_mode": place_order.payment_mode,
             "created_at": place_order.created_at.isoformat()  # Convert datetime to ISO 8601 string

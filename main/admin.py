@@ -199,8 +199,8 @@ class PlaceOrderAdmin(admin.ModelAdmin):
     # Filters to use in the admin list view
     list_filter = ('payment_status', 'payment_mode', 'created_at')
 
-    # Fields to be read-only in the detail view
-    readonly_fields = ('order_id', 'transaction_id', 'created_at', 'total_amount')
+    # Fields to be read-only in the detail view (excluding transaction_id)
+    readonly_fields = ('order_id', 'created_at', 'total_amount')
 
     # Fields to display in the form in the detail view
     fields = (

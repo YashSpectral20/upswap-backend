@@ -690,7 +690,7 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
     deal_uuid = serializers.UUIDField(write_only=True)  # Allow user to send deal_uuid
     user_id = serializers.UUIDField(source='user.id', read_only=True)
     vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
-    transaction_id = serializers.UUIDField(read_only=True)
+    #transaction_id = serializers.UUIDField(read_only=True)
 
     class Meta:
         model = PlaceOrder
@@ -699,7 +699,7 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
             'latitude', 'longitude', 'total_amount', 'transaction_id', 'payment_status',
             'payment_mode', 'created_at'
         ]
-        read_only_fields = ['order_id', 'transaction_id', 'user_id', 'vendor_id', 'total_amount']
+        read_only_fields = ['order_id', 'user_id', 'vendor_id', 'total_amount']
 
     def validate_deal_uuid(self, value):
         try:
@@ -730,6 +730,8 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
         total_amount = deal.deal_price * quantity
 
         payment_status = validated_data.get('payment_status', 'pending')
+        
+        transaction_id = validated_data.get('transaction_id') or "default-transaction-id"
 
         # Create the PlaceOrder entry
         place_order = PlaceOrder.objects.create(
@@ -741,6 +743,7 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
             latitude=validated_data.get('latitude', None),
             longitude=validated_data.get('longitude', None),
             total_amount=total_amount,
+            transaction_id=transaction_id,
             payment_mode=validated_data.get('payment_mode', ''),
             payment_status=payment_status,
         )
