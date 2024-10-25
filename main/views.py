@@ -1,4 +1,5 @@
 import re
+from django.utils import timezone
 from django.db.models import Q
 from django.db.models import F, Func, FloatField
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
@@ -583,9 +584,15 @@ class CreateDealDetailView(RetrieveAPIView):
 
     
 class CreateDeallistView(generics.ListAPIView):
-    queryset = CreateDeal.objects.all()
     serializer_class = CreateDeallistSerializer
-    permission_classes = [AllowAny] # Allow any user to access this view
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        # Get the current date and time
+        now = timezone.now()
+
+        # Filter out deals where the end date is less than the current date and time
+        return CreateDeal.objects.filter(end_date__gte=now)
     
     
 class ActivityListView(generics.ListAPIView):
