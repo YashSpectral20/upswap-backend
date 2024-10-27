@@ -18,7 +18,7 @@ from .serializers import (
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, CreateDealImageSerializer, VendorKYCDetailSerializer,
-    VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer
+    VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer
 
 )
 from .utils import generate_otp 
@@ -732,3 +732,9 @@ class PlaceOrderView(generics.CreateAPIView):
 
         # Return the response with the message and data
         return Response({"message": "Order placed successfully", **response_data}, status=status.HTTP_201_CREATED)
+
+class PlaceOrderDetailsView(generics.RetrieveAPIView):
+    queryset = PlaceOrder.objects.all()
+    serializer_class = PlaceOrderDetailsSerializer
+    lookup_field = 'order_id'
+    permission_classes = [IsAuthenticated]
