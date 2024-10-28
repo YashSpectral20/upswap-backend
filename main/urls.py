@@ -80,7 +80,7 @@ urlpatterns = [
     
     #PlaceOrder
     path('place-order/', PlaceOrderView.as_view(), name='place-order'),
-    path('place-order/details/<uuid:order_id>', PlaceOrderDetailsView.as_view(), name='place-order-details'),
+    path('place-order/details/<uuid:order_id>/', PlaceOrderDetailsView.as_view(), name='place-order-details'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

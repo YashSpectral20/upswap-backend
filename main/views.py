@@ -736,5 +736,26 @@ class PlaceOrderView(generics.CreateAPIView):
 class PlaceOrderDetailsView(generics.RetrieveAPIView):
     queryset = PlaceOrder.objects.all()
     serializer_class = PlaceOrderDetailsSerializer
-    lookup_field = 'order_id'
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, order_id, *args, **kwargs):
+        try:
+            # Fetch the order by ID
+            place_order = PlaceOrder.objects.get(order_id=order_id)
+            
+            # Check if the order belongs to the requesting user
+            if place_order.user != request.user:
+                return Response(
+                    {"message": "You are not authorized to access this order."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Serialize and return the order details
+            serializer = PlaceOrderDetailsSerializer(place_order)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        except PlaceOrder.DoesNotExist:
+            return Response(
+                {"message": "Order not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
