@@ -7,7 +7,8 @@ from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage, PlaceOrder
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage, PlaceOrder,
+    ActivityCategory, ServiceCategory
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
@@ -753,3 +754,14 @@ class PlaceOrderDetailsSerializer(serializers.ModelSerializer):
             'payment_mode', 'created_at'
         ]
         read_only_fields = fields
+        
+class ActivityCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ActivityCategory
+        fields = ['name']
+
+
+class ServiceCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceCategory
+        fields = ['name']

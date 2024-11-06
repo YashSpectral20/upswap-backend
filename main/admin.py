@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, DealImage, PlaceOrder
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, DealImage, PlaceOrder,
 )
 
 # Custom User Admin
@@ -25,12 +25,12 @@ admin.site.register(CustomUser, CustomUserAdmin)
 class ActivityAdmin(admin.ModelAdmin):
     list_display = [
         'activity_id', 'created_by_display', 'activity_title',
-        'activity_type', 'user_participation', 'max_participations_display',
+        'activity_category_display', 'user_participation', 'max_participations_display',
         'start_date', 'end_date', 'start_time', 'end_time', 'infinite_time', 'set_current_datetime',
         'location', 'latitude', 'longitude', 'created_at'
     ]
     readonly_fields = ['activity_id', 'created_by']
-    list_filter = ('activity_type', 'infinite_time')
+    list_filter = ('activity_category', 'infinite_time')  # Use activity_category for filtering
 
     def save_model(self, request, obj, form, change):
         # Set created_by to the current user if it's not already set
@@ -42,6 +42,11 @@ class ActivityAdmin(admin.ModelAdmin):
         # Safely handle the case where created_by might be None
         return obj.created_by.username if obj.created_by_id else 'N/A'
     created_by_display.short_description = 'Created By'
+
+    def activity_category_display(self, obj):
+        # Display the activity category in a human-readable format
+        return obj.activity_category.name if obj.activity_category else 'N/A'
+    activity_category_display.short_description = 'Activity Category'
 
     def max_participations_display(self, obj):
         return obj.maximum_participants if obj.user_participation else 0

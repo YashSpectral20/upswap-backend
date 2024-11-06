@@ -103,26 +103,19 @@ class OTP(models.Model):
 
     def is_expired(self):
         return timezone.now() > self.expires_at
+    
+class ActivityCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
 
 class Activity(models.Model):
     activity_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     activity_title = models.CharField(max_length=50)
     activity_description = models.TextField()
-
-    class ActivityType(models.TextChoices):
-        TECH_GAMING = 'TECH_GAMING', 'Tech and Gaming'
-        VOLUNTEER_OPPORTUNITIES = 'VOLUNTEER_OPPORTUNITIES', 'Volunteer Opportunities'
-        CULTURAL_EXCHANGES = 'CULTURAL_EXCHANGES', 'Cultural Exchanges'
-        INTELLECTUAL_PURSUITS = 'INTELLECTUAL_PURSUITS', 'Intellectual Pursuits'
-        SPORTS_RECREATION = 'SPORTS_RECREATION', 'Sports and Recreation'
-        ARTS_CRAFTS = 'ARTS_CRAFTS', 'Arts and Crafts'
-        SOCIAL_GATHERINGS = 'SOCIAL_GATHERINGS', 'Social Gatherings'
-        EDUCATIONAL_WORKSHOPS = 'EDUCATIONAL_WORKSHOPS', 'Educational Workshops'
-        MUSIC_ENTERTAINMENT = 'MUSIC_ENTERTAINMENT', 'Music and Entertainment'
-        OTHERS = 'OTHERS', 'Others'
-
-    activity_type = models.CharField(max_length=50, choices=ActivityType.choices)
+    activity_category = models.ForeignKey(ActivityCategory, on_delete=models.SET_NULL, null=True, blank=True)
     user_participation = models.BooleanField(default=True)
     maximum_participants = models.IntegerField(default=0)
     start_date = models.DateField(null=True, blank=True)
@@ -336,27 +329,19 @@ class VendorKYC(models.Model):
     
     is_approved = models.BooleanField(default=False)
 
+class ServiceCategory(models.Model):
+    name = models.CharField(max_length=100, unique=True)
 
+    def __str__(self):
+        return self.name
     
 class Service(models.Model):
     vendor_kyc = models.ForeignKey(VendorKYC, related_name='services', on_delete=models.CASCADE)
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     item_name = models.CharField(max_length=255)
-    item_category = models.CharField(max_length=100)
     item_description = models.TextField()
     item_price = models.DecimalField(max_digits=10, decimal_places=2)
-
-    class ItemCategory(models.TextChoices):
-        RESTAURANTS = 'Restaurants'
-        CONSULTANTS = 'Consultants'
-        ESTATE_AGENTS = 'Estate Agents'
-        RENT_HIRE = 'Rent & Hire'
-        DENTIST = 'Dentist'
-        PERSONAL_CARE = 'Personal Care'
-        FOOD = 'Food'
-        BAKERY = 'Bakery'
-        GROCERIES = 'Groceries'
-        OTHERS = 'Others'
+    service_category = models.ForeignKey(ServiceCategory, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return self.item_name

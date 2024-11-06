@@ -12,13 +12,16 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage, PlaceOrder
+from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage, PlaceOrder,
+                    ActivityCategory, ServiceCategory)
+
 from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, CreateDealImageSerializer, VendorKYCDetailSerializer,
-    VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer
+    VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
+    ActivityCategorySerializer, ServiceCategorySerializer
 
 )
 from .utils import generate_otp 
@@ -759,3 +762,21 @@ class PlaceOrderDetailsView(generics.RetrieveAPIView):
                 {"message": "Order not found."},
                 status=status.HTTP_404_NOT_FOUND
             )
+            
+class CategoriesView(APIView):
+    def get(self, request):
+        # Fetch activity categories and serialize them
+        activity_categories = ActivityCategory.objects.all()
+        activity_data = ActivityCategorySerializer(activity_categories, many=True).data
+
+        # Fetch service categories and serialize them
+        service_categories = ServiceCategory.objects.all()
+        service_data = ServiceCategorySerializer(service_categories, many=True).data
+
+        # Format the response
+        response_data = {
+            "activity_category": activity_data,
+            "service_category": service_data,
+        }
+
+        return Response(response_data)
