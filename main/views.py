@@ -780,3 +780,5 @@ class CategoriesView(APIView):
         }
 
         return Response(response_data)
+    
+    
