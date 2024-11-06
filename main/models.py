@@ -105,7 +105,7 @@ class OTP(models.Model):
         return timezone.now() > self.expires_at
     
 class ActivityCategory(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    actv_category = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name
@@ -330,7 +330,7 @@ class VendorKYC(models.Model):
     is_approved = models.BooleanField(default=False)
 
 class ServiceCategory(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    serv_category = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name

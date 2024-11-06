@@ -758,10 +758,10 @@ class PlaceOrderDetailsSerializer(serializers.ModelSerializer):
 class ActivityCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityCategory
-        fields = ['name']
+        fields = ['actv_category']
 
 
 class ServiceCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceCategory
-        fields = ['name']
+        fields = ['serv_category']
