@@ -774,3 +774,19 @@ class CustomUserDetailsSerializer(serializers.ModelSerializer):
             'gender', 'country_code', 'dial_code', 'country'
         ]
         read_only_fields = fields
+        
+        
+class PlaceOrderListsSerializer(serializers.ModelSerializer):
+    order_id = serializers.UUIDField(format='hex_verbose', read_only=True)
+    deal_uuid = serializers.UUIDField(source='deal.deal_uuid', format='hex_verbose', read_only=True)
+    user_id = serializers.UUIDField(source='user.id', read_only=True)
+    vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
+
+    class Meta:
+        model = PlaceOrder
+        fields = [
+            'order_id', 'deal_uuid', 'user_id', 'vendor_id', 'quantity', 'country',
+            'latitude', 'longitude', 'total_amount', 'transaction_id', 'payment_status',
+            'payment_mode', 'created_at'
+        ]
+        read_only_fields = fields

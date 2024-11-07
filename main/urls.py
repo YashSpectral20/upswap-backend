@@ -14,7 +14,7 @@ from .views import (
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView
+    CustomUserDetailView, PlaceOrderListsView
 )
 
 urlpatterns = [
@@ -82,6 +82,7 @@ urlpatterns = [
     #PlaceOrder
     path('place-order/', PlaceOrderView.as_view(), name='place-order'),
     path('place-order/details/<uuid:order_id>/', PlaceOrderDetailsView.as_view(), name='place-order-details'),
+    path('place-order/lists/', PlaceOrderListsView.as_view(), name='place-order-lists'),
     
     path('categories/', CategoriesView.as_view(), name='categories'),
     

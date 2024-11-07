@@ -21,7 +21,7 @@ from .serializers import (
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, CreateDealImageSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
-    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer
+    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer
 
 )
 from .utils import generate_otp 
@@ -791,3 +791,9 @@ class CustomUserDetailView(generics.RetrieveAPIView):
     def get_queryset(self):
         # Now use deal_uuid instead of pk
         return CustomUser.objects.filter(id=self.kwargs['id'])
+    
+class PlaceOrderListsView(generics.ListAPIView):
+    queryset = PlaceOrder.objects.all()
+    serializer_class = PlaceOrderListsSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
