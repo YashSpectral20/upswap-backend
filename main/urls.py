@@ -13,7 +13,8 @@ from .views import (
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
-    VendorKYCListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView
+    VendorKYCListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
+    CustomUserDetailView
 )
 
 urlpatterns = [
@@ -83,6 +84,8 @@ urlpatterns = [
     path('place-order/details/<uuid:order_id>/', PlaceOrderDetailsView.as_view(), name='place-order-details'),
     
     path('categories/', CategoriesView.as_view(), name='categories'),
+    
+    path('customuser/details/<uuid:id>/', CustomUserDetailView.as_view(), name='customuser-details'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
