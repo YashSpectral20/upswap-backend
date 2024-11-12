@@ -32,25 +32,25 @@ class ActivityAdmin(admin.ModelAdmin):
     readonly_fields = ['activity_id', 'created_by']
     list_filter = ('activity_category', 'infinite_time')  # Use activity_category for filtering
 
-    def save_model(self, request, obj, form, change):
-        # Set created_by to the current user if it's not already set
-        if not obj.created_by_id:
-            obj.created_by = request.user
-        super().save_model(request, obj, form, change)
+    def activity_category_display(self, obj):
+        return obj.activity_category.actv_category if obj.activity_category else 'N/A'
+    activity_category_display.short_description = 'Activity Category'
 
     def created_by_display(self, obj):
-        # Safely handle the case where created_by might be None
         return obj.created_by.username if obj.created_by_id else 'N/A'
     created_by_display.short_description = 'Created By'
-
-    def activity_category_display(self, obj):
-        # Display the activity category in a human-readable format
-        return obj.activity_category.name if obj.activity_category else 'N/A'
-    activity_category_display.short_description = 'Activity Category'
 
     def max_participations_display(self, obj):
         return obj.maximum_participants if obj.user_participation else 0
     max_participations_display.short_description = 'Max Participations'
+
+    def save_model(self, request, obj, form, change):
+        # Automatically set created_by to the current user if not already set
+        if not obj.created_by_id:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
 
 # ChatRoom Admin
 @admin.register(ChatRoom)

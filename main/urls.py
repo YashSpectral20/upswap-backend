@@ -14,7 +14,7 @@ from .views import (
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView
+    CustomUserDetailView, PlaceOrderListsView, ActivityImagesListView
 )
 
 urlpatterns = [
@@ -36,7 +36,9 @@ urlpatterns = [
     # path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
 
     # Activity Images (Requires Authentication)
-    path('activities/<uuid:activity_id>/images/', ActivityImageListCreateView.as_view(), name='activity-images'),
+    path('activities/<uuid:activity_id>/images/', ActivityImageListCreateView.as_view(), name='activity-image-list-create'),
+    
+    path('activities/lists/<uuid:activity_id>/images/', ActivityImagesListView.as_view(), name='activity-images-list'),
 
     # Chat Rooms (Requires Authentication)
     path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),

@@ -21,7 +21,7 @@ from .serializers import (
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, CreateDealImageSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
-    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer
+    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, ActivityImageListsSerializer
 
 )
 from .utils import generate_otp 
@@ -45,6 +45,8 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.urls import reverse
 
 from rest_framework.parsers import MultiPartParser, FormParser
+
+from django.shortcuts import get_object_or_404
 
 User = get_user_model()
 token_generator = PasswordResetTokenGenerator()
@@ -227,36 +229,7 @@ class Distance(Func):
             **kwargs,
         )
 
-class ActivityListView(ListAPIView):
-    serializer_class = ActivitySerializer
-    permission_classes = [AllowAny]  # Allow any user, including guests, to access this view
-    
-    def get_queryset(self):
-        queryset = Activity.objects.all()
-        user_lat = self.request.query_params.get('user_lat', None)
-        user_lon = self.request.query_params.get('user_lon', None)
-        max_distance_km = 15  # Maximum distance in kilometers
-
-        if user_lat is not None and user_lon is not None:
-            user_lat = float(user_lat)
-            user_lon = float(user_lon)
-
-            # Cast latitude and longitude fields to FloatField for proper calculation
-            queryset = queryset.annotate(
-                latitude_float=Cast('latitude', FloatField()),
-                longitude_float=Cast('longitude', FloatField())
-            ).annotate(
-                distance=6371 * 2 * ACos(
-                    Cos(Radians(user_lat)) * Cos(Radians(F('latitude_float'))) * Cos(
-                        Radians(F('longitude_float')) - Radians(user_lon)
-                    ) +
-                    Sin(Radians(user_lat)) * Sin(Radians(F('latitude_float')))
-                )
-            ).filter(distance__lte=max_distance_km)
-
-        return queryset
-
-    
+# views.py
 class ActivityImageListCreateView(generics.ListCreateAPIView):
     serializer_class = ActivityImageSerializer
     permission_classes = [IsAuthenticated]
@@ -265,14 +238,21 @@ class ActivityImageListCreateView(generics.ListCreateAPIView):
         activity_id = self.kwargs.get('activity_id')
         return ActivityImage.objects.filter(activity__activity_id=activity_id)
 
-    def post(self, request, activity_id=None, *args, **kwargs):
-        # Instead of checking the body for activity_id, we can use the URL
-        if not activity_id:
-            return Response({"error": "Activity ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['activity_id'] = self.kwargs.get('activity_id')
+        return context
 
-        # Pass activity_id to the serializer
-        request.data['activity_id'] = activity_id
-        return super().post(request, *args, **kwargs)
+    def perform_create(self, serializer):
+        activity_id = self.kwargs.get('activity_id')
+        try:
+            activity = Activity.objects.get(activity_id=activity_id)
+        except Activity.DoesNotExist:
+            raise serializers.ValidationError("Activity not found.")
+        
+        # Pass the activity object to the serializer to associate the image with the activity
+        serializer.save(activity=activity)
+
 
 
 
@@ -797,3 +777,12 @@ class PlaceOrderListsView(generics.ListAPIView):
     serializer_class = PlaceOrderListsSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    
+    
+    
+class ActivityImagesListView(generics.ListAPIView):
+    serializer_class = ActivityImageListsSerializer
+
+    def get_queryset(self):
+        activity_id = self.kwargs['activity_id']
+        return ActivityImage.objects.filter(activity__activity_id=activity_id)

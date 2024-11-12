@@ -108,7 +108,7 @@ class ActivityCategory(models.Model):
     actv_category = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
-        return self.name
+        return self.actv_category
 
 class Activity(models.Model):
     activity_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -178,7 +178,7 @@ class Activity(models.Model):
 class ActivityImage(models.Model):
     image_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name='activity_images')
-    image = models.ImageField(upload_to='activity_images/')
+    image = models.ImageField()  # Leave upload_to blank; we will set it in the save method
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     @property
@@ -187,7 +187,10 @@ class ActivityImage(models.Model):
         return f"https://upswap-assets.storage.bunnycdn.com/activity_images/{activity_uuid}/{self.image.name}"
 
     def save(self, *args, **kwargs):
+        # Dynamically set the upload path using activity_id
+        self.image.field.upload_to = f'activity_images/{self.activity.activity_id}/'
         super().save(*args, **kwargs)
+        
         # Update the Activity model with the new image path
         image_path = self.storage_url  # Use the storage_url property
         activity = self.activity
@@ -197,6 +200,9 @@ class ActivityImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.activity.activity_title}"
+
+
+
     
 class ChatRequest(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)

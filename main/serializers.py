@@ -194,29 +194,21 @@ class ActivitySerializer(serializers.ModelSerializer):
 
         return super().update(instance, validated_data)
     
+# serializers.py
 class ActivityImageSerializer(serializers.ModelSerializer):
-    storage_url = serializers.ReadOnlyField()# Removed the source argument
-    activity_id = serializers.UUIDField(source='activity.activity_id', write_only=True)
+    storage_url = serializers.ReadOnlyField()
 
     class Meta:
         model = ActivityImage
-        fields = ['image_id', 'activity_id', 'image', 'storage_url', 'uploaded_at']
+        fields = ['image_id', 'activity', 'image', 'storage_url', 'uploaded_at']
         read_only_fields = ['uploaded_at', 'storage_url']
-        
+
     def create(self, validated_data):
-        # Extract the activity_id from the validated data
-        activity_id = validated_data.pop('activity_id')
+        # No need to pass activity here
+        return ActivityImage.objects.create(**validated_data)
 
-        # Fetch the Activity object using the UUID
-        try:
-            activity = Activity.objects.get(activity_id=activity_id)
-        except Activity.DoesNotExist:
-            raise serializers.ValidationError({"activity_id": "Activity not found."})
 
-        # Create and return the new ActivityImage object
-        activity_image = ActivityImage.objects.create(activity=activity, **validated_data)
-        return activity_image
-        
+
         
 class ActivityListSerializer(serializers.ModelSerializer):
     images = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
@@ -790,3 +782,10 @@ class PlaceOrderListsSerializer(serializers.ModelSerializer):
             'payment_mode', 'created_at'
         ]
         read_only_fields = fields
+        
+        
+        
+class ActivityImageListsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ActivityImage
+        fields = ['image_id', 'activity', 'image', 'storage_url', 'uploaded_at']
