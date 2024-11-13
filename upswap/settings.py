@@ -105,8 +105,13 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     "https://api.upswap.app",
-    # other allowed origins
+    "http://api.upswap.app",  # Include if testing locally with HTTP
 ]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://api.upswap.app",
+]
+
 
 # Optional: Allow credentials (cookies, authorization headers)
 CORS_ALLOW_CREDENTIALS = True
@@ -115,7 +120,11 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'content-type',
     'authorization',
+    'accept',
+    'x-csrftoken',
+    'x-requested-with',
 ]
+
 
 ROOT_URLCONF = 'upswap.urls'
 
