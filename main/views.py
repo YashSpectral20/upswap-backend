@@ -446,32 +446,25 @@ class VendorKYCListView(ListAPIView):
 
 class VendorKYCDetailView(generics.RetrieveAPIView):
     """
-    View to fetch the VendorKYC details based on the user's uuid.
-    Only authenticated users can access this endpoint.
+    View to fetch the VendorKYC details based on the vendor's ID.
     """
     queryset = VendorKYC.objects.all()
     permission_classes = [AllowAny]
     serializer_class = VendorKYCDetailSerializer
 
     def get(self, request, *args, **kwargs):
-        # Get the user's id from the URL
-        user_id = self.kwargs.get('id')  # Assuming ID is passed
+        # Get the vendor's id from the URL
+        vendor_id = self.kwargs.get('vendor_id')  # Assuming vendor_id is passed as a URL parameter
 
         try:
-            # Find the user by id
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response({"message": "User not found"}, status=404)
-
-        try:
-            # Find the VendorKYC entry associated with the user
-            vendor_kyc = VendorKYC.objects.get(user=user)
+            # Find the VendorKYC entry by vendor_id
+            vendor_kyc = VendorKYC.objects.get(vendor_id=vendor_id)
         except VendorKYC.DoesNotExist:
-            return Response({"message": "VendorKYC for this user does not exist."}, status=404)
+            return Response({"message": "VendorKYC for this vendor does not exist."}, status=404)
 
         # If VendorKYC exists, return the details
         serializer = self.get_serializer(vendor_kyc)
-        return Response(serializer.data)  # Allow any user to access this view
+        return Response(serializer.data)
 
 
 # Business Document views

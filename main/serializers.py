@@ -277,7 +277,7 @@ class AddressSerializer(serializers.ModelSerializer):
 class ServiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
-        fields = ['uuid', 'item_name', 'item_category', 'item_description', 'item_price']
+        fields = ['uuid', 'item_name', 'service_category', 'item_description', 'item_price']
         read_only_fields = ['uuid']
         
         

@@ -58,7 +58,7 @@ urlpatterns = [
     
     path('vendor/lists/', VendorKYCListView.as_view(), name='vendor-kyc-list'),
     
-    path('vendorKYC/details/<uuid:id>/', VendorKYCDetailView.as_view(), name='vendorKYC-details'),
+    path('vendorKYC/details/<uuid:vendor_id>/', VendorKYCDetailView.as_view(), name='vendorKYC-details'),
     
     #path('vendor-kyc/<uuid:pk>/', VendorKYCDetailView.as_view(), name='vendor-kyc-detail'),
 
