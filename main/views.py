@@ -572,8 +572,17 @@ class CreateDeallistView(generics.ListAPIView):
         # Get the current date and time
         now = timezone.now()
 
-        # Filter out deals where the end date is less than the current date and time
-        return CreateDeal.objects.filter(end_date__gte=now)
+        # Get the country from the query parameters
+        country = self.request.query_params.get('country', None)
+
+        # Filter deals based on end date and location_country
+        queryset = CreateDeal.objects.filter(end_date__gte=now)
+
+        # Apply country filter if country is provided
+        if country:
+            queryset = queryset.filter(location_country__iexact=country)  # Use location_country field for filtering
+
+        return queryset
     
     
 class ActivityListView(generics.ListAPIView):
