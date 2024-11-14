@@ -773,11 +773,14 @@ class PlaceOrderListsSerializer(serializers.ModelSerializer):
     deal_uuid = serializers.UUIDField(source='deal.deal_uuid', format='hex_verbose', read_only=True)
     user_id = serializers.UUIDField(source='user.id', read_only=True)
     vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
+    deal_title = serializers.CharField(source='deal.deal_title', read_only=True)
+    deal_price = serializers.CharField(source='deal.deal_price', read_only=True)
+    deal_description = serializers.CharField(source='deal.deal_description', read_only=True)
 
     class Meta:
         model = PlaceOrder
         fields = [
-            'order_id', 'deal_uuid', 'user_id', 'vendor_id', 'quantity', 'country',
+            'order_id', 'deal_uuid', 'deal_title', 'deal_price', 'deal_description', 'user_id', 'vendor_id', 'quantity', 'country',
             'latitude', 'longitude', 'total_amount', 'transaction_id', 'payment_status',
             'payment_mode', 'created_at'
         ]
