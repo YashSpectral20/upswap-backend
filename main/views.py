@@ -775,10 +775,31 @@ class CustomUserDetailView(generics.RetrieveAPIView):
         return CustomUser.objects.filter(id=self.kwargs['id'])
     
 class PlaceOrderListsView(generics.ListAPIView):
-    queryset = PlaceOrder.objects.all()
     serializer_class = PlaceOrderListsSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # Get the logged-in user
+        user = self.request.user
+
+        # Filter orders where the user is either the buyer or the vendor
+        return PlaceOrder.objects.filter(Q(user=user) | Q(vendor__user=user))
+
+    def get(self, request, *args, **kwargs):
+        # Get the filtered queryset
+        queryset = self.get_queryset()
+
+        # If no orders are found, return an unauthorized message
+        if not queryset.exists():
+            return Response(
+                {"message": "You are not authorized to access this order."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Otherwise, return the serialized data
+        return super().get(request, *args, **kwargs)
+        
     
     
     
