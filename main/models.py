@@ -339,7 +339,7 @@ class ServiceCategory(models.Model):
     serv_category = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
-        return self.name
+        return self.serv_category
     
 class Service(models.Model):
     vendor_kyc = models.ForeignKey(VendorKYC, related_name='services', on_delete=models.CASCADE)
