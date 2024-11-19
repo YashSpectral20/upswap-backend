@@ -403,11 +403,11 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         model = VendorKYC
         fields = ['full_name', 'business_related_photos', 'listOfServices', 'listOfAddress']
 
-    def get_listOfServices(self, obj):
+    def get_services(self, obj):
         services = obj.services.all()  # Assuming 'services' is a related field
         return ServiceSerializer(services, many=True).data
 
-    def get_listOfAddress(self, obj):
+    def get_addresses(self, obj):
         addresses = obj.addresses.all()  # Assuming 'addresses' is a related field
         return AddressSerializer(addresses, many=True).data
 
