@@ -543,10 +543,9 @@ def deal_image_upload_path(instance, filename):
     """
     asset_uuid = str(uuid.uuid4())  # Generate a new UUID for each image
     filename = f"asset_{asset_uuid}.webp"  # Set the generated filename
-    path = f"upswap-assets/deals_assets/deal_{instance.create_deal.deal_uuid}/images/{filename}"
+    path = f"deals_assets/deal_{instance.create_deal.deal_uuid}/images/{filename}"
     print(f"Generated path: {path}")  # For debugging
     return path
-
 
 
 

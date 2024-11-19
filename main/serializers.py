@@ -479,13 +479,18 @@ class DealImageSerializer(serializers.ModelSerializer):
 
 
 class CreateDealImageSerializer(serializers.ModelSerializer):
+    create_deal = serializers.UUIDField(source='create_deal.deal_uuid', read_only=True)
+    
     class Meta:
         model = DealsImage
-        fields = ['images']  # Make sure 'image' is the field name
-
-    def validate_image(self, value):
-        if not value:
-            raise serializers.ValidationError("No image provided.")
+        fields = ['image_id', 'create_deal', 'images', 'uploaded_at']
+    
+    def validate_create_deal(self, value):
+        # Ensure the deal exists
+        try:
+            CreateDeal.objects.get(deal_uuid=value.deal_uuid)
+        except CreateDeal.DoesNotExist:
+            raise serializers.ValidationError("Deal not found.")
         return value
 
 class CreateDealSerializer(serializers.ModelSerializer):

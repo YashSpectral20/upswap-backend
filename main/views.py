@@ -530,62 +530,52 @@ class CreateDealView(generics.CreateAPIView):
 
 
 
-class DealImageUploadView(APIView):
+class DealImageUploadView(generics.ListCreateAPIView):
     """
     API View to handle the upload of deal images.
-    Images will be stored in the specified S3 bucket path in WebP format.
+    Images will be converted to WebP format before being stored in the specified S3 bucket.
     """
+    serializer_class = CreateDealImageSerializer
+    permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        # Extract the `deal_uuid` from the URL parameters
-        deal_uuid = kwargs.get("deal_uuid")
+    def get_queryset(self):
+        # Get the deal UUID from the URL
+        deal_uuid = self.kwargs.get('deal_uuid')
+        return DealsImage.objects.filter(create_deal__deal_uuid=deal_uuid)
 
-        # Fetch the deal object associated with the `deal_uuid`
-        deal = get_object_or_404(CreateDeal, deal_uuid=deal_uuid)
+    def perform_create(self, serializer):
+        # Ensure the create_deal is provided in the URL
+        deal_uuid = self.kwargs.get('deal_uuid')
+        try:
+            # Fetch the CreateDeal instance using the UUID (not the primary key)
+            deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
+        except CreateDeal.DoesNotExist:
+            raise serializers.ValidationError("Deal not found.")
+    
+        # Handle the conversion of the uploaded image to WebP format
+        image = serializer.validated_data['images']
+        image = Image.open(image)
+    
+        # Convert the image to WebP format
+        output = BytesIO()
+        image = image.convert('RGB')  # Ensure compatibility with WebP
+        image.save(output, format='WEBP', quality=85)  # Adjust quality if necessary
+        output.seek(0)
+    
+        # Replace the original image with the WebP image in the serializer
+        webp_filename = f"asset_{uuid.uuid4()}.webp"  # Use a unique filename for the WebP image
+        webp_image = ContentFile(output.read(), name=webp_filename)
+    
+        # Save the image as WebP, linking it to the correct deal via UUID
+        serializer.save(create_deal=deal, images=webp_image)
 
-        # Get all uploaded images from the request
-        image_files = request.FILES.getlist("images")
-        if not image_files:
-            return Response({"error": "No images provided for upload"}, status=status.HTTP_400_BAD_REQUEST)
+    def get_serializer_context(self):
+        # Pass additional context (deal_uuid) to the serializer
+        context = super().get_serializer_context()
+        context['deal_uuid'] = self.kwargs.get('deal_uuid')
+        return context
 
-        uploaded_images = []  # To store URLs of successfully uploaded images
 
-        for image in image_files:
-            # Convert the image to WebP format
-            image_name, image_ext = os.path.splitext(image.name)
-            image_ext = image_ext.lower()
-
-            # Open the image file
-            img = Image.open(image)
-            img_format = img.format.lower()
-
-            if img_format != "webp":  # Convert to WebP if not already
-                output = BytesIO()
-                img = img.convert("RGB")  # Ensure compatibility with WebP
-                img.save(output, format="WEBP", quality=85)  # Adjust quality if needed
-                output.seek(0)
-                image = ContentFile(output.read(), name=f"{image_name}.webp")
-
-            # Define the dynamic path for image upload
-            dynamic_path = os.path.join(
-                "deals_assets",
-                f"deal_{deal_uuid}",
-                "images",
-                f"asset_{uuid.uuid4().hex}.webp"
-            )
-
-            # Save the image in the database and S3
-            deal_image = DealsImage.objects.create(create_deal=deal, images=image)
-            deal_image.images.name = dynamic_path  # Set the dynamic path
-            deal_image.save()
-
-            # Append the image URL to the response list
-            uploaded_images.append(deal_image.images.url)
-
-        return Response(
-            {"message": "Images uploaded successfully", "images": uploaded_images},
-            status=status.HTTP_201_CREATED
-        )
 
 
 
