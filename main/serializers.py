@@ -396,13 +396,13 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 
 class VendorKYCListSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.name', read_only=True)
-    user_id = serializers.UUIDField(source='user.id', read_only=True)
+    user = serializers.UUIDField(source='user.id', read_only=True)
     services = serializers.SerializerMethodField()
     addresses = serializers.SerializerMethodField()
 
     class Meta:
         model = VendorKYC
-        fields = ['full_name', 'vendor_id', 'user_id', 'business_related_photos', 'services', 'addresses']
+        fields = ['full_name', 'vendor_id', 'user', 'business_related_photos', 'services', 'addresses']
 
     def get_services(self, obj):
         # Assuming 'services' is a related field in the VendorKYC model
