@@ -396,20 +396,23 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 
 class VendorKYCListSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.name', read_only=True)
-    listOfServices = serializers.SerializerMethodField()
-    listOfAddress = serializers.SerializerMethodField()
+    services = serializers.SerializerMethodField()
+    addresses = serializers.SerializerMethodField()
 
     class Meta:
         model = VendorKYC
-        fields = ['full_name', 'business_related_photos', 'listOfServices', 'listOfAddress']
+        fields = ['full_name', 'business_related_photos', 'services', 'addresses']
 
     def get_services(self, obj):
-        services = obj.services.all()  # Assuming 'services' is a related field
+        # Assuming 'services' is a related field in the VendorKYC model
+        services = obj.services.all()  # Fetch related services
         return ServiceSerializer(services, many=True).data
 
     def get_addresses(self, obj):
-        addresses = obj.addresses.all()  # Assuming 'addresses' is a related field
+        # Assuming 'addresses' is a related field in the VendorKYC model
+        addresses = obj.addresses.all()  # Fetch related addresses
         return AddressSerializer(addresses, many=True).data
+
 
         
 
