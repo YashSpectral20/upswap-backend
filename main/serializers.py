@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealImage, PlaceOrder,
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealsImage, PlaceOrder,
     ActivityCategory, ServiceCategory
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -469,14 +469,14 @@ class BusinessPhotoSerializer(serializers.ModelSerializer):
 class DealImageSerializer(serializers.ModelSerializer):
    
     class Meta:
-        model = DealImage
+        model = DealsImage
         fields = ['id', 'create_deal', 'images', 'uploaded_at']
 """
 
 
 class CreateDealImageSerializer(serializers.ModelSerializer):
     class Meta:
-        model = DealImage
+        model = DealsImage
         fields = ['images']  # Make sure 'image' is the field name
 
     def validate_image(self, value):
@@ -555,7 +555,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
         # Handle images if provided
         image_paths = []
         for image_data in images_data:
-            deal_image = DealImage.objects.create(create_deal=deal, images=image_data['images'])
+            deal_image = DealsImage.objects.create(create_deal=deal, images=image_data['images'])
             image_paths.append(deal_image.images.url)
 
         # Save the image paths in the upload_images field

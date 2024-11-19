@@ -13,3 +13,6 @@ djangorestframework-simplejwt[blacklist]
 bunnycdn
 django-bunny-storage==0.1.2
 django-cors-headers
+django-storages
+django-storages[boto3]
+python-dotenv

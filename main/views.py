@@ -1,4 +1,9 @@
+from PIL import Image
+from io import BytesIO
 import re
+import os
+import uuid
+from django.core.files.base import ContentFile
 from django.utils import timezone
 from django.db.models import Q
 from django.db.models import F, Func, FloatField
@@ -12,7 +17,7 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealImage, PlaceOrder,
+from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealsImage, PlaceOrder,
                     ActivityCategory, ServiceCategory)
 
 from .serializers import (
@@ -525,28 +530,62 @@ class CreateDealView(generics.CreateAPIView):
 
 
 
-class DealImageUploadView(generics.CreateAPIView):
-    serializer_class = CreateDealImageSerializer
-    permission_classes = [IsAuthenticated]
-    parser_classes = (MultiPartParser, FormParser)
+class DealImageUploadView(APIView):
+    """
+    API View to handle the upload of deal images.
+    Images will be stored in the specified S3 bucket path in WebP format.
+    """
 
-    def post(self, request, deal_uuid, *args, **kwargs):
-        user = request.user
+    def post(self, request, *args, **kwargs):
+        # Extract the `deal_uuid` from the URL parameters
+        deal_uuid = kwargs.get("deal_uuid")
 
-        try:
-            deal = CreateDeal.objects.get(deal_uuid=deal_uuid, vendor_kyc__user=user)
-        except CreateDeal.DoesNotExist:
-            return Response({"detail": "Deal not found or you don't have permission to upload images for this deal."}, status=status.HTTP_404_NOT_FOUND)
+        # Fetch the deal object associated with the `deal_uuid`
+        deal = get_object_or_404(CreateDeal, deal_uuid=deal_uuid)
 
-        if 'images' not in request.FILES:
-            return Response({"detail": "No image provided."}, status=status.HTTP_400_BAD_REQUEST)
+        # Get all uploaded images from the request
+        image_files = request.FILES.getlist("images")
+        if not image_files:
+            return Response({"error": "No images provided for upload"}, status=status.HTTP_400_BAD_REQUEST)
 
-        images = request.FILES.getlist('images')  # Get the list of images
+        uploaded_images = []  # To store URLs of successfully uploaded images
 
-        for image in images:
-            DealImage.objects.create(create_deal=deal, images=image)
+        for image in image_files:
+            # Convert the image to WebP format
+            image_name, image_ext = os.path.splitext(image.name)
+            image_ext = image_ext.lower()
 
-        return Response({"detail": "Images uploaded successfully!"}, status=status.HTTP_201_CREATED)
+            # Open the image file
+            img = Image.open(image)
+            img_format = img.format.lower()
+
+            if img_format != "webp":  # Convert to WebP if not already
+                output = BytesIO()
+                img = img.convert("RGB")  # Ensure compatibility with WebP
+                img.save(output, format="WEBP", quality=85)  # Adjust quality if needed
+                output.seek(0)
+                image = ContentFile(output.read(), name=f"{image_name}.webp")
+
+            # Define the dynamic path for image upload
+            dynamic_path = os.path.join(
+                "deals_assets",
+                f"deal_{deal_uuid}",
+                "images",
+                f"asset_{uuid.uuid4().hex}.webp"
+            )
+
+            # Save the image in the database and S3
+            deal_image = DealsImage.objects.create(create_deal=deal, images=image)
+            deal_image.images.name = dynamic_path  # Set the dynamic path
+            deal_image.save()
+
+            # Append the image URL to the response list
+            uploaded_images.append(deal_image.images.url)
+
+        return Response(
+            {"message": "Images uploaded successfully", "images": uploaded_images},
+            status=status.HTTP_201_CREATED
+        )
 
 
 

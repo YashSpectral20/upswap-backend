@@ -13,6 +13,9 @@ import os
 import dj_database_url
 from datetime import timedelta
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Build paths inside the project likessh this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,28 +29,28 @@ if ENVIRONMENT == 'development':
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
     MEDIA_URL = '/media/'
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
-# Production settings (using BunnyCDN Storage Zone)
 elif ENVIRONMENT == 'production':
-    # Static and Media file paths served from BunnyCDN Storage Zone
-    STATIC_URL = 'https://upswap-assets.b-cdn.net/static/'
-    MEDIA_URL = 'https://upswap-assets.b-cdn.net/media/'
-
-    # Local file paths (for possible local file backups)
+    STATIC_URL = os.getenv('STATIC_URL', 'https://upswap-assets.s3.amazonaws.com/static/')
+    MEDIA_URL = os.getenv('MEDIA_URL', 'https://upswap-assets.s3.amazonaws.com/media/')
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
     MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-    
-    
-DEFAULT_FILE_STORAGE = 'main.storage.BunnyStorage'
-BUNNYCDN_ACCESS_KEY = 'e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d'
-BUNNY_USERNAME = 'upswap-assets'  
-BUNNY_PASSWORD = '9ab0b8b6-2eab-417c-958e06bfb892-431a-4080'
-BUNNYCDN_STORAGE_ZONE = 'upswap-assets'
-BUNNY_REGION = 'SG'
-BUNNYCDN_STORAGE_URL = "https://upswap-assets.storage.bunnycdn.com/"
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
+# AWS S3 Configuration
+
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+
+
+# AWS S3 Static and Media File Storage settings
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')  # Update to your region
+AWS_S3_SIGNATURE_VERSION = os.getenv('AWS_S3_SIGNATURE_VERSION', 's3v4')
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+
+AWS_DEFAULT_ACL = None
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-v4a0((y^y7j@8n-5mzsco8v%^hsr+z%om((7z8+#ppg6-g)j!#'
