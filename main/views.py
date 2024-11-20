@@ -824,3 +824,6 @@ class ActivityImagesListView(generics.ListAPIView):
     def get_queryset(self):
         activity_id = self.kwargs['activity_id']
         return ActivityImage.objects.filter(activity__activity_id=activity_id)
+    
+    
+#Add env-file on live server
