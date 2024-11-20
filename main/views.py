@@ -3,6 +3,9 @@ from io import BytesIO
 import re
 import os
 import uuid
+import boto3
+from botocore.exceptions import ClientError
+from django.http import HttpResponse, JsonResponse
 from django.core.files.base import ContentFile
 from django.utils import timezone
 from django.db.models import Q
@@ -827,3 +830,25 @@ class ActivityImagesListView(generics.ListAPIView):
     
     
 #Add env-file on live server
+
+class DownloadDealImageView(APIView):
+    def get(self, request, deal_uuid, image_name):
+        bucket_name = "your-bucket-name"
+        s3_client = boto3.client('s3')
+
+        # File path in S3 bucket
+        object_key = f"deals_assets/deal_{deal_uuid}/images/{image_name}"
+
+        try:
+            # Fetch the file from S3
+            s3_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+            file_data = s3_response['Body'].read()
+            content_type = s3_response['ContentType']
+
+            # Return the file as HTTP response
+            response = HttpResponse(file_data, content_type=content_type)
+            response['Content-Disposition'] = f'inline; filename="{image_name}"'
+            return response
+
+        except ClientError as e:
+            return JsonResponse({"error": f"Unable to fetch image: {str(e)}"}, status=404)

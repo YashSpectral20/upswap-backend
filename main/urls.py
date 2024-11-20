@@ -14,7 +14,7 @@ from .views import (
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView, ActivityImagesListView
+    CustomUserDetailView, PlaceOrderListsView, ActivityImagesListView, DownloadDealImageView
 )
 
 urlpatterns = [
@@ -73,6 +73,7 @@ urlpatterns = [
     path('deals/details/<uuid:deal_uuid>/', CreateDealDetailView.as_view(), name='details-deals'),
     path('deals/lists/', CreateDeallistView.as_view(), name='list-deals'),
     path('deals/upload-deal-image/<uuid:deal_uuid>/', DealImageUploadView.as_view(), name='upload-deal-image'),
+    path('deals/download-image/<uuid:deal_uuid>/<str:image_name>/', DownloadDealImageView.as_view(), name='download_deal_image'),
     
     path('activities/list/', ActivityListView.as_view(), name='activity-list'),
     

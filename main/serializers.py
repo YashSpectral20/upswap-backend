@@ -105,7 +105,7 @@ class ActivitySerializer(serializers.ModelSerializer):
         model = Activity
         fields = [
             'activity_id', 'activity_title', 'activity_description',
-            'activity_type', 'user_participation', 'maximum_participants',
+            'activity_category', 'user_participation', 'maximum_participants',
             'start_date', 'end_date', 'start_time', 'end_time', 'created_at',
             'created_by', 'set_current_datetime', 'infinite_time', 'images',
             'uploaded_images', 'location', 'latitude', 'longitude'
