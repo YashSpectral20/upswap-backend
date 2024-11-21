@@ -485,10 +485,24 @@ class DealImageSerializer(serializers.ModelSerializer):
 """
 
 
+
 class CreateDealImageSerializer(serializers.ModelSerializer):
+    images = serializers.ListField(child=serializers.ImageField())
+
     class Meta:
         model = DealsImage
-        fields = ['image_id', 'images', 'uploaded_at']
+        fields = ['image_id', 'create_deal', 'images', 'uploaded_at']
+
+    def create(self, validated_data):
+        images_data = validated_data.pop('images')
+        deal_image = DealsImage.objects.create(**validated_data)
+
+        for image in images_data:
+            deal_image.images.create(images=image)
+        
+        return deal_image
+
+
 
 
 class CreateDealSerializer(serializers.ModelSerializer):

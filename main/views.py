@@ -4,6 +4,8 @@ import re
 import os
 import uuid
 import boto3
+from uuid import uuid4
+
 from botocore.exceptions import ClientError
 from django.http import HttpResponse, JsonResponse
 from django.core.files.base import ContentFile
@@ -534,49 +536,30 @@ class CreateDealView(generics.CreateAPIView):
 
 
 class DealImageUploadView(generics.ListCreateAPIView):
-    """
-    API View to handle the upload of deal images.
-    Images will be converted to WebP format before being stored in the specified S3 bucket.
-    """
-    serializer_class = CreateDealImageSerializer
-    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser]
 
-    def get_queryset(self):
-        # Get the deal UUID from the URL
-        deal_uuid = self.kwargs.get('deal_uuid')
-        return DealsImage.objects.filter(create_deal__deal_uuid=deal_uuid)
+    def post(self, request, *args, **kwargs):
+        # Check if images are included in the request
+        if not request.FILES.getlist('images'):
+            return Response({"error": "At least one image is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        images = request.FILES.getlist('images')
+        uploaded_images = []
 
-    def perform_create(self, serializer):
-        # Generate a new UUID for the image
-        image_id = uuid.uuid4()
+        # Loop through each uploaded image and save it to the model
+        for image in images:
+            deal_image = DealsImage(images=image)
+            deal_image.save()
+            uploaded_images.append({
+                "image_id": deal_image.image_id,
+                "uploaded_at": deal_image.uploaded_at,
+                "image_url": deal_image.images.url
+            })
 
-        # Handle the conversion of the uploaded image to WebP format
-        image = serializer.validated_data['images']
-        image = Image.open(image)
-
-        # Convert the image to WebP format
-        output = BytesIO()
-        image = image.convert('RGB')  # Ensure compatibility with WebP
-        image.save(output, format='WEBP', quality=85)  # Adjust quality if necessary
-        output.seek(0)
-
-        # Replace the original image with the WebP image in the serializer
-        webp_filename = f"asset_{image_id}.webp"  # Use a unique filename for the WebP image
-        webp_image = ContentFile(output.read(), name=webp_filename)
-
-        # Save the image as WebP
-        serializer.save(images=webp_image)
-
-    def get_serializer_context(self):
-        # Pass additional context (deal_uuid) to the serializer
-        context = super().get_serializer_context()
-        context['deal_uuid'] = self.kwargs.get('deal_uuid')
-        return context
-
-
-
-
-
+        return Response(
+            {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
+            status=status.HTTP_201_CREATED
+        )
 
 
 
