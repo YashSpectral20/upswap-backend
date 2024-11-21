@@ -28,7 +28,7 @@ from .serializers import (
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, CreateDealImageSerializer, VendorKYCDetailSerializer,
-    VendorKYCListSerializer, ActivityListSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
+    VendorKYCListSerializer, ActivityListsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, ActivityImageListsSerializer
 
 )
@@ -547,30 +547,25 @@ class DealImageUploadView(generics.ListCreateAPIView):
         return DealsImage.objects.filter(create_deal__deal_uuid=deal_uuid)
 
     def perform_create(self, serializer):
-        # Ensure the create_deal is provided in the URL
-        deal_uuid = self.kwargs.get('deal_uuid')
-        try:
-            # Fetch the CreateDeal instance using the UUID (not the primary key)
-            deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
-        except CreateDeal.DoesNotExist:
-            raise serializers.ValidationError("Deal not found.")
-    
+        # Generate a new UUID for the image
+        image_id = uuid.uuid4()
+
         # Handle the conversion of the uploaded image to WebP format
         image = serializer.validated_data['images']
         image = Image.open(image)
-    
+
         # Convert the image to WebP format
         output = BytesIO()
         image = image.convert('RGB')  # Ensure compatibility with WebP
         image.save(output, format='WEBP', quality=85)  # Adjust quality if necessary
         output.seek(0)
-    
+
         # Replace the original image with the WebP image in the serializer
-        webp_filename = f"asset_{uuid.uuid4()}.webp"  # Use a unique filename for the WebP image
+        webp_filename = f"asset_{image_id}.webp"  # Use a unique filename for the WebP image
         webp_image = ContentFile(output.read(), name=webp_filename)
-    
-        # Save the image as WebP, linking it to the correct deal via UUID
-        serializer.save(create_deal=deal, images=webp_image)
+
+        # Save the image as WebP
+        serializer.save(images=webp_image)
 
     def get_serializer_context(self):
         # Pass additional context (deal_uuid) to the serializer
@@ -617,9 +612,9 @@ class CreateDeallistView(generics.ListAPIView):
         return queryset
     
     
-class ActivityListView(generics.ListAPIView):
+class ActivityListsView(generics.ListAPIView):
     queryset = Activity.objects.all()  # Retrieves all Activity instances
-    serializer_class = ActivityListSerializer
+    serializer_class = ActivityListsSerializer
     permission_classes = [AllowAny]
     
 

@@ -87,6 +87,11 @@ class LoginSerializer(serializers.Serializer):
         data['user'] = user
         return data
     
+class ActivityCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ActivityCategory
+        fields = ['actv_category']
+    
 class ActivitySerializer(serializers.ModelSerializer):
     images = serializers.SerializerMethodField()  # Use a method field to get the image URLs
     uploaded_images = serializers.ListField(
@@ -100,6 +105,7 @@ class ActivitySerializer(serializers.ModelSerializer):
     location = serializers.CharField(required=False, allow_blank=True)  # Add location field
     latitude = serializers.FloatField(required=False, allow_null=True)  # Add latitude field
     longitude = serializers.FloatField(required=False, allow_null=True)  # Add longitude field
+    activity_category = ActivityCategorySerializer(source='activity_category.actv_category', allow_null=True, required=False)
 
     class Meta:
         model = Activity
@@ -210,13 +216,14 @@ class ActivityImageSerializer(serializers.ModelSerializer):
 
 
         
-class ActivityListSerializer(serializers.ModelSerializer):
+class ActivityListsSerializer(serializers.ModelSerializer):
     images = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
+    acivity_category = ActivityCategorySerializer(many=True, required=True)
 
     class Meta:
         model = Activity
-        fields = ['images', 'activity_id', 'activity_title', 'created_by', 'user_participation', 'infinite_time', 'activity_type',
+        fields = ['images', 'activity_id', 'activity_title', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
                   'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
                   'location']
 
@@ -479,19 +486,10 @@ class DealImageSerializer(serializers.ModelSerializer):
 
 
 class CreateDealImageSerializer(serializers.ModelSerializer):
-    create_deal = serializers.UUIDField(source='create_deal.deal_uuid', read_only=True)
-    
     class Meta:
         model = DealsImage
-        fields = ['image_id', 'create_deal', 'images', 'uploaded_at']
-    
-    def validate_create_deal(self, value):
-        # Ensure the deal exists
-        try:
-            CreateDeal.objects.get(deal_uuid=value.deal_uuid)
-        except CreateDeal.DoesNotExist:
-            raise serializers.ValidationError("Deal not found.")
-        return value
+        fields = ['image_id', 'images', 'uploaded_at']
+
 
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
@@ -756,10 +754,6 @@ class PlaceOrderDetailsSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
         
-class ActivityCategorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ActivityCategory
-        fields = ['actv_category']
 
 
 class ServiceCategorySerializer(serializers.ModelSerializer):

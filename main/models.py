@@ -543,7 +543,7 @@ def deal_image_upload_path(instance, filename):
     """
     asset_uuid = str(uuid.uuid4())  # Generate a new UUID for each image
     filename = f"asset_{asset_uuid}.webp"  # Set the generated filename
-    path = f"deals_assets/deal_{instance.create_deal.deal_uuid}/images/{filename}"
+    path = f"{filename}"
     print(f"Generated path: {path}")  # For debugging
     return path
 
@@ -589,7 +589,7 @@ class DealsImage(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Image for {self.create_deal.deal_title if self.create_deal else 'No Deal'}"
+        return f"Asset ID: {self.image_id}"
     
 #PlacingOrders
 class PlaceOrder(models.Model):

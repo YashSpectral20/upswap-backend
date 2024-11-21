@@ -7,13 +7,13 @@ from rest_framework_simplejwt.views import (
 )
 from .views import (
     RegisterView, VerifyOTPView, LoginView, CustomUserCreateView,
-    ActivityCreateView, ActivityListView,
+    ActivityCreateView,
     ActivityImageListCreateView, ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
-    VendorKYCListView, ActivityListView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
+    VendorKYCListView, ActivityListsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
     CustomUserDetailView, PlaceOrderListsView, ActivityImagesListView, DownloadDealImageView
 )
 
@@ -32,7 +32,7 @@ urlpatterns = [
 
     # Activities (Requires Authentication)
     path('activities/create/', ActivityCreateView.as_view(), name='activity-create'),
-    path('activities/<uuid:pk>/', ActivityListView.as_view(), name='activity-details'),
+    #path('activities/<uuid:pk>/', ActivityListView.as_view(), name='activity-details'),
     # path('activities/<uuid:pk>/', ActivityRetrieveUpdateDestroyView.as_view(), name='activity-detail'),
 
     # Activity Images (Requires Authentication)
@@ -72,10 +72,10 @@ urlpatterns = [
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),
     path('deals/details/<uuid:deal_uuid>/', CreateDealDetailView.as_view(), name='details-deals'),
     path('deals/lists/', CreateDeallistView.as_view(), name='list-deals'),
-    path('deals/upload-deal-image/<uuid:deal_uuid>/', DealImageUploadView.as_view(), name='upload-deal-image'),
+    path('deals/images/upload/', DealImageUploadView.as_view(), name='deal-image-upload'),
     path('deals/download-image/<uuid:deal_uuid>/<str:image_name>/', DownloadDealImageView.as_view(), name='download_deal_image'),
     
-    path('activities/list/', ActivityListView.as_view(), name='activity-list'),
+    path('activities/list/', ActivityListsView.as_view(), name='activity-list'),
     
     path('logout/', LogoutAPI.as_view(), name='logout'),
     
