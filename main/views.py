@@ -5,7 +5,7 @@ import os
 import uuid
 import boto3
 from uuid import uuid4
-
+from django.conf import settings
 from botocore.exceptions import ClientError
 from django.http import HttpResponse, JsonResponse
 from django.core.files.base import ContentFile
@@ -548,12 +548,14 @@ class DealImageUploadView(generics.ListCreateAPIView):
 
         # Loop through each uploaded image and save it to the model
         for image in images:
-            deal_image = DealsImage(images=image)
+            deal_image = DealsImage(images=image)  # Save the image to the model
             deal_image.save()
+
+            # Append details of the saved image
             uploaded_images.append({
                 "image_id": deal_image.image_id,
                 "uploaded_at": deal_image.uploaded_at,
-                "image_url": deal_image.images.url
+                "file_name": deal_image.images.name  # Access the file name directly
             })
 
         return Response(
@@ -561,7 +563,43 @@ class DealImageUploadView(generics.ListCreateAPIView):
             status=status.HTTP_201_CREATED
         )
 
+def download_s3_file(request, file_key):
+    """
+    Download a file from S3 and return it as a response.
 
+    Args:
+        request: The HTTP request object.
+        file_key (str): The S3 key of the file (path in the bucket).
+
+    Returns:
+        HttpResponse: The file content as an HTTP response.
+        JsonResponse: Error message in case of failure.
+    """
+    # Initialize the S3 client with credentials from settings.py
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME
+    )
+
+    try:
+        # Fetch the object from S3 bucket
+        file_object = s3_client.get_object(
+            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+            Key=file_key
+        )
+        file_content = file_object['Body'].read()  # Read the content of the file
+
+        # Create a response with the file content
+        response = HttpResponse(file_content, content_type=file_object['ContentType'])
+        response['Content-Disposition'] = f'attachment; filename="{file_key.split("/")[-1]}"'
+        return response
+
+    except ClientError as e:
+        # Handle errors (e.g., file not found or access denied)
+        error_message = str(e)
+        return JsonResponse({'error': error_message}, status=404)
 
 class CreateDealDetailView(RetrieveAPIView):
     queryset = CreateDeal.objects.all()
@@ -806,27 +844,3 @@ class ActivityImagesListView(generics.ListAPIView):
         activity_id = self.kwargs['activity_id']
         return ActivityImage.objects.filter(activity__activity_id=activity_id)
     
-    
-#Add env-file on live server
-
-class DownloadDealImageView(APIView):
-    def get(self, request, deal_uuid, image_name):
-        bucket_name = "your-bucket-name"
-        s3_client = boto3.client('s3')
-
-        # File path in S3 bucket
-        object_key = f"deals_assets/deal_{deal_uuid}/images/{image_name}"
-
-        try:
-            # Fetch the file from S3
-            s3_response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
-            file_data = s3_response['Body'].read()
-            content_type = s3_response['ContentType']
-
-            # Return the file as HTTP response
-            response = HttpResponse(file_data, content_type=content_type)
-            response['Content-Disposition'] = f'inline; filename="{image_name}"'
-            return response
-
-        except ClientError as e:
-            return JsonResponse({"error": f"Unable to fetch image: {str(e)}"}, status=404)
