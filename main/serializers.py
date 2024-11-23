@@ -1,5 +1,9 @@
 import json
 import uuid
+import io
+import os
+import base64
+from PIL import Image
 from rest_framework import serializers
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -487,23 +491,44 @@ class DealImageSerializer(serializers.ModelSerializer):
 
 
 class CreateDealImageSerializer(serializers.ModelSerializer):
-    images = serializers.ListField(child=serializers.ImageField())
+    image_base64 = serializers.SerializerMethodField()
 
     class Meta:
         model = DealsImage
-        fields = ['image_id', 'create_deal', 'images', 'uploaded_at']
+        fields = ['image_id', 'image_base64']
 
-    def create(self, validated_data):
-        images_data = validated_data.pop('images')
-        deal_image = DealsImage.objects.create(**validated_data)
+    def get_image_base64(self, obj):
+        """
+        Convert image to base64 string after resizing to 600x200.
+        """
+        try:
+            # Fetch the image from the S3 bucket
+            response = requests.get(obj.images.url, stream=True)
+            response.raise_for_status()  # Raise an error for bad responses
 
-        for image in images_data:
-            deal_image.images.create(images=image)
+            # Open the image from the response content
+            with Image.open(BytesIO(response.content)) as img:
+                # Resize the image to 600x200
+                img = img.resize((600, 200), Image.ANTIALIAS)
+
+                # Save the image to a BytesIO object in WebP format
+                output = BytesIO()
+                img.save(output, format='WEBP', quality=85)
+                output.seek(0)
+
+                # Convert the image to a base64 string
+                return base64.b64encode(output.read()).decode('utf-8')
+        except Exception as e:
+            return None  # Return None if the image couldn't be processed
+
+    """
+    def get_file_name(self, obj):
         
-        return deal_image
-
-
-
+        if isinstance(obj, dict):
+            return obj.get('images', None)
+        else:
+            return os.path.basename(obj.images.name)
+"""
 
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
@@ -513,7 +538,6 @@ class CreateDealSerializer(serializers.ModelSerializer):
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
 
-    images = CreateDealImageSerializer(many=True, required=False)
 
     class Meta:
         model = CreateDeal
@@ -524,7 +548,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
             'vendor_name', 'vendor_uuid', 'vendor_email', 'vendor_number',
-            'discount_percentage', 'latitude', 'longitude', 'images'
+            'discount_percentage', 'latitude', 'longitude'
         ]
         read_only_fields = ['deal_uuid', 'discount_percentage', 'actual_price']
 
@@ -623,6 +647,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     vendor_phone_number = serializers.UUIDField(source='vendor_kyc.phone_number', read_only=True)
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
+    upload_images = CreateDealImageSerializer(many=True, required=False)
     #latitude = serializers.DecimalField(source='vendor_kyc.latitude', read_only=True, max_digits=9, decimal_places=6)
     #longitude = serializers.DecimalField(source='vendor_kyc.longitude', read_only=True, max_digits=9, decimal_places=6)
     
@@ -638,6 +663,50 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             'discount_percentage', 'latitude', 'longitude'
         ]
         read_only_fields = ['vendor_uuid', 'deal_uuid', 'discount_percentage']  # Prevent client from setting these fields
+        
+    def get_upload_images(self, obj):
+        image_data = []
+        for image in obj.upload_images.all():
+            # Extract image path from S3 (e.g., "upswap-assets/asset_unique_uuid.webp")
+            image_path = image.image.name  # S3 path
+            
+            # Check if the image exists in S3
+            if image_path:
+                try:
+                    # Fetch image from S3
+                    image_file = default_storage.open(image_path)
+                    img = Image.open(image_file)
+                    img = img.convert("RGB")  # Ensure the image is in RGB format for conversion
+                    
+                    # Resize the image to 600x200
+                    img = img.resize((600, 200), Image.ANTIALIAS)
+                    
+                    # Convert the image to WEBP format
+                    output = BytesIO()
+                    img.save(output, format="WEBP")
+                    
+                    # Convert image to base64
+                    base64_image = base64.b64encode(output.getvalue()).decode('utf-8')
+                    
+                    # Add the image data to the response
+                    image_data.append({
+                        "image_id": str(image.uuid),
+                        "image_base64": f"data:image/webp;base64,{base64_image}"
+                    })
+                except Exception as e:
+                    # Handle any errors (e.g., image fetch or conversion errors)
+                    image_data.append({
+                        "image_id": str(image.uuid),
+                        "image_base64": None
+                    })
+                    print(f"Error processing image {image_path}: {e}")
+            else:
+                image_data.append({
+                    "image_id": str(image.uuid),
+                    "image_base64": None
+                })
+
+        return image_data
         
     def get_discount_percentage(self, obj):
         """Calculate and return the discount percentage."""

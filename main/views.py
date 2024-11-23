@@ -35,6 +35,7 @@ from .serializers import (
 
 )
 from .utils import generate_otp 
+from .services import get_image_from_s3
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth import get_user_model
@@ -555,13 +556,16 @@ class DealImageUploadView(generics.ListCreateAPIView):
             uploaded_images.append({
                 "image_id": deal_image.image_id,
                 "uploaded_at": deal_image.uploaded_at,
-                "file_name": deal_image.images.name  # Access the file name directly
+                "file_name": deal_image.images.name,  # Access the file name directly
+                
             })
 
         return Response(
             {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
             status=status.HTTP_201_CREATED
         )
+        
+
 
 def download_s3_file(request, file_key):
     """
@@ -602,14 +606,25 @@ def download_s3_file(request, file_key):
         return JsonResponse({'error': error_message}, status=404)
 
 class CreateDealDetailView(RetrieveAPIView):
-    queryset = CreateDeal.objects.all()
-    serializer_class = CreateDealDetailSerializer
     permission_classes = [AllowAny]
-    lookup_field = 'deal_uuid'  # This should match the URL pattern
-    
-    def get_queryset(self):
-        # Now use deal_uuid instead of pk
-        return CreateDeal.objects.filter(deal_uuid=self.kwargs['deal_uuid'])
+    serializer_class = CreateDealDetailSerializer
+    lookup_field = 'deal_uuid'  # Lookup deals using their UUID
+    queryset = CreateDeal.objects.all()
+
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Overrides the retrieve method to return the deal details.
+        """
+        try:
+            # Get the deal instance based on the provided deal_uuid
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except CreateDeal.DoesNotExist:
+            return Response(
+                {"detail": "Deal not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
     
 class CreateDeallistView(generics.ListAPIView):

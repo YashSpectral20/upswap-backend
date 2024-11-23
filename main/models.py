@@ -479,68 +479,6 @@ class CreateDeal(models.Model):
         return 0.0
 
 
-# ""class DealImage(models.Model):
-#     # Unique identifier for each image
-#     image_id = models.UUIDField(default=uuid.uuid4, primary_key=True, unique=True, editable=False)
-    
-#     # Foreign key linking to CreateDeal model
-#     create_deal = models.ForeignKey(
-#         'CreateDeal',
-#         related_name='deal_images',
-#         on_delete=models.CASCADE,
-#         null=True,
-#         blank=True
-#     )
-    
-#     # Image field to upload images with dynamic path based on image_id
-#     images = models.ImageField(upload_to='deal_images/{}/'.format(str(image_id)))  # Dynamic upload path
-    
-#     # Timestamp for when the image was uploaded
-#     uploaded_at = models.DateTimeField(auto_now_add=True)
-
-#     def save(self, *args, **kwargs):
-#         # Convert image to WebP format if not already in WebP format
-#         if self.images:
-#             image = Image.open(self.images)
-#             image_format = image.format.lower()
-            
-#             # Convert only if it's not already in WebP format
-#             if image_format != 'webp':
-#                 output = BytesIO()
-#                 image = image.convert('RGB')  # Ensure compatibility with WebP
-#                 image.save(output, format='WEBP', quality=85)  # Adjust quality as needed
-#                 output.seek(0)
-
-#                 # Replace the image file with the WebP version
-#                 self.images = ContentFile(output.read(), name=f"{os.path.splitext(self.images.name)[0]}.webp")
-        
-#         super().save(*args, **kwargs)
-
-#         # Store the S3 URL of the image
-#         image_path = os.path.join(settings.MEDIA_URL, self.images.name)  # S3 URL of the uploaded image
-#         create_deal = self.create_deal
-        
-#         if create_deal:
-#             current_images = create_deal.get_upload_images()
-#             if image_path not in current_images:
-#                 current_images.append(image_path)
-#                 create_deal.set_upload_images(current_images)
-#                 create_deal.save()
-
-#     def __str__(self):
-#         return f"Image for {self.create_deal.deal_title if self.create_deal else 'No Deal'}"
-
-#     def upload_to(instance, filename):
-#         """
-#         Function to return dynamic upload path using `image_id`.
-#         The image will be uploaded to the path:
-#         deal_images/{deal_id}/images_1, images_2, etc.
-#         """
-#         # Extract the extension and base filename
-#         extension = filename.split('.')[-1]
-#         base_filename = f"images_{str(instance.create_deal.deal_id)}.{extension}"
-#         return os.path.join('deal_images', str(instance.create_deal.deal_id), base_filename)""
-
 def deal_image_upload_path(instance, filename):
     """
     Function to define the upload path dynamically:
