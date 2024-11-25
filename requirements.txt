@@ -16,3 +16,4 @@ django-cors-headers
 django-storages
 django-storages[boto3]
 python-dotenv
+boto3 

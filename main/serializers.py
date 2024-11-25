@@ -3,6 +3,7 @@ import uuid
 import io
 import os
 import base64
+import boto3
 from PIL import Image
 from rest_framework import serializers
 from django.conf import settings
@@ -20,6 +21,8 @@ from django.contrib.auth import get_user_model
 from django.utils.encoding import force_str
 from .validators import validate_password_strength
 from rest_framework.exceptions import ValidationError
+from io import BytesIO
+
 
 User = get_user_model()
 
@@ -644,76 +647,59 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
     vendor_email = serializers.CharField(source='vendor_kyc.business_email_id', read_only=True)
-    vendor_phone_number = serializers.UUIDField(source='vendor_kyc.phone_number', read_only=True)
+    vendor_phone_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
-    upload_images = CreateDealImageSerializer(many=True, required=False)
-    #latitude = serializers.DecimalField(source='vendor_kyc.latitude', read_only=True, max_digits=9, decimal_places=6)
-    #longitude = serializers.DecimalField(source='vendor_kyc.longitude', read_only=True, max_digits=9, decimal_places=6)
-    
+    upload_images = serializers.SerializerMethodField()
+
     class Meta:
         model = CreateDeal
         fields = [
-            'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number','deal_uuid','deal_post_time', 'deal_title', 'deal_description', 'select_service',
-            'upload_images', 'start_date', 'end_date', 'start_time', 'end_time',
-            'actual_price', 'deal_price', 'available_deals',
+            'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
+            'deal_uuid', 'deal_post_time', 'deal_title', 'deal_description',
+            'select_service', 'upload_images', 'start_date', 'end_date', 'start_time',
+            'end_time', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
-            'vendor_name', 'vendor_uuid', 'country',
-            'discount_percentage', 'latitude', 'longitude'
+            'vendor_name', 'vendor_uuid', 'country', 'discount_percentage',
+            'latitude', 'longitude'
         ]
-        read_only_fields = ['vendor_uuid', 'deal_uuid', 'discount_percentage']  # Prevent client from setting these fields
-        
-    def get_upload_images(self, obj):
-        image_data = []
-        for image in obj.upload_images.all():
-            # Extract image path from S3 (e.g., "upswap-assets/asset_unique_uuid.webp")
-            image_path = image.image.name  # S3 path
-            
-            # Check if the image exists in S3
-            if image_path:
-                try:
-                    # Fetch image from S3
-                    image_file = default_storage.open(image_path)
-                    img = Image.open(image_file)
-                    img = img.convert("RGB")  # Ensure the image is in RGB format for conversion
-                    
-                    # Resize the image to 600x200
-                    img = img.resize((600, 200), Image.ANTIALIAS)
-                    
-                    # Convert the image to WEBP format
-                    output = BytesIO()
-                    img.save(output, format="WEBP")
-                    
-                    # Convert image to base64
-                    base64_image = base64.b64encode(output.getvalue()).decode('utf-8')
-                    
-                    # Add the image data to the response
-                    image_data.append({
-                        "image_id": str(image.uuid),
-                        "image_base64": f"data:image/webp;base64,{base64_image}"
-                    })
-                except Exception as e:
-                    # Handle any errors (e.g., image fetch or conversion errors)
-                    image_data.append({
-                        "image_id": str(image.uuid),
-                        "image_base64": None
-                    })
-                    print(f"Error processing image {image_path}: {e}")
-            else:
-                image_data.append({
-                    "image_id": str(image.uuid),
-                    "image_base64": None
-                })
+        read_only_fields = ['vendor_uuid', 'deal_uuid', 'discount_percentage']
 
-        return image_data
-        
     def get_discount_percentage(self, obj):
-        """Calculate and return the discount percentage."""
         if obj.actual_price and obj.deal_price:
             discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
             return round(discount, 2)
-        return 0    
+        return 0
+
+    def get_upload_images(self, obj):
+        """
+        Fetch images from S3, resize them, and return as Base64 strings.
+        """
+        s3 = boto3.client('s3')
+        base64_images = []
+        bucket_name = "your-s3-bucket-name"
+
+        for image_path in obj.get_upload_images():
+            try:
+                # Fetch image from S3
+                s3_response = s3.get_object(Bucket=bucket_name, Key=image_path)
+                image_content = s3_response['Body'].read()
+
+                # Open image and resize
+                with Image.open(BytesIO(image_content)) as img:
+                    img = img.resize((600, 200), Image.ANTIALIAS)
+                    buffer = BytesIO()
+                    img.save(buffer, format="WEBP", quality=85)
+                    buffer.seek(0)
+
+                    # Convert to Base64
+                    base64_image = base64.b64encode(buffer.read()).decode('utf-8')
+                    base64_images.append(base64_image)
+            except Exception as e:
+                base64_images.append(None)  # Add None if an error occurs
+
+        return base64_images    
 
     
            

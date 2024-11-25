@@ -34,7 +34,8 @@ from .serializers import (
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, ActivityImageListsSerializer
 
 )
-from .utils import generate_otp 
+from rest_framework.generics import RetrieveAPIView
+from .utils import generate_otp, process_images_from_s3
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
@@ -535,8 +536,10 @@ class CreateDealView(generics.CreateAPIView):
 
 
 
-
+"""
 class DealImageUploadView(generics.ListCreateAPIView):
+    queryset = DealsImage.objects.all()
+    serializer_class = CreateDealImageSerializer
     parser_classes = [MultiPartParser]
 
     def post(self, request, *args, **kwargs):
@@ -563,8 +566,89 @@ class DealImageUploadView(generics.ListCreateAPIView):
         return Response(
             {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
             status=status.HTTP_201_CREATED
+        )"""
+
+class DealImageUploadView(generics.ListCreateAPIView):
+    queryset = DealsImage.objects.all()
+    serializer_class = CreateDealImageSerializer
+    parser_classes = [MultiPartParser]
+
+    def post(self, request, *args, **kwargs):
+        # Check if images are included in the request
+        if not request.FILES.getlist('images'):
+            return Response({"error": "At least one image is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        images = request.FILES.getlist('images')
+        uploaded_images = []
+
+        # Loop through each uploaded image and save it to the model
+        for image in images:
+            try:
+                # Save the image instance to the database
+                deal_image = DealsImage(images=image)
+                deal_image.save()
+
+                # Process the image to get the base64 string
+                image_base64 = self._convert_image_to_base64(deal_image)
+
+                # Append details of the saved image
+                uploaded_images.append({
+                    "image_id": deal_image.image_id,
+                    "uploaded_at": deal_image.uploaded_at,
+                    "file_name": deal_image.images.name,
+                    "image_base64": image_base64,
+                })
+
+            except Exception as e:
+                return Response(
+                    {"error": f"An error occurred while processing image {image.name}: {str(e)}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        return Response(
+            {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
+            status=status.HTTP_201_CREATED
         )
-        
+
+    def _convert_image_to_base64(self, deal_image):
+        """
+        Convert the uploaded image to a base64 string after resizing to 600x200.
+        Supports both local and remote storage backends.
+        """
+        try:
+            # For local storage
+            if hasattr(deal_image.images, 'path'):
+                with Image.open(deal_image.images.path) as img:
+                    img = img.resize((600, 200), Image.ANTIALIAS)
+
+                    # Save the resized image to a BytesIO object in WebP format
+                    output = BytesIO()
+                    img.save(output, format='WEBP', quality=85)
+                    output.seek(0)
+
+                    # Convert the resized image to a base64 string
+                    return base64.b64encode(output.read()).decode('utf-8')
+
+            # For remote storage
+            elif hasattr(deal_image.images, 'url'):
+                response = requests.get(deal_image.images.url, stream=True)
+                response.raise_for_status()
+
+                # Open the image from the response content
+                with Image.open(BytesIO(response.content)) as img:
+                    img = img.resize((600, 200), Image.ANTIALIAS)
+
+                    # Save the resized image to a BytesIO object in WebP format
+                    output = BytesIO()
+                    img.save(output, format='WEBP', quality=85)
+                    output.seek(0)
+
+                    # Convert the resized image to a base64 string
+                    return base64.b64encode(output.read()).decode('utf-8')
+
+        except Exception as e:
+            print(f"Error processing image: {e}")
+            return None
 
 
 def download_s3_file(request, file_key):
@@ -604,27 +688,75 @@ def download_s3_file(request, file_key):
         # Handle errors (e.g., file not found or access denied)
         error_message = str(e)
         return JsonResponse({'error': error_message}, status=404)
-
-class CreateDealDetailView(RetrieveAPIView):
-    permission_classes = [AllowAny]
-    serializer_class = CreateDealDetailSerializer
-    lookup_field = 'deal_uuid'  # Lookup deals using their UUID
-    queryset = CreateDeal.objects.all()
-
-    def retrieve(self, request, *args, **kwargs):
-        """
-        Overrides the retrieve method to return the deal details.
-        """
+    
+class CreateDealDetailView(APIView):
+    def get(self, request, deal_uuid):
         try:
-            # Get the deal instance based on the provided deal_uuid
-            instance = self.get_object()
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            # Fetch the deal based on deal_uuid
+            deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
         except CreateDeal.DoesNotExist:
-            return Response(
-                {"detail": "Deal not found."},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            raise NotFound("Deal not found.")
+
+        # Initialize the S3 client
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+        )
+
+        # Process S3 images
+        base64_images = []
+        for image_path in deal.upload_images:
+            try:
+                # Get the image object from S3
+                bucket_name = 'upswap-assets'
+                s3_object = s3_client.get_object(Bucket=bucket_name, Key=image_path)
+                image_data = s3_object['Body'].read()
+
+                # Open the image for resizing
+                with Image.open(BytesIO(image_data)) as img:
+                    img = img.convert("RGB")  # Convert to RGB
+                    img = img.resize((600, 200))  # Resize the image
+
+                    # Save the resized image to a buffer
+                    buffer = BytesIO()
+                    img.save(buffer, format="JPEG")
+                    buffer.seek(0)
+
+                    # Encode the image in base64
+                    encoded_image = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                    base64_images.append(encoded_image)
+            except Exception as e:
+                print(f"Error processing image {image_path}: {e}")
+                continue
+
+        # Prepare the response
+        response_data = {
+            "vendor_id": deal.vendor_kyc.vendor_id,
+            "vendor_name": deal.vendor_kyc.full_name,
+            "deal_uuid": str(deal.deal_uuid),
+            "deal_title": deal.deal_title,
+            "deal_description": deal.deal_description,
+            "upload_images": base64_images,
+            "start_date": deal.start_date,
+            "end_date": deal.end_date,
+            "start_time": deal.start_time,
+            "end_time": deal.end_time,
+            "actual_price": str(deal.actual_price),
+            "deal_price": str(deal.deal_price),
+            "available_deals": deal.available_deals,
+            "location_house_no": deal.location_house_no,
+            "location_road_name": deal.location_road_name,
+            "location_country": deal.location_country,
+            "location_state": deal.location_state,
+            "location_city": deal.location_city,
+            "location_pincode": deal.location_pincode,
+            "discount_percentage": deal.discount_percentage,
+            "latitude": str(deal.latitude),
+            "longitude": str(deal.longitude),
+        }
+
+        return Response(response_data)
 
     
 class CreateDeallistView(generics.ListAPIView):
