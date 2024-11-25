@@ -4,7 +4,7 @@ dj-database-url
 whitenoise==5.2.0
 djangorestframework
 djangorestframework-simplejwt
-Pillow
+Pillow==9.5.0
 channels
 channels_redis
 daphne>=4.0.0

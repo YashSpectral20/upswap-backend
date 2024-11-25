@@ -493,6 +493,47 @@ class DealImageSerializer(serializers.ModelSerializer):
 
 
 
+# class CreateDealImageSerializer(serializers.ModelSerializer):
+#     image_base64 = serializers.SerializerMethodField()
+
+#     class Meta:
+#         model = DealsImage
+#         fields = ['image_id', 'image_base64']
+
+#     def get_image_base64(self, obj):
+#         """
+#         Convert image to base64 string after resizing to 600x200.
+#         """
+#         try:
+#             # Fetch the image from the S3 bucket
+#             response = requests.get(obj.images.url, stream=True)
+#             response.raise_for_status()  # Raise an error for bad responses
+
+#             # Open the image from the response content
+#             with Image.open(BytesIO(response.content)) as img:
+#                 # Resize the image to 600x200
+#                 img = img.resize((600, 200), Image.ANTIALIAS)
+
+#                 # Save the image to a BytesIO object in WebP format
+#                 output = BytesIO()
+#                 img.save(output, format='WEBP', quality=85)
+#                 output.seek(0)
+
+#                 # Convert the image to a base64 string
+#                 return base64.b64encode(output.read()).decode('utf-8')
+#         except Exception as e:
+#             return None  # Return None if the image couldn't be processed
+
+#     """
+#     def get_file_name(self, obj):
+        
+#         if isinstance(obj, dict):
+#             return obj.get('images', None)
+#         else:
+#             return os.path.basename(obj.images.name)
+# """
+
+
 class CreateDealImageSerializer(serializers.ModelSerializer):
     image_base64 = serializers.SerializerMethodField()
 
@@ -501,37 +542,19 @@ class CreateDealImageSerializer(serializers.ModelSerializer):
         fields = ['image_id', 'image_base64']
 
     def get_image_base64(self, obj):
-        """
-        Convert image to base64 string after resizing to 600x200.
-        """
-        try:
-            # Fetch the image from the S3 bucket
-            response = requests.get(obj.images.url, stream=True)
-            response.raise_for_status()  # Raise an error for bad responses
+        if obj.images:
+            try:
+                with obj.images.open() as img:
+                    img = Image.open(img)
+                    img = img.resize((600, 200), Image.ANTIALIAS)
+                    output = BytesIO()
+                    img.save(output, format='WEBP', quality=85)
+                    output.seek(0)
+                    return base64.b64encode(output.read()).decode('utf-8')
+            except Exception as e:
+                return None
+        return None
 
-            # Open the image from the response content
-            with Image.open(BytesIO(response.content)) as img:
-                # Resize the image to 600x200
-                img = img.resize((600, 200), Image.ANTIALIAS)
-
-                # Save the image to a BytesIO object in WebP format
-                output = BytesIO()
-                img.save(output, format='WEBP', quality=85)
-                output.seek(0)
-
-                # Convert the image to a base64 string
-                return base64.b64encode(output.read()).decode('utf-8')
-        except Exception as e:
-            return None  # Return None if the image couldn't be processed
-
-    """
-    def get_file_name(self, obj):
-        
-        if isinstance(obj, dict):
-            return obj.get('images', None)
-        else:
-            return os.path.basename(obj.images.name)
-"""
 
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)

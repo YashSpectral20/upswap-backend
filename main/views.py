@@ -5,6 +5,8 @@ import os
 import uuid
 import boto3
 from uuid import uuid4
+import traceback
+import base64
 from django.conf import settings
 from botocore.exceptions import ClientError
 from django.http import HttpResponse, JsonResponse
@@ -535,7 +537,6 @@ class CreateDealView(generics.CreateAPIView):
             return messages[0]  # Take the first message for each field error
 
 
-
 """
 class DealImageUploadView(generics.ListCreateAPIView):
     queryset = DealsImage.objects.all()
@@ -568,27 +569,159 @@ class DealImageUploadView(generics.ListCreateAPIView):
             status=status.HTTP_201_CREATED
         )"""
 
+# class DealImageUploadView(generics.ListCreateAPIView):
+#     queryset = DealsImage.objects.all()
+#     serializer_class = CreateDealImageSerializer
+#     parser_classes = [MultiPartParser]
+
+#     def post(self, request, *args, **kwargs):
+#         # Check if images are included in the request
+#         if not request.FILES.getlist('images'):
+#             return Response({"error": "At least one image is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+#         images = request.FILES.getlist('images')
+#         uploaded_images = []
+
+#         # Loop through each uploaded image and save it to the model
+#         for image in images:
+#             try:
+#                 # Save the image instance to the database
+#                 deal_image = DealsImage(images=image)
+#                 deal_image.save()
+
+#                 # Process the image to get the base64 string
+#                 image_base64 = self._convert_image_to_base64(deal_image)
+
+#                 # Append details of the saved image
+#                 uploaded_images.append({
+#                     "image_id": deal_image.image_id,
+#                     "uploaded_at": deal_image.uploaded_at,
+#                     "file_name": deal_image.images.name,
+#                     "image_base64": image_base64,
+#                 })
+
+#             except Exception as e:
+#                 return Response(
+#                     {"error": f"An error occurred while processing image {image.name}: {str(e)}"},
+#                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#                 )
+
+#         return Response(
+#             {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
+#             status=status.HTTP_201_CREATED
+#         )
+
+#     # def _convert_image_to_base64(self, deal_image):
+#     #     """
+#     #     Convert the uploaded image to a base64 string after resizing to 600x200.
+#     #     Supports both local and remote storage backends.
+#     #     """
+#     #     try:
+#     #         # For local storage
+#     #         if hasattr(deal_image.images, 'path'):
+#     #             with Image.open(deal_image.images.path) as img:
+#     #                 img = img.resize((600, 200), Image.ANTIALIAS)
+
+#     #                 # Save the resized image to a BytesIO object in WebP format
+#     #                 output = BytesIO()
+#     #                 img.save(output, format='WEBP', quality=85)
+#     #                 output.seek(0)
+
+#     #                 # Convert the resized image to a base64 string
+#     #                 return base64.b64encode(output.read()).decode('utf-8')
+
+#     #         # For remote storage
+#     #         elif hasattr(deal_image.images, 'url'):
+#     #             response = requests.get(deal_image.images.url, stream=True)
+#     #             response.raise_for_status()
+
+#     #             # Open the image from the response content
+#     #             with Image.open(BytesIO(response.content)) as img:
+#     #                 img = img.resize((600, 200), Image.ANTIALIAS)
+
+#     #                 # Save the resized image to a BytesIO object in WebP format
+#     #                 output = BytesIO()
+#     #                 img.save(output, format='WEBP', quality=85)
+#     #                 output.seek(0)
+
+#     #                 # Convert the resized image to a base64 string
+#     #                 return base64.b64encode(output.read()).decode('utf-8')
+
+#     #     except Exception as e:
+#     #         print(f"Error processing image: {e}")
+#     #         return None
+#     def _convert_image_to_base64(self, deal_image):
+#         """
+#         Convert the uploaded image to a base64 string after resizing to 600x200.
+#         Supports both local and remote storage backends.
+#         """
+#         try:
+#             # For local storage
+#             if hasattr(deal_image.images, 'path') and deal_image.images.path:
+#                 with Image.open(deal_image.images.path) as img:
+#                     img = img.resize((600, 200), Image.ANTIALIAS)
+
+#                     # Save the resized image to a BytesIO object in WebP format
+#                     output = BytesIO()
+#                     img.save(output, format='WEBP', quality=85)
+#                     output.seek(0)
+
+#                     # Convert the resized image to a base64 string
+#                     return base64.b64encode(output.read()).decode('utf-8')
+
+#             # For remote storage
+#             elif hasattr(deal_image.images, 'url') and deal_image.images.url:
+#                 response = requests.get(deal_image.images.url, stream=True)
+#                 response.raise_for_status()
+
+#                 # Open the image from the response content
+#                 with Image.open(BytesIO(response.content)) as img:
+#                     img = img.resize((600, 200), Image.ANTIALIAS)
+
+#                     # Save the resized image to a BytesIO object in WebP format
+#                     output = BytesIO()
+#                     img.save(output, format='WEBP', quality=85)
+#                     output.seek(0)
+
+#                     # Convert the resized image to a base64 string
+#                     return base64.b64encode(output.read()).decode('utf-8')
+
+#             else:
+#                 raise ValueError("Image path or URL is not accessible")
+
+#         except Exception as e:
+#             print(f"Error processing image: {e}")
+#             raise ValueError(f"Error processing image: {str(e)}")
+
+
 class DealImageUploadView(generics.ListCreateAPIView):
     queryset = DealsImage.objects.all()
     serializer_class = CreateDealImageSerializer
     parser_classes = [MultiPartParser]
 
     def post(self, request, *args, **kwargs):
-        # Check if images are included in the request
+        """
+        Handle multiple image uploads, save them to the database, 
+        and return their details along with base64-encoded versions of resized images.
+        """
+        # Validate if images are provided in the request
         if not request.FILES.getlist('images'):
-            return Response({"error": "At least one image is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "At least one image is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         images = request.FILES.getlist('images')
         uploaded_images = []
 
-        # Loop through each uploaded image and save it to the model
+        # Process each uploaded image
         for image in images:
             try:
                 # Save the image instance to the database
                 deal_image = DealsImage(images=image)
                 deal_image.save()
 
-                # Process the image to get the base64 string
+                # Convert the image to a base64 string
                 image_base64 = self._convert_image_to_base64(deal_image)
 
                 # Append details of the saved image
@@ -599,12 +732,28 @@ class DealImageUploadView(generics.ListCreateAPIView):
                     "image_base64": image_base64,
                 })
 
-            except Exception as e:
+            except ValueError as e:
+                # Return ValueError with traceback for debugging
+                tb = traceback.format_exc()
                 return Response(
-                    {"error": f"An error occurred while processing image {image.name}: {str(e)}"},
+                    {
+                        "error": f"An error occurred while processing image {image.name}: {str(e)}",
+                        "traceback": tb,
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            except Exception as e:
+                # Return generic exceptions with traceback for debugging
+                tb = traceback.format_exc()
+                return Response(
+                    {
+                        "error": f"An unexpected error occurred while processing image {image.name}: {str(e)}",
+                        "traceback": tb,
+                    },
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
+        # Return response for all successfully uploaded images
         return Response(
             {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
             status=status.HTTP_201_CREATED
@@ -612,43 +761,36 @@ class DealImageUploadView(generics.ListCreateAPIView):
 
     def _convert_image_to_base64(self, deal_image):
         """
-        Convert the uploaded image to a base64 string after resizing to 600x200.
-        Supports both local and remote storage backends.
+        Convert the uploaded image to a base64-encoded string after resizing to a maximum width of 600 pixels while maintaining the aspect ratio.
+        Uses Image.ANTIALIAS for resizing and handles both local and remote storage backends.
         """
         try:
-            # For local storage
-            if hasattr(deal_image.images, 'path'):
-                with Image.open(deal_image.images.path) as img:
-                    img = img.resize((600, 200), Image.ANTIALIAS)
-
-                    # Save the resized image to a BytesIO object in WebP format
-                    output = BytesIO()
-                    img.save(output, format='WEBP', quality=85)
-                    output.seek(0)
-
-                    # Convert the resized image to a base64 string
-                    return base64.b64encode(output.read()).decode('utf-8')
-
-            # For remote storage
-            elif hasattr(deal_image.images, 'url'):
+            if hasattr(deal_image.images, 'file'):
+                img = Image.open(deal_image.images.file)
+            else:
+                # Fetch the image via URL if it's stored remotely
                 response = requests.get(deal_image.images.url, stream=True)
                 response.raise_for_status()
+                img = Image.open(BytesIO(response.content))
 
-                # Open the image from the response content
-                with Image.open(BytesIO(response.content)) as img:
-                    img = img.resize((600, 200), Image.ANTIALIAS)
+            # Calculate new dimensions preserving the aspect ratio
+            base_width = 600
+            w_percent = (base_width / float(img.size[0]))
+            h_size = int((float(img.size[1]) * float(w_percent)))
 
-                    # Save the resized image to a BytesIO object in WebP format
-                    output = BytesIO()
-                    img.save(output, format='WEBP', quality=85)
-                    output.seek(0)
+            # Resize the image using Image.ANTIALIAS for high-quality downsampling
+            img = img.resize((base_width, h_size), Image.ANTIALIAS)
+            output = BytesIO()
+            img.save(output, format='WEBP', quality=85)
+            output.seek(0)
 
-                    # Convert the resized image to a base64 string
-                    return base64.b64encode(output.read()).decode('utf-8')
+            # Encode the image to base64 and prepend the MIME type for HTML display
+            base64_data = base64.b64encode(output.read()).decode('utf-8')
+            return f'data:image/webp;base64,{base64_data}'
 
         except Exception as e:
             print(f"Error processing image: {e}")
-            return None
+            raise ValueError(f"Error processing image: {str(e)}")
 
 
 def download_s3_file(request, file_key):
