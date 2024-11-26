@@ -14,6 +14,7 @@ import dj_database_url
 from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
+from datetime import date
 
 load_dotenv()
 
@@ -80,6 +81,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'channels',
     'corsheaders',
+    'drf_yasg',
     ]
 
 # Define the ASGI application
@@ -263,3 +265,37 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'upswapapp@gmail.com'
 EMAIL_HOST_PASSWORD = 'vfxu rhrb yjzq duvk'
+
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join('/usr/src/app/logs', f"{date.today().strftime('%Y%m%d')}_django.log"),
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 3,  # Keep 3 old log files
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}

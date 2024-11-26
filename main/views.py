@@ -151,7 +151,6 @@ class VerifyOTPView(generics.GenericAPIView):
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
-
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
     authentication_classes = []  # No authentication required for login
@@ -198,9 +197,6 @@ class LoginView(generics.GenericAPIView):
             'message': 'User logged in successfully.'
         }, status=status.HTTP_200_OK)
 
-
-
-
     
 class CustomUserCreateView(APIView):
     """
@@ -227,7 +223,6 @@ class ActivityCreateView(generics.CreateAPIView):
             serializer.validated_data['user_participation'] = True
         serializer.save(created_by=self.request.user)
 
-    
 
 class Distance(Func):
     function = "6371 * 2 * ATAN2(SQRT(%s), SQRT(1 - %s))"
@@ -266,8 +261,6 @@ class ActivityImageListCreateView(generics.ListCreateAPIView):
         
         # Pass the activity object to the serializer to associate the image with the activity
         serializer.save(activity=activity)
-
-
 
 
 class ChatRoomCreateView(APIView):
@@ -366,7 +359,6 @@ class AcceptChatRequestView(APIView):
         chat_request.status = 'accepted'
         chat_request.save()
         return Response({'message': 'Chat request accepted'}, status=status.HTTP_200_OK)
-
 
 
 class VendorKYCCreateView(generics.CreateAPIView):
@@ -832,7 +824,6 @@ def download_s3_file(request, file_key):
         return JsonResponse({'error': error_message}, status=404)
     
     
-    
 class CreateDealDetailView(APIView):
     def get(self, request, deal_uuid, *args, **kwargs):
         """
@@ -896,9 +887,6 @@ class CreateDealDetailView(APIView):
             raise ValueError(f"Error resizing and converting image to Base64: {str(e)}")
 
 
-        
-        
-    
 class CreateDeallistView(generics.ListAPIView):
     serializer_class = CreateDeallistSerializer
     permission_classes = [AllowAny]
@@ -924,7 +912,6 @@ class ActivityListsView(generics.ListAPIView):
     queryset = Activity.objects.all()  # Retrieves all Activity instances
     serializer_class = ActivityListsSerializer
     permission_classes = [AllowAny]
-    
 
 
 class LogoutAPI(APIView):
@@ -997,8 +984,6 @@ class ResetPasswordView(generics.GenericAPIView):
 
         return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)
     
-
-
 #PlaceOrder
 class PlaceOrderView(generics.CreateAPIView):
     queryset = PlaceOrder.objects.all()
@@ -1120,9 +1105,6 @@ class PlaceOrderListsView(generics.ListAPIView):
 
         # Filter orders where the user is either the buyer or the vendor
         return PlaceOrder.objects.filter(Q(user=user))
-        
-    
-    
     
 class ActivityImagesListView(generics.ListAPIView):
     serializer_class = ActivityImageListsSerializer

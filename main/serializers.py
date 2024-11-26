@@ -226,7 +226,7 @@ class ActivityImageSerializer(serializers.ModelSerializer):
 class ActivityListsSerializer(serializers.ModelSerializer):
     images = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    acivity_category = ActivityCategorySerializer(many=True, required=True)
+    activity_category = ActivityCategorySerializer(many=True, required=True)
 
     class Meta:
         model = Activity

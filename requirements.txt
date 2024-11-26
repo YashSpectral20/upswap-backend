@@ -4,7 +4,7 @@ dj-database-url
 whitenoise==5.2.0
 djangorestframework
 djangorestframework-simplejwt
-Pillow==9.5.0
+pillow==9.5.0
 channels
 channels_redis
 daphne>=4.0.0
@@ -16,4 +16,6 @@ django-cors-headers
 django-storages
 django-storages[boto3]
 python-dotenv
-boto3 
+boto3
+drf-yasg
+django-cors-headers
