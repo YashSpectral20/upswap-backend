@@ -478,66 +478,12 @@ class CreateDeal(models.Model):
             return round(discount, 2)
         return 0.0
 
-
-# def deal_image_upload_path(instance, filename):
-#     """
-#     Function to define the upload path dynamically:
-#     deal_images/deal_<deal_uuid>/images/asset_<asset_uuid>.webp
-#     """
-#     asset_uuid = str(uuid.uuid4())  # Generate a new UUID for each image
-#     filename = f"asset_{asset_uuid}.webp"  # Set the generated filename
-#     path = f"{filename}"
-#     print(f"Generated path: {path}")  # For debugging
-#     return path
-
-# class DealsImage(models.Model):
-#     # Unique identifier for each image
-#     image_id = models.UUIDField(default=uuid.uuid4, primary_key=True, unique=True, editable=False)
-    
-#     # Foreign key linking to CreateDeal model
-#     create_deal = models.ForeignKey(
-#         'CreateDeal',
-#         related_name='deals_assets',
-#         on_delete=models.CASCADE,
-#         null=True,
-#         blank=True
-#     )
-    
-#     # Image field to upload images with dynamic path
-#     images = models.ImageField(upload_to=deal_image_upload_path)
-
-#     # Timestamp for when the image was uploaded
-#     uploaded_at = models.DateTimeField(auto_now_add=True)
-
-#     def save(self, *args, **kwargs):
-#         """
-#         Overriding the save method to convert the image to WebP format.
-#         """
-#         if self.images:
-#             # Open the uploaded image
-#             image = Image.open(self.images)
-#             output = BytesIO()
-            
-#             # Convert image to WebP format
-#             image = image.convert('RGB')  # Ensure compatibility with WebP
-#             image.save(output, format='WEBP', quality=85)  # Adjust quality as needed
-#             output.seek(0)
-
-#             # Replace the image file with the WebP version
-#             webp_filename = f"asset_{self.image_id}.webp"  # Use image_id as the base for naming
-#             self.images = ContentFile(output.read(), name=webp_filename)
-
-#         super().save(*args, **kwargs)
-
-#     def __str__(self):
-#         return f"Asset ID: {self.image_id}"
-
-
 def deal_image_upload_path(instance, filename):
     """Function to define the upload path dynamically."""
     # Using the original extension might be risky without checking the file type
     # You can enforce a conversion to a specific format like WEBP as you are doing
     extension = 'webp'
+    deal_uuid = instance.create_deal.deal_uuid if instance.create_deal else 'unknown'
     filename = f"asset_{uuid.uuid4()}.{extension}"
     return f"deal_images/deal_{instance.create_deal_id}/images/{filename}"
 

@@ -693,39 +693,14 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
         if obj.actual_price and obj.deal_price:
             discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
             return round(discount, 2)
-        return 0
-
+        return 0  
+    
     def get_upload_images(self, obj):
         """
-        Fetch images from S3, resize them, and return as Base64 strings.
+        Return the value of the `upload_images` field.
+        If it's empty, return an empty list.
         """
-        s3 = boto3.client('s3')
-        base64_images = []
-        bucket_name = "your-s3-bucket-name"
-
-        for image_path in obj.get_upload_images():
-            try:
-                # Fetch image from S3
-                s3_response = s3.get_object(Bucket=bucket_name, Key=image_path)
-                image_content = s3_response['Body'].read()
-
-                # Open image and resize
-                with Image.open(BytesIO(image_content)) as img:
-                    img = img.resize((600, 200), Image.ANTIALIAS)
-                    buffer = BytesIO()
-                    img.save(buffer, format="WEBP", quality=85)
-                    buffer.seek(0)
-
-                    # Convert to Base64
-                    base64_image = base64.b64encode(buffer.read()).decode('utf-8')
-                    base64_images.append(base64_image)
-            except Exception as e:
-                base64_images.append(None)  # Add None if an error occurs
-
-        return base64_images    
-
-    
-           
+        return obj.get_upload_images()       
         
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
