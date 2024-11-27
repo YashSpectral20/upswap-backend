@@ -675,8 +675,8 @@ class CreateDealDetailView(APIView):
             # Deal fetch karo
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
 
+            # Serializer se data fetch karo
             serializer = CreateDealDetailSerializer(deal, context={"request": request})
-
 
             upload_images = []
 
