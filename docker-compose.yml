@@ -36,52 +36,51 @@
 
 
 
-# version: '3.9'
+version: '3.9'
 
-# services:
-#   db:
-#     image: postgres:13
-#     environment:
-#       POSTGRES_DB: mydatabase
-#       POSTGRES_USER: myuser
-#       POSTGRES_PASSWORD: mypassword
-#     volumes:
-#       - postgres_data:/var/lib/postgresql/data
+services:
+  db:
+    image: postgres:13
+    environment:
+      POSTGRES_DB: mydatabase
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
-#   redis:
-#     image: redis:latest
-#     ports:
-#       - "6379:6379"
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
       
-#   web:
-#     build: .
-#     command: bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-#     working_dir: /usr/src/app/
-#     volumes:
-#       - .:/usr/src/app
-#     ports:
-#       - "8000:8000"
-#     depends_on:
-#       - db
-#       - redis
-#     environment:
-#       - DATABASE_URL=postgres://myuser:mypassword@db:5432/mydatabase
-#       - REDIS_URL=redis://redis:6379/0
-#       - BUNNYCDN_ACCESS_KEY=e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d 
+  web:
+    build: .
+    command: bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    working_dir: /usr/src/app/
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    environment:
+      - DATABASE_URL=postgres://myuser:mypassword@db:5432/mydatabase
+      - REDIS_URL=redis://redis:6379/0
+      - BUNNYCDN_ACCESS_KEY=e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d 
 
-#   adminer:
-#     image: adminer
-#     restart: always
-#     depends_on:
-#       - db
-#     ports:
-#       - 3402:8080
+  adminer:
+    image: adminer
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - 3402:8080
 
-# volumes:
-#   postgres_data:
+volumes:
+  postgres_data:
 
 
-###########################################################################################################################
 # version: '3.9'
 
 # services:
@@ -109,32 +108,31 @@
 #       - REDIS_URL=redis://redis:6379/0
 #       - BUNNYCDN_ACCESS_KEY=e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d 
 
-############################################################################################################################
 
-version: '3.9'
+# version: '3.9'
 
-services:
-  redis:
-    image: redis:latest
-    ports:
-      - "6379:6379"
+# services:
+#   redis:
+#     image: redis:latest
+#     ports:
+#       - "6379:6379"
       
-  web:
-    build: .
-    command: bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-    working_dir: /usr/src/app/
-    volumes:
-      - .:/usr/src/app
-      - ./logs:/usr/src/app/logs  # Map logs directory to the host
-    ports:
-      - "8000:8000"
-    depends_on:
-      - redis
-    environment:
-      - DATABASE_NAME=upswap-db
-      - DATABASE_USER=upswap
-      - DATABASE_PASSWORD=upswapDBadmin
-      - DATABASE_HOST=upswap-db.cno04mc4gmpt.us-east-1.rds.amazonaws.com
-      - DATABASE_PORT=5432
-      - REDIS_URL=redis://redis:6379/0
-      - BUNNYCDN_ACCESS_KEY=e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d
+#   web:
+#     build: .
+#     command: bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+#     working_dir: /usr/src/app/
+#     volumes:
+#       - .:/usr/src/app
+#       - ./logs:/usr/src/app/logs  # Map logs directory to the host
+#     ports:
+#       - "8000:8000"
+#     depends_on:
+#       - redis
+#     environment:
+#       - DATABASE_NAME=upswap-db
+#       - DATABASE_USER=upswap
+#       - DATABASE_PASSWORD=upswapDBadmin
+#       - DATABASE_HOST=upswap-db.cno04mc4gmpt.us-east-1.rds.amazonaws.com
+#       - DATABASE_PORT=5432
+#       - REDIS_URL=redis://redis:6379/0
+#       - BUNNYCDN_ACCESS_KEY=e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d

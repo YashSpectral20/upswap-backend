@@ -1,5 +1,6 @@
 from PIL import Image
 from io import BytesIO
+import logging
 import re
 import os
 import uuid
@@ -529,163 +530,6 @@ class CreateDealView(generics.CreateAPIView):
             return messages[0]  # Take the first message for each field error
 
 
-"""
-class DealImageUploadView(generics.ListCreateAPIView):
-    queryset = DealsImage.objects.all()
-    serializer_class = CreateDealImageSerializer
-    parser_classes = [MultiPartParser]
-
-    def post(self, request, *args, **kwargs):
-        # Check if images are included in the request
-        if not request.FILES.getlist('images'):
-            return Response({"error": "At least one image is required"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        images = request.FILES.getlist('images')
-        uploaded_images = []
-
-        # Loop through each uploaded image and save it to the model
-        for image in images:
-            deal_image = DealsImage(images=image)  # Save the image to the model
-            deal_image.save()
-
-            # Append details of the saved image
-            uploaded_images.append({
-                "image_id": deal_image.image_id,
-                "uploaded_at": deal_image.uploaded_at,
-                "file_name": deal_image.images.name,  # Access the file name directly
-                
-            })
-
-        return Response(
-            {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
-            status=status.HTTP_201_CREATED
-        )"""
-
-# class DealImageUploadView(generics.ListCreateAPIView):
-#     queryset = DealsImage.objects.all()
-#     serializer_class = CreateDealImageSerializer
-#     parser_classes = [MultiPartParser]
-
-#     def post(self, request, *args, **kwargs):
-#         # Check if images are included in the request
-#         if not request.FILES.getlist('images'):
-#             return Response({"error": "At least one image is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-#         images = request.FILES.getlist('images')
-#         uploaded_images = []
-
-#         # Loop through each uploaded image and save it to the model
-#         for image in images:
-#             try:
-#                 # Save the image instance to the database
-#                 deal_image = DealsImage(images=image)
-#                 deal_image.save()
-
-#                 # Process the image to get the base64 string
-#                 image_base64 = self._convert_image_to_base64(deal_image)
-
-#                 # Append details of the saved image
-#                 uploaded_images.append({
-#                     "image_id": deal_image.image_id,
-#                     "uploaded_at": deal_image.uploaded_at,
-#                     "file_name": deal_image.images.name,
-#                     "image_base64": image_base64,
-#                 })
-
-#             except Exception as e:
-#                 return Response(
-#                     {"error": f"An error occurred while processing image {image.name}: {str(e)}"},
-#                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
-#                 )
-
-#         return Response(
-#             {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
-#             status=status.HTTP_201_CREATED
-#         )
-
-#     # def _convert_image_to_base64(self, deal_image):
-#     #     """
-#     #     Convert the uploaded image to a base64 string after resizing to 600x200.
-#     #     Supports both local and remote storage backends.
-#     #     """
-#     #     try:
-#     #         # For local storage
-#     #         if hasattr(deal_image.images, 'path'):
-#     #             with Image.open(deal_image.images.path) as img:
-#     #                 img = img.resize((600, 200), Image.ANTIALIAS)
-
-#     #                 # Save the resized image to a BytesIO object in WebP format
-#     #                 output = BytesIO()
-#     #                 img.save(output, format='WEBP', quality=85)
-#     #                 output.seek(0)
-
-#     #                 # Convert the resized image to a base64 string
-#     #                 return base64.b64encode(output.read()).decode('utf-8')
-
-#     #         # For remote storage
-#     #         elif hasattr(deal_image.images, 'url'):
-#     #             response = requests.get(deal_image.images.url, stream=True)
-#     #             response.raise_for_status()
-
-#     #             # Open the image from the response content
-#     #             with Image.open(BytesIO(response.content)) as img:
-#     #                 img = img.resize((600, 200), Image.ANTIALIAS)
-
-#     #                 # Save the resized image to a BytesIO object in WebP format
-#     #                 output = BytesIO()
-#     #                 img.save(output, format='WEBP', quality=85)
-#     #                 output.seek(0)
-
-#     #                 # Convert the resized image to a base64 string
-#     #                 return base64.b64encode(output.read()).decode('utf-8')
-
-#     #     except Exception as e:
-#     #         print(f"Error processing image: {e}")
-#     #         return None
-#     def _convert_image_to_base64(self, deal_image):
-#         """
-#         Convert the uploaded image to a base64 string after resizing to 600x200.
-#         Supports both local and remote storage backends.
-#         """
-#         try:
-#             # For local storage
-#             if hasattr(deal_image.images, 'path') and deal_image.images.path:
-#                 with Image.open(deal_image.images.path) as img:
-#                     img = img.resize((600, 200), Image.ANTIALIAS)
-
-#                     # Save the resized image to a BytesIO object in WebP format
-#                     output = BytesIO()
-#                     img.save(output, format='WEBP', quality=85)
-#                     output.seek(0)
-
-#                     # Convert the resized image to a base64 string
-#                     return base64.b64encode(output.read()).decode('utf-8')
-
-#             # For remote storage
-#             elif hasattr(deal_image.images, 'url') and deal_image.images.url:
-#                 response = requests.get(deal_image.images.url, stream=True)
-#                 response.raise_for_status()
-
-#                 # Open the image from the response content
-#                 with Image.open(BytesIO(response.content)) as img:
-#                     img = img.resize((600, 200), Image.ANTIALIAS)
-
-#                     # Save the resized image to a BytesIO object in WebP format
-#                     output = BytesIO()
-#                     img.save(output, format='WEBP', quality=85)
-#                     output.seek(0)
-
-#                     # Convert the resized image to a base64 string
-#                     return base64.b64encode(output.read()).decode('utf-8')
-
-#             else:
-#                 raise ValueError("Image path or URL is not accessible")
-
-#         except Exception as e:
-#             print(f"Error processing image: {e}")
-#             raise ValueError(f"Error processing image: {str(e)}")
-
-
 class DealImageUploadView(generics.ListCreateAPIView):
     queryset = DealsImage.objects.all()
     serializer_class = CreateDealImageSerializer
@@ -823,68 +667,174 @@ def download_s3_file(request, file_key):
         error_message = str(e)
         return JsonResponse({'error': error_message}, status=404)
     
-    
+ 
 class CreateDealDetailView(APIView):
-    def get(self, request, deal_uuid, *args, **kwargs):
-        """
-        Retrieve details of a specific deal, including associated images converted to Base64.
-        """
-        # Fetch the CreateDeal instance
-        deal = get_object_or_404(CreateDeal, deal_uuid=deal_uuid)
 
-        # Fetch related images from DealsImage
-        images = DealsImage.objects.filter(create_deal=deal)
-
-        if not images.exists():
-            return Response(
-                {"error": "No images found for the specified deal_uuid."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Process and resize images to Base64
-        image_data = []
-        for image in images:
-            try:
-                image_base64 = self._resize_and_convert_to_base64(image)
-                image_data.append({
-                    "image_id": image.image_id,
-                    "uploaded_at": image.uploaded_at,
-                    "file_name": image.images.name,
-                    "image_base64": image_base64,
-                })
-            except Exception as e:
-                return Response(
-                    {"error": f"Failed to process image {image.images.name}: {str(e)}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-        # Prepare response data
-        deal_data = {
-            "deal_uuid": deal.deal_uuid,
-            "deal_title": deal.deal_title,
-            "deal_description": deal.deal_description,
-            "start_date": deal.start_date,
-            "end_date": deal.end_date,
-            "actual_price": deal.actual_price,
-            "deal_price": deal.deal_price,
-            "discount_percentage": deal.discount_percentage,
-            "images": image_data,
-        }
-        return Response(deal_data, status=status.HTTP_200_OK)
-
-    def _resize_and_convert_to_base64(self, deal_image):
-        """
-        Resize the image to 600x200 and convert it to Base64 format.
-        """
+    def get(self, request, deal_uuid):
         try:
-            img_path = deal_image.images.path
-            with Image.open(img_path) as img:
-                img = img.resize((600, 200), Image.ANTIALIAS)
-                buffer = BytesIO()
-                img.save(buffer, format='WEBP', quality=85)
-                return f"data:image/webp;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"
-        except Exception as e:
-            raise ValueError(f"Error resizing and converting image to Base64: {str(e)}")
+            # Deal fetch karo
+            deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
+            images = []
+
+            # S3 se har image process karo
+            for image_data in deal.upload_images:
+                try:
+                    file_name = image_data.get("file_name")  # S3 ka file path
+                    if not file_name:
+                        raise ValueError("File name missing")
+
+                    # S3 se file download karo
+                    s3_client = boto3.client(
+                        's3',
+                        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                        region_name=settings.AWS_S3_REGION_NAME
+                    )
+                    file_object = s3_client.get_object(
+                        Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                        Key=file_name
+                    )
+                    file_content = file_object['Body'].read()
+
+                    # PIL se image process karo
+                    img = Image.open(BytesIO(file_content))
+                    img = img.resize((600, 200), Image.ANTIALIAS)  # Resize to 600x200
+                    buffer = BytesIO()
+                    img.save(buffer, format='WEBP', quality=85)
+                    buffer.seek(0)
+
+                    # Base64 me convert karo
+                    base64_image = base64.b64encode(buffer.read()).decode('utf-8')
+                    base64_data = f"data:image/webp;base64,{base64_image}"
+
+                    # Image details list me add karo
+                    images.append({
+                        "image_id": image_data.get("image_id"),
+                        "base64_image": base64_data,
+                        "uploaded_at": image_data.get("uploaded_at"),
+                    })
+
+                except ClientError as e:
+                    # Agar S3 error aaye
+                    images.append({
+                        "image_id": image_data.get("image_id"),
+                        "error": f"S3 error: {str(e)}",
+                        "uploaded_at": image_data.get("uploaded_at"),
+                    })
+                except Exception as e:
+                    # Generic errors ke liye
+                    images.append({
+                        "image_id": image_data.get("image_id"),
+                        "error": str(e),
+                        "uploaded_at": image_data.get("uploaded_at"),
+                    })
+
+            # Response return karo
+            data = {
+                "deal_uuid": str(deal.deal_uuid),
+                "deal_title": deal.deal_title,
+                "images": images,
+            }
+            return Response(data, status=200)
+
+        except CreateDeal.DoesNotExist:
+            # Deal agar na mile to error return karo
+            return Response({"error": "Deal not found"}, status=404)
+
+
+
+# class CreateDealDetailView(APIView):
+#     def get(self, request, deal_uuid):
+#         # Initialize S3 client
+#         s3_client = boto3.client(
+#             's3',
+#             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+#             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+#             region_name=settings.AWS_S3_REGION_NAME,
+#         )
+
+#         try:
+#             # Fetch the deal instance
+#             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
+
+#             # Fetch linked images for the deal
+#             images = DealsImage.objects.filter(create_deal=deal)
+
+#             # Initialize list for storing base64-encoded image data
+#             base64_images = []
+
+#             # Process each image
+#             for image in images:
+#                 file_key = image.images.name  # Path to the image in S3
+#                 if file_key:  # Ensure the file key exists
+#                     try:
+#                         # Process the image to get base64 string
+#                         base64_data = self._download_and_process_s3_image(
+#                             s3_client, file_key
+#                         )
+#                         if base64_data:
+#                             # Add image details to the response
+#                             base64_images.append({
+#                                 "image_id": str(image.image_id),
+#                                 "uploaded_at": image.uploaded_at,
+#                                 "base64": base64_data
+#                             })
+#                     except Exception as e:
+#                         print(f"Error processing image {file_key}: {e}")
+#                 else:
+#                     print(f"Empty file key for image: {image.image_uuid}")
+
+#             # Serialize the deal data
+#             serializer = CreateDealDetailSerializer(deal)
+#             serialized_data = serializer.data
+
+#             # Add the processed images to the response
+#             serialized_data["upload_images"] = base64_images
+
+#             return Response(serialized_data, status=status.HTTP_200_OK)
+
+#         except CreateDeal.DoesNotExist:
+#             return Response(
+#                 {"error": "No deal found for the specified deal_uuid."},
+#                 status=status.HTTP_404_NOT_FOUND,
+#             )
+#         except Exception as e:
+#             return Response(
+#                 {"error": f"An unexpected error occurred: {str(e)}"},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             )
+
+#     def _download_and_process_s3_image(self, s3_client, file_key):
+#         """
+#         Download an image from S3, resize it, and convert it to base64.
+#         """
+#         try:
+#             # Fetch the file from S3
+#             response = s3_client.get_object(
+#                 Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+#                 Key=file_key
+#             )
+#             image_data = response['Body'].read()
+
+#             # Load and resize the image
+#             img = Image.open(BytesIO(image_data))
+#             base_width = 600
+#             w_percent = (base_width / float(img.size[0]))
+#             h_size = int((float(img.size[1]) * float(w_percent)))
+#             img = img.resize((base_width, h_size), Image.ANTIALIAS)
+
+#             # Save the resized image to a buffer
+#             output = BytesIO()
+#             img.save(output, format="WEBP", quality=85)
+#             output.seek(0)
+
+#             # Convert to base64
+#             base64_data = base64.b64encode(output.read()).decode('utf-8')
+#             return f"data:image/webp;base64,{base64_data}"
+#         except Exception as e:
+#             raise ValueError(f"Failed to process S3 image: {str(e)}")
+
+
 
 
 class CreateDeallistView(generics.ListAPIView):

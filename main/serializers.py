@@ -226,7 +226,7 @@ class ActivityImageSerializer(serializers.ModelSerializer):
 class ActivityListsSerializer(serializers.ModelSerializer):
     images = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    activity_category = ActivityCategorySerializer(many=True, required=True)
+    acivity_category = ActivityCategorySerializer(many=True, required=True)
 
     class Meta:
         model = Activity
@@ -555,7 +555,6 @@ class CreateDealImageSerializer(serializers.ModelSerializer):
                 return None
         return None
 
-
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
@@ -563,7 +562,14 @@ class CreateDealSerializer(serializers.ModelSerializer):
     vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
-
+    upload_images = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.CharField(max_length=255),
+            required=True,
+        ),
+        required=False,
+    )
+    
 
     class Meta:
         model = CreateDeal
@@ -635,6 +641,18 @@ class CreateDealSerializer(serializers.ModelSerializer):
             deal.save()
 
         return deal
+    
+    def validate_upload_images(self, value):
+        """
+        Ensure that each dictionary in the list contains valid metadata keys.
+        """
+        required_keys = {'image_id', 'uploaded_at', 'file_name'}
+        for image_data in value:
+            if not required_keys.issubset(image_data.keys()):
+                raise serializers.ValidationError(
+                    f"Each image metadata must contain the keys: {', '.join(required_keys)}."
+                )
+        return value
 
     
     
@@ -693,14 +711,22 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
         if obj.actual_price and obj.deal_price:
             discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
             return round(discount, 2)
-        return 0  
-    
+        return 0
+
     def get_upload_images(self, obj):
-        """
-        Return the value of the `upload_images` field.
-        If it's empty, return an empty list.
-        """
-        return obj.get_upload_images()       
+        # Get associated DealsImage instances
+        images = obj.deals_assets.all()  # Use related_name from DealsImage model
+        return [
+            {
+                "image_id": image.image_id,
+                "uploaded_at": image.uploaded_at,
+                "image_base64": CreateDealImageSerializer(image).data['image_base64']
+            }
+            for image in images
+        ]
+
+
+           
         
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()

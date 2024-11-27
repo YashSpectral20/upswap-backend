@@ -64,9 +64,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-
 # Application definition
-
 INSTALLED_APPS = [
     'daphne',
     'django.contrib.admin',
@@ -76,6 +74,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'main',
+    'storages',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -169,10 +168,10 @@ DATABASES = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'upswap-db',
-        'USER': 'upswap',
-        'PASSWORD': 'upswapDBadmin',
-        'HOST': 'upswap-db.cno04mc4gmpt.us-east-1.rds.amazonaws.com',  # The hostname of the PostgreSQL service in Docker Compose
+        'NAME': 'mydatabase',
+        'USER': 'myuser',
+        'PASSWORD': 'mypassword',
+        'HOST': 'db',  # The hostname of the PostgreSQL service in Docker Compose
         'PORT': '5432',
     }
 }
