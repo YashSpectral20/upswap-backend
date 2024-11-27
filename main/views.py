@@ -674,7 +674,11 @@ class CreateDealDetailView(APIView):
         try:
             # Deal fetch karo
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
-            images = []
+
+            serializer = CreateDealDetailSerializer(deal, context={"request": request})
+
+
+            upload_images = []
 
             # S3 se har image process karo
             for image_data in deal.upload_images:
@@ -708,7 +712,7 @@ class CreateDealDetailView(APIView):
                     base64_data = f"data:image/webp;base64,{base64_image}"
 
                     # Image details list me add karo
-                    images.append({
+                    upload_images.append({
                         "image_id": image_data.get("image_id"),
                         "base64_image": base64_data,
                         "uploaded_at": image_data.get("uploaded_at"),
@@ -716,26 +720,24 @@ class CreateDealDetailView(APIView):
 
                 except ClientError as e:
                     # Agar S3 error aaye
-                    images.append({
+                    upload_images.append({
                         "image_id": image_data.get("image_id"),
                         "error": f"S3 error: {str(e)}",
                         "uploaded_at": image_data.get("uploaded_at"),
                     })
                 except Exception as e:
                     # Generic errors ke liye
-                    images.append({
+                    upload_images.append({
                         "image_id": image_data.get("image_id"),
                         "error": str(e),
                         "uploaded_at": image_data.get("uploaded_at"),
                     })
 
-            # Response return karo
-            data = {
-                "deal_uuid": str(deal.deal_uuid),
-                "deal_title": deal.deal_title,
-                "images": images,
-            }
-            return Response(data, status=200)
+            # Append images to the serialized data
+            serialized_data = serializer.data
+            serialized_data["upload_images"] = upload_images
+
+            return Response(serialized_data, status=200)
 
         except CreateDeal.DoesNotExist:
             # Deal agar na mile to error return karo
