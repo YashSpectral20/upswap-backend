@@ -15,6 +15,9 @@ from datetime import timedelta
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import date
+import pytz
+from logging import Formatter
+from datetime import datetime
 
 load_dotenv()
 
@@ -267,12 +270,25 @@ EMAIL_HOST_PASSWORD = 'vfxu rhrb yjzq duvk'
 
 
 
+# Custom formatter class to handle IST timezone
+class ISTFormatter(Formatter):
+    def formatTime(self, record, datefmt=None):
+        # Convert the epoch time to a datetime object in UTC
+        utc_time = datetime.utcfromtimestamp(record.created)
+        # Convert the UTC time to IST
+        ist = pytz.timezone("Asia/Kolkata")
+        ist_time = utc_time.replace(tzinfo=pytz.utc).astimezone(ist)
+        # Format the IST time
+        return ist_time.strftime(datefmt or "%Y-%m-%d %H:%M:%S %Z")
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
+            '()': ISTFormatter,  # Use the custom IST formatter
             'format': '{levelname} {asctime} {module} {message}',
+            'datefmt': '%Y-%m-%d %H:%M:%S %Z',  # IST format
             'style': '{',
         },
         'simple': {

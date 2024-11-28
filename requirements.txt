@@ -19,3 +19,4 @@ python-dotenv
 boto3
 drf-yasg
 django-cors-headers
+pytz

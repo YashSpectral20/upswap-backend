@@ -37,6 +37,7 @@ from .serializers import (
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, ActivityImageListsSerializer
 
 )
+
 from rest_framework.generics import RetrieveAPIView
 from .utils import generate_otp, process_images_from_s3
 from .services import get_image_from_s3
@@ -62,6 +63,9 @@ from django.urls import reverse
 from rest_framework.parsers import MultiPartParser, FormParser
 
 from django.shortcuts import get_object_or_404
+
+# Set up the logger
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 token_generator = PasswordResetTokenGenerator()
@@ -530,6 +534,112 @@ class CreateDealView(generics.CreateAPIView):
             return messages[0]  # Take the first message for each field error
 
 
+# class DealImageUploadView(generics.ListCreateAPIView):
+#     queryset = DealsImage.objects.all()
+#     serializer_class = CreateDealImageSerializer
+#     parser_classes = [MultiPartParser]
+
+#     def post(self, request, *args, **kwargs):
+#         """
+#         Handle multiple image uploads, save them to the database, 
+#         and return their details along with base64-encoded versions of resized images.
+#         """
+#         # Validate if images are provided in the request
+#         if not request.FILES.getlist('images'):
+#             return Response(
+#                 {"error": "At least one image is required"},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         images = request.FILES.getlist('images')
+#         uploaded_images = []
+
+#         # Process each uploaded image
+#         for image in images:
+#             try:
+#                 # Save the image instance to the database
+#                 deal_image = DealsImage(images=image)
+#                 deal_image.save()
+
+#                 # Convert the image to a base64 string
+#                 image_base64 = self._convert_image_to_base64(deal_image)
+
+#                 # Append details of the saved image
+#                 uploaded_images.append({
+#                     "image_id": deal_image.image_id,
+#                     "uploaded_at": deal_image.uploaded_at,
+#                     "file_name": deal_image.images.name,
+#                     "image_base64": image_base64,
+#                 })
+
+#             except ValueError as e:
+#                 # Return ValueError with traceback for debugging
+#                 tb = traceback.format_exc()
+#                 return Response(
+#                     {
+#                         "error": f"An error occurred while processing image {image.name}: {str(e)}",
+#                         "traceback": tb,
+#                     },
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+#             except Exception as e:
+#                 # Return generic exceptions with traceback for debugging
+#                 tb = traceback.format_exc()
+#                 return Response(
+#                     {
+#                         "error": f"An unexpected error occurred while processing image {image.name}: {str(e)}",
+#                         "traceback": tb,
+#                     },
+#                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#                 )
+
+#         # Return response for all successfully uploaded images
+#         return Response(
+#             {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
+#             status=status.HTTP_201_CREATED
+#         )
+
+#     def _convert_image_to_base64(self, deal_image):
+#         """
+#         Convert the uploaded image to a base64-encoded string after resizing to a maximum width of 600 pixels while maintaining the aspect ratio.
+#         Uses Image.ANTIALIAS for resizing and handles both local and remote storage backends.
+#         """
+#         try:
+#             if hasattr(deal_image.images, 'file'):
+#                 img = Image.open(deal_image.images.file)
+#             else:
+#                 # Fetch the image via URL if it's stored remotely
+#                 response = requests.get(deal_image.images.url, stream=True)
+#                 response.raise_for_status()
+#                 img = Image.open(BytesIO(response.content))
+
+#             # Calculate new dimensions preserving the aspect ratio
+#             base_width = 600
+#             w_percent = (base_width / float(img.size[0]))
+#             h_size = int((float(img.size[1]) * float(w_percent)))
+
+#             # Resize the image using Image.ANTIALIAS for high-quality downsampling
+#             img = img.resize((base_width, h_size), Image.ANTIALIAS)
+#             output = BytesIO()
+#             img.save(output, format='WEBP', quality=85)
+#             output.seek(0)
+
+#             # Encode the image to base64 and prepend the MIME type for HTML display
+#             base64_data = base64.b64encode(output.read()).decode('utf-8')
+#             return f'data:image/webp;base64,{base64_data}'
+
+#         except Exception as e:
+#             print(f"Error processing image: {e}")
+#             raise ValueError(f"Error processing image: {str(e)}")
+
+
+
+
+
+
+
+
+
 class DealImageUploadView(generics.ListCreateAPIView):
     queryset = DealsImage.objects.all()
     serializer_class = CreateDealImageSerializer
@@ -540,18 +650,24 @@ class DealImageUploadView(generics.ListCreateAPIView):
         Handle multiple image uploads, save them to the database, 
         and return their details along with base64-encoded versions of resized images.
         """
+        logger.debug("Starting POST request to upload images.")
+
         # Validate if images are provided in the request
         if not request.FILES.getlist('images'):
+            logger.error("No images found in the request.")
             return Response(
                 {"error": "At least one image is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         images = request.FILES.getlist('images')
+        logger.debug(f"Number of images to process: {len(images)}")
+
         uploaded_images = []
 
         # Process each uploaded image
         for image in images:
+            logger.debug(f"Processing image: {image.name}")
             try:
                 # Save the image instance to the database
                 deal_image = DealsImage(images=image)
@@ -568,9 +684,12 @@ class DealImageUploadView(generics.ListCreateAPIView):
                     "image_base64": image_base64,
                 })
 
+                logger.info(f"Image {image.name} uploaded and processed successfully.")
+
             except ValueError as e:
-                # Return ValueError with traceback for debugging
                 tb = traceback.format_exc()
+                logger.error(f"ValueError processing image {image.name}: {e}")
+                logger.debug(tb)
                 return Response(
                     {
                         "error": f"An error occurred while processing image {image.name}: {str(e)}",
@@ -579,8 +698,9 @@ class DealImageUploadView(generics.ListCreateAPIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             except Exception as e:
-                # Return generic exceptions with traceback for debugging
                 tb = traceback.format_exc()
+                logger.error(f"Unexpected error processing image {image.name}: {e}")
+                logger.debug(tb)
                 return Response(
                     {
                         "error": f"An unexpected error occurred while processing image {image.name}: {str(e)}",
@@ -590,6 +710,7 @@ class DealImageUploadView(generics.ListCreateAPIView):
                 )
 
         # Return response for all successfully uploaded images
+        logger.info("All images uploaded successfully.")
         return Response(
             {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
             status=status.HTTP_201_CREATED
@@ -598,8 +719,8 @@ class DealImageUploadView(generics.ListCreateAPIView):
     def _convert_image_to_base64(self, deal_image):
         """
         Convert the uploaded image to a base64-encoded string after resizing to a maximum width of 600 pixels while maintaining the aspect ratio.
-        Uses Image.ANTIALIAS for resizing and handles both local and remote storage backends.
         """
+        logger.debug(f"Converting image {deal_image.images.name} to base64.")
         try:
             if hasattr(deal_image.images, 'file'):
                 img = Image.open(deal_image.images.file)
@@ -622,11 +743,38 @@ class DealImageUploadView(generics.ListCreateAPIView):
 
             # Encode the image to base64 and prepend the MIME type for HTML display
             base64_data = base64.b64encode(output.read()).decode('utf-8')
+            logger.debug(f"Image {deal_image.images.name} converted to base64 successfully.")
             return f'data:image/webp;base64,{base64_data}'
 
         except Exception as e:
-            print(f"Error processing image: {e}")
+            logger.error(f"Error processing image {deal_image.images.name}: {e}")
             raise ValueError(f"Error processing image: {str(e)}")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def download_s3_file(request, file_key):
