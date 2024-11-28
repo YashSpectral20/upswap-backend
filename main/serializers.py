@@ -691,14 +691,14 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     vendor_phone_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
-    upload_images = serializers.SerializerMethodField()
+    uploaded_images = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
         fields = [
             'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
             'deal_uuid', 'deal_post_time', 'deal_title', 'deal_description',
-            'select_service', 'upload_images', 'start_date', 'end_date', 'start_time',
+            'select_service', 'uploaded_images', 'start_date', 'end_date', 'start_time',
             'end_time', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
@@ -713,7 +713,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             return round(discount, 2)
         return 0
 
-    def get_upload_images(self, obj):
+    def get_uploaded_images(self, obj):
         # Get associated DealsImage instances
         images = obj.deals_assets.all()  # Use related_name from DealsImage model
         return [
