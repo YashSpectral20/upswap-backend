@@ -672,22 +672,22 @@ class CreateDealDetailView(APIView):
 
     def get(self, request, deal_uuid):
         try:
-            # Deal fetch karo
+            # Fetch the deal
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
 
-            # Serializer se data fetch karo
+            # Serialize data
             serializer = CreateDealDetailSerializer(deal, context={"request": request})
 
             uploaded_images = []
 
-            # S3 se har image process karo
+            # Process each image from S3
             for image_data in deal.uploaded_images:
                 try:
-                    file_name = image_data.get("file_name")  # S3 ka file path
+                    file_name = image_data.get("file_name")  # S3 file path
                     if not file_name:
                         raise ValueError("File name missing")
 
-                    # S3 se file download karo
+                    # Download the image from S3
                     s3_client = boto3.client(
                         's3',
                         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -700,18 +700,24 @@ class CreateDealDetailView(APIView):
                     )
                     file_content = file_object['Body'].read()
 
-                    # PIL se image process karo
+                    # Open the image with PIL
                     img = Image.open(BytesIO(file_content))
-                    img = img.resize((600, 200), Image.ANTIALIAS)  # Resize to 600x200
+
+                    # Calculate the new size while maintaining the aspect ratio
+                    base_width = 600
+                    w_percent = base_width / float(img.size[0])  # Width scaling factor
+                    h_size = int(float(img.size[1]) * float(w_percent))  # Adjust height to keep aspect ratio
+
+                    img = img.resize((base_width, h_size), Image.ANTIALIAS)  # Resize with maintained ratio
                     buffer = BytesIO()
                     img.save(buffer, format='WEBP', quality=85)
                     buffer.seek(0)
 
-                    # Base64 me convert karo
+                    # Convert the image to base64
                     image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
                     base64_data = f"data:image/webp;base64,{image_base64}"
 
-                    # Image details list me add karo
+                    # Append image data to the list
                     uploaded_images.append({
                         "image_id": image_data.get("image_id"),
                         "image_base64": base64_data,
@@ -719,28 +725,28 @@ class CreateDealDetailView(APIView):
                     })
 
                 except ClientError as e:
-                    # Agar S3 error aaye
+                    # Handle S3 errors
                     uploaded_images.append({
                         "image_id": image_data.get("image_id"),
                         "error": f"S3 error: {str(e)}",
                         "uploaded_at": image_data.get("uploaded_at"),
                     })
                 except Exception as e:
-                    # Generic errors ke liye
+                    # Handle generic errors
                     uploaded_images.append({
                         "image_id": image_data.get("image_id"),
                         "error": str(e),
                         "uploaded_at": image_data.get("uploaded_at"),
                     })
 
-            # Append images to the serialized data
+            # Add images to the serialized data
             serialized_data = serializer.data
             serialized_data["uploaded_images"] = uploaded_images
 
             return Response(serialized_data, status=200)
 
         except CreateDeal.DoesNotExist:
-            # Deal agar na mile to error return karo
+            # Return error if deal not found
             return Response({"error": "Deal not found"}, status=404)
 
 
