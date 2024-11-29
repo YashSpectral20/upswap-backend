@@ -171,10 +171,10 @@ DATABASES = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mydatabase',
-        'USER': 'myuser',
-        'PASSWORD': 'mypassword',
-        'HOST': 'db',  # The hostname of the PostgreSQL service in Docker Compose
+        'NAME': 'upswap-db',
+        'USER': 'upswap',
+        'PASSWORD': 'upswapDBadmin',
+        'HOST': 'upswap-db.cno04mc4gmpt.us-east-1.rds.amazonaws.com',  # The hostname of the PostgreSQL service in Docker Compose
         'PORT': '5432',
     }
 }
