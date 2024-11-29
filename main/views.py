@@ -681,7 +681,7 @@ class CreateDealDetailView(APIView):
             uploaded_images = []
 
             # S3 se har image process karo
-            for image_data in deal.upload_images:
+            for image_data in deal.uploaded_images:
                 try:
                     file_name = image_data.get("file_name")  # S3 ka file path
                     if not file_name:

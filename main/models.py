@@ -420,7 +420,7 @@ class CreateDeal(models.Model):
     deal_description = models.TextField()
 
     select_service = models.CharField(max_length=255, blank=True)
-    upload_images = models.JSONField(default=list, blank=True)
+    uploaded_images = models.JSONField(default=list, blank=True)
 
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
@@ -459,16 +459,16 @@ class CreateDeal(models.Model):
 
         super().save(*args, **kwargs)
 
-    def get_upload_images(self):
-        return self.upload_images if self.upload_images else []
+    def get_uploaded_images(self):
+        return self.uploaded_images if self.uploaded_images else []
 
-    def set_upload_images(self, image_metadata):
+    def set_uploaded_images(self, image_metadata):
         """
         Save image metadata as a list of dictionaries in JSONField.
         """
         if not isinstance(image_metadata, list):
             raise ValueError("Image metadata must be a list of dictionaries.")
-        self.upload_images = image_metadata
+        self.uploaded_images = image_metadata
 
     @property
     def discount_percentage(self):

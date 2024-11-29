@@ -562,7 +562,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
     vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
-    upload_images = serializers.ListField(
+    uploaded_images = serializers.ListField(
         child=serializers.DictField(
             child=serializers.CharField(max_length=255),
             required=True,
@@ -575,7 +575,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
         model = CreateDeal
         fields = [
             'deal_uuid', 'deal_title', 'deal_description', 'select_service',
-            'upload_images', 'start_date', 'end_date', 'start_time', 'end_time',
+            'uploaded_images', 'start_date', 'end_date', 'start_time', 'end_time',
             'start_now', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
@@ -635,14 +635,14 @@ class CreateDealSerializer(serializers.ModelSerializer):
             deal_image = DealsImage.objects.create(create_deal=deal, images=image_data['images'])
             image_paths.append(deal_image.images.url)
 
-        # Save the image paths in the upload_images field
+        # Save the image paths in the uploaded_images field
         if image_paths:
-            deal.set_upload_images(image_paths)
+            deal.set_uploaded_images(image_paths)
             deal.save()
 
         return deal
     
-    def validate_upload_images(self, value):
+    def validate_uploaded_images(self, value):
         """
         Ensure that each dictionary in the list contains valid metadata keys.
         """
@@ -666,7 +666,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         model = CreateDeal
         fields = [
             'deal_uuid', 'deal_post_time', 'deal_title', 'select_service',
-            'upload_images', 'start_date', 'end_date', 'start_time', 'end_time',
+            'uploaded_images', 'start_date', 'end_date', 'start_time', 'end_time',
             'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
