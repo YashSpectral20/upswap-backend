@@ -4,6 +4,7 @@ import io
 import os
 import base64
 import boto3
+import datetime as dt
 from PIL import Image
 from rest_framework import serializers
 from django.conf import settings
@@ -614,6 +615,44 @@ class CreateDealSerializer(serializers.ModelSerializer):
         for field in address_fields:
             if not data.get(field):
                 raise serializers.ValidationError(f"{field.replace('_', ' ').capitalize()} is required.")
+
+        return data
+    
+    def validate(self, data):
+        """Validate that end_date and end_time are after start_date and start_time."""
+        start_date = data.get('start_date')
+        start_time = data.get('start_time')
+        end_date = data.get('end_date')
+        end_time = data.get('end_time')
+        start_now = data.get('start_now', False)
+
+        # Ensure that end_date and end_time are after start_date and start_time
+        if start_date and end_date and start_date > end_date:
+            raise serializers.ValidationError({
+                'end_date': "End date cannot be before start date."
+            })
+        if start_date and start_time and end_date and end_time:
+            # Combine dates and times into full datetime objects
+            start_datetime = timezone.make_aware(dt.datetime.combine(start_date, start_time))
+            end_datetime = timezone.make_aware(dt.datetime.combine(end_date, end_time))
+            if start_datetime > end_datetime:
+                raise serializers.ValidationError({
+                    'end_time': "End time cannot be before start time."
+                })
+
+        # If start_now is True, automatically set start_date and start_time
+        if start_now:
+            now = timezone.now()
+            data['start_date'] = now.date()
+            data['start_time'] = now.time().replace(microsecond=0)
+
+            # Ensure end_date and end_time are after now
+            if end_date and end_time:
+                end_datetime = timezone.make_aware(dt.datetime.combine(end_date, end_time))
+                if now > end_datetime:
+                    raise serializers.ValidationError({
+                        'end_time': "End date and time cannot be before the current date and time."
+                    })
 
         return data
 
