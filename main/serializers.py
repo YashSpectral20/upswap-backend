@@ -565,7 +565,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
     discount_percentage = serializers.SerializerMethodField()
     uploaded_images = serializers.ListField(
         child=serializers.DictField(
-            child=serializers.CharField(max_length=255),
+            child=serializers.CharField(max_length=10000),
             required=True,
         ),
         required=False,
