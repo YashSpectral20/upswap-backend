@@ -700,6 +700,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
+    uploaded_images = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
@@ -720,7 +721,55 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
             return round(discount, 2)
         return 0
 
-    
+    def get_uploaded_images(self, obj):
+        """
+        Add `image_base64` field to each uploaded image dictionary.
+        """
+        uploaded_images = obj.uploaded_images
+        if not uploaded_images or not isinstance(uploaded_images, list):
+            return []  # Return an empty list if no images are uploaded
+
+        for image_data in uploaded_images:
+            file_name = image_data.get("file_name")
+            if not file_name:
+                image_data['image_base64'] = None  # Set to None if file name is missing
+                continue
+
+            try:
+                # Download the image from S341
+                s3_client = boto3.client(
+                    's3',
+                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                    region_name=settings.AWS_S3_REGION_NAME
+                )
+                file_object = s3_client.get_object(
+                    Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+                    Key=file_name
+                )
+                file_content = file_object['Body'].read()
+
+                # Open and process the image with PIL
+                img = Image.open(BytesIO(file_content))
+                base_width = 600
+                w_percent = base_width / float(img.size[0])  # Width scaling factor
+                h_size = int(float(img.size[1]) * float(w_percent))  # Adjust height to maintain aspect ratio
+
+                img = img.resize((base_width, h_size), Image.ANTIALIAS)  # Resize the image
+                buffer = BytesIO()
+                img.save(buffer, format='WEBP', quality=85)
+                buffer.seek(0)
+
+                # Convert the image to base64
+                image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+                image_data['image_base64'] = f"data:image/webp;base64,{image_base64}"
+
+            except ClientError as e:
+                image_data['image_base64'] = f"S3 error: {str(e)}"
+            except Exception as e:
+                image_data['image_base64'] = str(e)
+
+        return uploaded_images
     
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
