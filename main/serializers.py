@@ -722,21 +722,19 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         return 0
 
     def get_uploaded_images(self, obj):
-        """
-        Add `image_base64` field to each uploaded image dictionary.
-        """
+        """Fetch and process uploaded images with base64."""
         uploaded_images = obj.uploaded_images
         if not uploaded_images or not isinstance(uploaded_images, list):
-            return []  # Return an empty list if no images are uploaded
+            return []
 
+        processed_images = []
         for image_data in uploaded_images:
             file_name = image_data.get("file_name")
             if not file_name:
-                image_data['image_base64'] = None  # Set to None if file name is missing
                 continue
 
             try:
-                # Download the image from S341
+                # Download the image from S3
                 s3_client = boto3.client(
                     's3',
                     aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -751,11 +749,8 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
 
                 # Open and process the image with PIL
                 img = Image.open(BytesIO(file_content))
-                base_width = 600
-                w_percent = base_width / float(img.size[0])  # Width scaling factor
-                h_size = int(float(img.size[1]) * float(w_percent))  # Adjust height to maintain aspect ratio
+                img = img.resize((160, 130), Image.ANTIALIAS)  # Resize to 160x130
 
-                img = img.resize((base_width, h_size), Image.ANTIALIAS)  # Resize the image
                 buffer = BytesIO()
                 img.save(buffer, format='WEBP', quality=85)
                 buffer.seek(0)
@@ -769,7 +764,9 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
             except Exception as e:
                 image_data['image_base64'] = str(e)
 
-        return uploaded_images
+            processed_images.append(image_data)
+
+        return processed_images
     
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
