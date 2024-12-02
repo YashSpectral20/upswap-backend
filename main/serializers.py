@@ -722,16 +722,16 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         return 0
 
     def get_uploaded_images(self, obj):
-        """Fetch and process uploaded images with base64."""
+        """Fetch the uploaded images with base64 thumbnail representation."""
         uploaded_images = obj.uploaded_images
         if not uploaded_images or not isinstance(uploaded_images, list):
-            return []
+            return []  # No images uploaded or invalid format
 
-        processed_images = []
+        images_with_base64 = []
         for image_data in uploaded_images:
-            file_name = image_data.get("file_name")
+            file_name = image_data.get("file_name")  # S3 file path
             if not file_name:
-                continue
+                continue  # Skip if no file name found
 
             try:
                 # Download the image from S3
@@ -749,24 +749,35 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
 
                 # Open and process the image with PIL
                 img = Image.open(BytesIO(file_content))
-                img = img.resize((160, 130), Image.ANTIALIAS)  # Resize to 160x130
-
+                img.thumbnail((160, 130))  # Resize to thumbnail 160x130 resolution
                 buffer = BytesIO()
                 img.save(buffer, format='WEBP', quality=85)
                 buffer.seek(0)
 
                 # Convert the image to base64
                 image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
-                image_data['image_base64'] = f"data:image/webp;base64,{image_base64}"
+
+                # Add image details including base64 as thumbnail
+                images_with_base64.append({
+                    "image_id": image_data.get("image_id"),
+                    "file_name": image_data.get("file_name"),
+                    "uploaded_at": image_data.get("uploaded_at"),
+                    "image_base64": f"data:image/webp;base64,{image_base64}"
+                })
 
             except ClientError as e:
-                image_data['image_base64'] = f"S3 error: {str(e)}"
+                return f"S3 error: {str(e)}"
             except Exception as e:
-                image_data['image_base64'] = str(e)
+                return str(e)
 
-            processed_images.append(image_data)
+        return images_with_base64
 
-        return processed_images
+    def to_representation(self, instance):
+        """Override to modify the representation."""
+        representation = super().to_representation(instance)
+        # Add base64 images inside the 'uploaded_images' field
+        representation['uploaded_images'] = self.get_uploaded_images(instance)
+        return representation
     
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
