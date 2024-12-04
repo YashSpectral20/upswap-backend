@@ -11,8 +11,9 @@ from django.conf import settings
 from .models import OTP
 from botocore.exceptions import BotoCoreError, ClientError
 import traceback
+import requests
 
-#from pyfcm import FCMNotification #For push notification
+from pyfcm import FCMNotification #For push notification
 
 def generate_otp(user):
     otp = ''.join(random.choices(string.digits, k=6))  # Generate a 6-digit OTP
@@ -95,3 +96,27 @@ def process_images_from_s3(image_paths):
             errors.append(error_details)
 
     return {"success": base64_images, "errors": errors}
+
+
+def send_fcm_notification(device_token, title, message):
+    FCM_SERVER_KEY = settings.FCM_SERVER_KEY  # .env se load karein
+    headers = {
+        "Authorization": f"key={FCM_SERVER_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "to": device_token,
+        "notification": {
+            "title": title,
+            "body": message
+        },
+        "data": {
+            "click_action": "FLUTTER_NOTIFICATION_CLICK",
+            "title": title,
+            "body": message
+        }
+    }
+
+    response = requests.post("https://fcm.googleapis.com/fcm/send", json=payload, headers=headers)
+    return response.json()

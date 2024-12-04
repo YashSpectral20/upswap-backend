@@ -21,3 +21,5 @@ drf-yasg
 django-cors-headers
 pytz
 pyfcm
+requests
+geopy

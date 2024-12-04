@@ -21,6 +21,8 @@ from datetime import datetime
 
 load_dotenv()
 
+FCM_API_KEY = os.getenv("FCM_API_KEY")
+
 # Build paths inside the project likessh this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 

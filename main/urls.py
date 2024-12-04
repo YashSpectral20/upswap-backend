@@ -121,7 +121,7 @@ from .views import (
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView, ActivityImagesListView, download_s3_file
+    CustomUserDetailView, PlaceOrderListsView, ActivityImagesListView, download_s3_file, NotificationView
 )
 
 # Swagger Schema View
@@ -208,6 +208,7 @@ urlpatterns = [
     path('categories/', CategoriesView.as_view(), name='categories'),
     
     path('customuser/details/<uuid:id>/', CustomUserDetailView.as_view(), name='customuser-details'),
+    path('notification/', NotificationView.as_view(), name='notifications'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

@@ -38,7 +38,8 @@ from .serializers import (
 
 )
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_images_from_s3 #send_notification
+from .utils import generate_otp, process_images_from_s3, send_fcm_notification 
+from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
@@ -488,6 +489,49 @@ class BusinessPhotoListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     
 
+# class CreateDealView(generics.CreateAPIView):
+#     serializer_class = CreateDealSerializer
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request, *args, **kwargs):
+#         # Fetch the vendor's KYC details
+#         try:
+#             vendor_kyc = VendorKYC.objects.get(user=request.user)
+#         except VendorKYC.DoesNotExist:
+#             return Response({"message": "Vendor KYC not found for this user."}, status=status.HTTP_404_NOT_FOUND)
+
+#         if not vendor_kyc.is_approved:
+#             return Response({"message": "Vendor KYC is not approved."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Copy request data and add vendor KYC to the data
+#         data = request.data.copy()
+#         data['vendor_kyc'] = vendor_kyc.vendor_id
+
+#         # Create the deal using the serializer
+#         serializer = self.get_serializer(data=data)
+#         if serializer.is_valid():
+#             deal = serializer.save()
+#             response_data = serializer.data
+#             response_data['message'] = "Deal created successfully."
+#             return Response(response_data, status=status.HTTP_201_CREATED)
+
+#         # Handle errors and convert to the desired format
+#         error_message = self.format_errors(serializer.errors)
+#         return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+#     def format_errors(self, errors):
+#         """
+#         Convert all validation errors to a single message format.
+#         """
+#         # If there are non-field-specific errors
+#         if 'non_field_errors' in errors:
+#             return errors['non_field_errors'][0]
+
+#         # If there are field-specific errors, pick the first error message
+#         for field, messages in errors.items():
+#             return messages[0]  # Take the first message for each field error
+
+
 class CreateDealView(generics.CreateAPIView):
     serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
@@ -510,8 +554,29 @@ class CreateDealView(generics.CreateAPIView):
         serializer = self.get_serializer(data=data)
         if serializer.is_valid():
             deal = serializer.save()
+
+            # Vendor location
+            vendor_location = (vendor_kyc.latitude, vendor_kyc.longitude)
+
+            # Notify nearby users
+            users = CustomUser.objects.exclude(device_token=None)  # Users with device tokens
+            notifications_sent = 0  # Track the number of notifications sent
+
+            for user in users:
+                if user.latitude and user.longitude:
+                    user_location = (user.latitude, user.longitude)
+                    distance = geodesic(vendor_location, user_location).km
+
+                    if distance <= 15:
+                        send_fcm_notification(
+                            device_token=user.device_token,
+                            title=f"New Deal: {deal.deal_title}",
+                            message=f"{vendor_kyc.user.username} has a new deal: {deal.deal_title}!"
+                        )
+                        notifications_sent += 1
+
             response_data = serializer.data
-            response_data['message'] = "Deal created successfully."
+            response_data['message'] = f"Deal created successfully. {notifications_sent} notifications sent."
             return Response(response_data, status=status.HTTP_201_CREATED)
 
         # Handle errors and convert to the desired format
@@ -529,7 +594,6 @@ class CreateDealView(generics.CreateAPIView):
         # If there are field-specific errors, pick the first error message
         for field, messages in errors.items():
             return messages[0]  # Take the first message for each field error
-
 
 class DealImageUploadView(generics.ListCreateAPIView):
     queryset = DealsImage.objects.all()
