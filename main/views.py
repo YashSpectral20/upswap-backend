@@ -38,7 +38,7 @@ from .serializers import (
 
 )
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_images_from_s3
+from .utils import generate_otp, process_images_from_s3 #send_notification
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
@@ -51,7 +51,8 @@ from django.utils.encoding import force_str
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.contrib.auth import get_user_model
 from rest_framework import generics, serializers
-
+#from django.contrib.gis.measure import D
+#from django.contrib.gis.geos import Point
 
 from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode
@@ -1071,3 +1072,31 @@ class ActivityImagesListView(generics.ListAPIView):
         activity_id = self.kwargs['activity_id']
         return ActivityImage.objects.filter(activity__activity_id=activity_id)
     
+    
+class NotificationView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        user_location = request.data.get('location')  # {'latitude': 21.643640, 'longitude': 69.615650}
+        if not user_location:
+            return Response({"error": "Location is required"}, status=400)
+
+        user_point = Point(user_location['longitude'], user_location['latitude'])
+
+        # Fetch active deals within 15 KM radius
+        deals = CreateDeal.objects.filter(
+            location__distance_lte=(user_point, D(km=15))
+        )
+
+        # Send notifications to users
+        notifications_sent = []
+        for deal in deals:
+            vendor_name = deal.vendor_kyc.full_name
+            deal_title = deal.deal_title
+            user_device_token = request.user.device_token
+
+            if user_device_token:
+                send_notification(user_device_token, vendor_name, deal_title)
+                notifications_sent.append({"vendor_name": vendor_name, "deal_title": deal_title})
+
+        return Response({"notifications": notifications_sent})    

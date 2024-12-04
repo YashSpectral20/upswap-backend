@@ -12,6 +12,7 @@ from .models import OTP
 from botocore.exceptions import BotoCoreError, ClientError
 import traceback
 
+#from pyfcm import FCMNotification #For push notification
 
 def generate_otp(user):
     otp = ''.join(random.choices(string.digits, k=6))  # Generate a 6-digit OTP
@@ -33,43 +34,6 @@ def generate_otp(user):
     )
 
     return otp
-
-
-# def process_images_from_s3(image_paths):
-#     """
-#     Fetch, resize, and convert images to Base64 strings from S3 bucket.
-#     """
-#     s3_client = boto3.client(
-#         's3',
-#         aws_access_key_id= settings.AWS_ACCESS_KEY_ID,
-#         aws_secret_access_key= settings.AWS_SECRET_ACCESS_KEY,
-#     )
-#     bucket_name = 'upswap-assets'
-#     base64_images = []
-
-#     for image_path in image_paths:
-#         try:
-#             # Download image from S3
-#             response = s3_client.get_object(Bucket=bucket_name, Key=image_path)
-#             image_data = response['Body'].read()
-            
-#             # Open and resize the image
-#             with Image.open(BytesIO(image_data)) as img:
-#                 img = img.convert('RGB')  # Ensure compatibility
-#                 img = img.resize((600, 200), Image.ANTIALIAS)  # Resize to 600x200
-                
-#                 # Convert to Base64
-#                 buffer = BytesIO()
-#                 img.save(buffer, format="WEBP")
-#                 base64_image = base64.b64encode(buffer.getvalue()).decode('utf-8')
-#                 base64_images.append(base64_image)
-#         except Exception as e:
-#             print(f"Error processing image {image_path}: {e}")
-#             continue
-
-#     return base64_images
-
-
 
 def process_images_from_s3(image_paths):
     """
