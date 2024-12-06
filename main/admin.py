@@ -6,11 +6,11 @@ from .models import (
 
 # Custom User Admin
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ('id', 'email', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 'country_code', 'dial_code', 'country')
+    list_display = ('id', 'email', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 'country_code', 'dial_code', 'country', 'device_token')
     list_filter = ('is_staff', 'is_active', 'otp_verified', 'country')
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
-        ('Personal info', {'fields': ('id', 'name', 'email', 'phone_number', 'date_of_birth', 'gender', 'country_code', 'dial_code', 'country')}),
+        ('Personal info', {'fields': ('id', 'name', 'email', 'phone_number', 'date_of_birth', 'gender', 'country_code', 'dial_code', 'country', 'device_token')}),
         ('Permissions', {'fields': ('is_staff', 'is_active', 'otp_verified', 'is_superuser')}),
     )
     readonly_fields = ('id',)
