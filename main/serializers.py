@@ -301,8 +301,12 @@ class VendorKYCSerializer(serializers.ModelSerializer):
     business_related_documents = serializers.ListField(
         child=serializers.CharField(), required=False, allow_empty=True
     )
-    business_related_photos = serializers.ListField(
-        child=serializers.CharField(), required=False, allow_empty=True
+    uploaded_images = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.URLField()
+        ),
+        required=False,
+        allow_empty=True
     )
     
     business_hours = serializers.JSONField(required=False, allow_null=True)
@@ -316,7 +320,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 
             'business_email_id', 'business_establishment_year', 'business_description', 
             'business_related_documents', 
-            'business_related_photos', 'same_as_personal_phone_number', 
+            'uploaded_images', 'same_as_personal_phone_number', 
             'same_as_personal_email_id', 'addresses',  # Include addresses field
             'country_code', 'dial_code', 
             'bank_account_number', 
@@ -408,7 +412,16 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         representation['is_approved'] = instance.is_approved
         return representation
 
-
+    def validate_uploaded_images(self, value):
+        """
+        Validate that uploaded_images contains valid metadata.
+        """
+        for image in value:
+            if not all(key in image for key in ('thumbnail', 'compressed')):
+                raise serializers.ValidationError(
+                    "Each image must include 'thumbnail' and 'compressed' URLs."
+                )
+        return value
 
 class VendorKYCListSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.name', read_only=True)

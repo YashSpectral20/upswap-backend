@@ -273,12 +273,11 @@ class VendorKYC(models.Model):
     business_establishment_year = models.IntegerField()
     business_description = models.TextField()
     upload_business_related_documents = models.FileField(upload_to='business_documents/', null=True, blank=True)
-    business_related_photos = models.ImageField(upload_to='business_photos/', null=True, blank=True)
+    uploaded_images = models.JSONField(default=list, blank=True)
     same_as_personal_phone_number = models.BooleanField(default=False)
     same_as_personal_email_id = models.BooleanField(default=False)
 
     business_related_documents = models.JSONField(default=list, blank=True, help_text="List of document paths")
-    business_related_photos = models.JSONField(default=list, blank=True, help_text="List of photo paths")
     
     country_code = models.CharField(max_length=10, blank=True)
     dial_code = models.CharField(max_length=10, blank=True)

@@ -371,20 +371,22 @@ class VendorKYCCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user
-
+        uploaded_images = self.request.data.get('uploaded_images', [])
+        
+        if not isinstance(uploaded_images, list):
+            raise ValidationError({"uploaded_images": "uploaded_images must be a list of dictionaries."})
+        
         # Check if VendorKYC instance already exists for this user
         try:
             vendor_kyc = VendorKYC.objects.get(user=user)
             # If the instance exists, update it instead of creating a new one
             serializer.instance = vendor_kyc
-            # Reset is_approved to False since the vendor is making changes
-            serializer.validated_data['is_approved'] = False
+            serializer.validated_data['is_approved'] = False  # Reset is_approved
         except VendorKYC.DoesNotExist:
-            # If no instance exists, create a new one
             vendor_kyc = None
-        
-        # Save the instance (either create or update)
-        serializer.save(user=user)
+
+        # Add uploaded_images to validated data
+        serializer.save(user=user, uploaded_images=uploaded_images)
 
     def create(self, request, *args, **kwargs):
         try:
@@ -393,26 +395,26 @@ class VendorKYCCreateView(generics.CreateAPIView):
             self.perform_create(serializer)
             return Response({
                 'message': 'Vendor KYC created successfully.',
-                'vendor_kyc': serializer.data  
+                'vendor_kyc': serializer.data
             }, status=status.HTTP_201_CREATED)
         except ValidationError as e:
-            error_message = e.detail
             return Response({
-                'message': list(error_message.values())[0][0] if error_message else "Validation error occurred."
+                'message': list(e.detail.values())[0][0] if e.detail else "Validation error occurred."
             }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            # Catch any unexpected exceptions
+            # Catch unexpected exceptions
             return Response({
                 'message': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
     def get_serializer_context(self):
         """
-        Provide any extra context to the serializer, if necessary.
+        Provide extra context to the serializer.
         """
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+
 
 
 """
