@@ -778,20 +778,21 @@ class CreateDeallistView(generics.ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Get the current date and time
+        # Get current date
         now = timezone.now()
 
-        # Get the country from the query parameters
+        # Extract country filter if passed
         country = self.request.query_params.get('country', None)
 
-        # Filter deals based on end date and location_country
+        # Query to fetch CreateDeal entries
         queryset = CreateDeal.objects.filter(end_date__gte=now)
 
-        # Apply country filter if country is provided
+        # Apply filtering by country if passed
         if country:
-            queryset = queryset.filter(location_country__iexact=country)  # Use location_country field for filtering
+            queryset = queryset.filter(location_country__iexact=country)
 
         return queryset
+
 
     
     

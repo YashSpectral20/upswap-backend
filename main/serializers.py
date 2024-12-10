@@ -747,24 +747,20 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
 
     def get_uploaded_images(self, obj):
         """
-        Fetch the uploaded images from S3 and return only valid thumbnails
+        Fetch only the uploaded image thumbnails served via S3/CDN URLs.
+        The thumbnail URLs are directly mapped based on uploaded images.
         """
-        uploaded_images = obj.uploaded_images
-        if not uploaded_images or not isinstance(uploaded_images, list):
+        # Ensure uploaded_images field is valid
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
             return []
 
-        # Filter only valid S3 images
-        valid_images = []
-        for img_dict in uploaded_images:  # Make sure we parse dictionary entries properly.
-            if isinstance(img_dict, dict) and "thumbnail" in img_dict:  # Ensure we're using the thumbnail string.
-                thumbnail_url = img_dict.get("thumbnail")
-                if thumbnail_url and self.is_s3_image(thumbnail_url):
-                    valid_images.append({
-                        "thumbnail": thumbnail_url,
-                        "original": img_dict.get("original", "")
-                    })
+        # Extract only the 'thumbnail' key from each image entry
+        thumbnails = [
+            image.get("thumbnail") for image in obj.uploaded_images if image.get("thumbnail")
+        ]
 
-        return valid_images
+        # Return only thumbnails
+        return thumbnails
 
 
 
