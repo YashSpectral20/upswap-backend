@@ -723,27 +723,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         if obj.actual_price and obj.deal_price:
             discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
             return round(discount, 2)
-        return 0
-
-    def is_s3_image(self, image_url):
-        """
-        Validate if a given image URL is an S3 URL
-        """
-        if not image_url:
-            return False
-        # Parse URL to confirm it's a valid S3 image
-        parsed_url = urlparse(image_url)
-        return parsed_url.netloc == settings.AWS_STORAGE_BUCKET_NAME + '.s3.amazonaws.com'
-
-    def generate_thumbnail_url(self, image_url):
-        """
-        Generate or return a thumbnail URL for a given S3 URL
-        """
-        if not image_url:
-            return None
-        parsed_url = urlparse(image_url)
-        # This transformation assumes your S3 stores thumbnails under 'thumbnails/' directory.
-        return f"{parsed_url.scheme}://{parsed_url.netloc}/{parsed_url.path.replace('uploads/', 'thumbnails/')}"  
+        return 0     
 
     def get_uploaded_images(self, obj):
         """
