@@ -741,22 +741,6 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
 
         # Return only thumbnails
         return thumbnails
-
-
-
-
-
-# class CreateDealImageSerializer(serializers.ModelSerializer):
-#     # image_base64 = serializers.SerializerMethodField()
-
-#     class Meta:
-#         model = DealsImage
-#         fields = ['images']
-        
-    # def to_representation(self, instance):
-    #     return {
-    #         'url': instance.images.url
-    #     }
         
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
@@ -766,20 +750,20 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     vendor_phone_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
-    # uploaded_images = serializers.SerializerMethodField()
+    uploaded_images = serializers.SerializerMethodField()
     # uploaded_images = CreateDealImageSerializer(many=True, source='deals_assets')   # , source='deals_assets'
 
     class Meta:
         model = CreateDeal
         fields = [
             'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
-            'deal_uuid', 'deal_post_time', 'deal_title', 'deal_description',
+            'deal_uuid','uploaded_images', 'deal_post_time', 'deal_title', 'deal_description',
             'select_service', 'start_date', 'end_date', 'start_time',
             'end_time', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'discount_percentage',
-            'latitude', 'longitude','uploaded_images'
+            'latitude', 'longitude'
         ]
         read_only_fields = ['vendor_uuid', 'deal_uuid', 'discount_percentage']
 
@@ -788,19 +772,23 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
             return round(discount, 2)
         return 0
-"""
+    
     def get_uploaded_images(self, obj):
-        # Get associated DealsImage instances
-        images = obj.deals_assets.all()  # Use related_name from DealsImage model
-        return [
-            {
-                "image_id": image.image_id,
-                "uploaded_at": image.uploaded_at,
-                "image_base64": CreateDealImageSerializer(image).data['image_base64']
-            }
-            for image in images
-        ]
-"""
+            """
+            Fetch only the uploaded image compressed served via S3/CDN URLs.
+            The compressed URLs are directly mapped based on uploaded images.
+            """
+            # Ensure uploaded_images field is valid
+            if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+                return []
+
+            # Extract only the 'compressed' key from each image entry
+            compressed = [
+                image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
+            ]
+
+            # Return only compressed
+            return compressed
 
            
         
