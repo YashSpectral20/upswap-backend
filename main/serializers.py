@@ -727,20 +727,17 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
 
     def get_uploaded_images(self, obj):
         """
-        Fetch only the uploaded image thumbnails served via S3/CDN URLs.
-        The thumbnail URLs are directly mapped based on uploaded images.
+        Fetch only the first image thumbnail from uploaded_images.
+        This ensures only the first uploaded image's thumbnail is fetched.
         """
-        # Ensure uploaded_images field is valid
+        # Ensure uploaded_images field is valid and has data
         if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
             return []
 
-        # Extract only the 'thumbnail' key from each image entry
-        thumbnails = [
-            image.get("thumbnail") for image in obj.uploaded_images if image.get("thumbnail")
-        ]
-
-        # Return only thumbnails
-        return thumbnails
+        # Return only the thumbnail of the first image in the uploaded_images list
+        first_image = obj.uploaded_images[0]  # Get the first image
+        thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
+        return [thumbnail] if thumbnail else []
         
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
