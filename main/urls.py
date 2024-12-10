@@ -119,9 +119,9 @@ from .views import (
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
-    BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, DealImageUploadView, CreateDealDetailView, CreateDeallistView, 
+    BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView, ActivityImagesListView, download_s3_file, NotificationView
+    CustomUserDetailView, PlaceOrderListsView, ActivityImagesListView, NotificationView, UploadImagesAPI
 )
 
 # Swagger Schema View
@@ -190,8 +190,6 @@ urlpatterns = [
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),
     path('deals/details/<uuid:deal_uuid>/', CreateDealDetailView.as_view(), name='details-deals'),
     path('deals/lists/', CreateDeallistView.as_view(), name='list-deals'),
-    path('deals/images/upload/', DealImageUploadView.as_view(), name='deal-image-upload'),
-    path('download/<str:file_key>/', download_s3_file, name='download_s3_file'),
     
     path('activities/list/', ActivityListsView.as_view(), name='activity-list'),
     
@@ -209,6 +207,8 @@ urlpatterns = [
     
     path('customuser/details/<uuid:id>/', CustomUserDetailView.as_view(), name='customuser-details'),
     path('notification/', NotificationView.as_view(), name='notifications'),
+    
+    path('UploadImagesAPI/', UploadImagesAPI.as_view(), name='upload-images'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

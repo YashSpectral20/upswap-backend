@@ -25,20 +25,20 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, DealsImage, PlaceOrder,
+from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, PlaceOrder,
                     ActivityCategory, ServiceCategory)
 
 from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
-    CreateDealSerializer, CreateDealImageSerializer, VendorKYCDetailSerializer,
+    CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, ActivityImageListsSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_images_from_s3, send_fcm_notification 
+from .utils import generate_otp, process_image, upload_to_s3, generate_asset_uuid, send_fcm_notification 
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
@@ -489,6 +489,9 @@ class BusinessPhotoListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     
 
+
+##########################################################################################################
+
 # class CreateDealView(generics.CreateAPIView):
 #     serializer_class = CreateDealSerializer
 #     permission_classes = [IsAuthenticated]
@@ -532,206 +535,113 @@ class BusinessPhotoListCreateView(generics.ListCreateAPIView):
 #             return messages[0]  # Take the first message for each field error
 
 
+###################################################################################################################
+
+# class CreateDealView(generics.CreateAPIView):
+#     serializer_class = CreateDealSerializer
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request, *args, **kwargs):
+#         # Fetch the vendor's KYC details
+#         try:
+#             vendor_kyc = VendorKYC.objects.get(user=request.user)
+#         except VendorKYC.DoesNotExist:
+#             return Response({"message": "Vendor KYC not found for this user."}, status=status.HTTP_404_NOT_FOUND)
+
+#         if not vendor_kyc.is_approved:
+#             return Response({"message": "Vendor KYC is not approved."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Copy request data and add vendor KYC to the data
+#         data = request.data.copy()
+#         data['vendor_kyc'] = vendor_kyc.vendor_id
+
+#         # Create the deal using the serializer
+#         serializer = self.get_serializer(data=data)
+#         if serializer.is_valid():
+#             deal = serializer.save()
+
+#             # Vendor location
+#             vendor_location = (vendor_kyc.latitude, vendor_kyc.longitude)
+
+#             # Notify nearby users
+#             users = CustomUser.objects.exclude(device_token=None)  # Users with device tokens
+#             notifications_sent = 0  # Track the number of notifications sent
+
+#             for user in users:
+#                 if user.latitude and user.longitude:
+#                     user_location = (user.latitude, user.longitude)
+#                     distance = geodesic(vendor_location, user_location).km
+
+#                     if distance <= 15:
+#                         send_fcm_notification(
+#                             device_token=user.device_token,
+#                             title=f"New Deal: {deal.deal_title}",
+#                             message=f"{vendor_kyc.user.username} has a new deal: {deal.deal_title}!"
+#                         )
+#                         notifications_sent += 1
+
+#             response_data = serializer.data
+#             response_data['message'] = f"Deal created successfully. {notifications_sent} notifications sent."
+#             return Response(response_data, status=status.HTTP_201_CREATED)
+
+#         # Handle errors and convert to the desired format
+#         error_message = self.format_errors(serializer.errors)
+#         return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
+
+#     def format_errors(self, errors):
+#         """
+#         Convert all validation errors to a single message format.
+#         """
+#         # If there are non-field-specific errors
+#         if 'non_field_errors' in errors:
+#             return errors['non_field_errors'][0]
+
+#         # If there are field-specific errors, pick the first error message
+#         for field, messages in errors.items():
+#             return messages[0]  # Take the first message for each field error
+
+########################################################################################################
+
 class CreateDealView(generics.CreateAPIView):
+    """
+    API endpoint to create a new deal.
+    """
+    queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        # Fetch the vendor's KYC details
-        try:
-            vendor_kyc = VendorKYC.objects.get(user=request.user)
-        except VendorKYC.DoesNotExist:
-            return Response({"message": "Vendor KYC not found for this user."}, status=status.HTTP_404_NOT_FOUND)
-
+    def perform_create(self, serializer):
+        vendor_kyc = self.request.user.vendorkyc_set.first()
+        if not vendor_kyc:
+            raise ValidationError("Vendor KYC not found for the user.")
         if not vendor_kyc.is_approved:
-            return Response({"message": "Vendor KYC is not approved."}, status=status.HTTP_400_BAD_REQUEST)
+            raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
-        # Copy request data and add vendor KYC to the data
-        data = request.data.copy()
-        data['vendor_kyc'] = vendor_kyc.vendor_id
+        serializer.save(vendor_kyc=vendor_kyc)
 
-        # Create the deal using the serializer
-        serializer = self.get_serializer(data=data)
-        if serializer.is_valid():
-            deal = serializer.save()
+    def create(self, request, *args, **kwargs):
+        # Extract uploaded images metadata from the request if provided
+        uploaded_images = request.data.get('uploaded_images', [])
 
-            # Vendor location
-            vendor_location = (vendor_kyc.latitude, vendor_kyc.longitude)
-
-            # Notify nearby users
-            users = CustomUser.objects.exclude(device_token=None)  # Users with device tokens
-            notifications_sent = 0  # Track the number of notifications sent
-
-            for user in users:
-                if user.latitude and user.longitude:
-                    user_location = (user.latitude, user.longitude)
-                    distance = geodesic(vendor_location, user_location).km
-
-                    if distance <= 15:
-                        send_fcm_notification(
-                            device_token=user.device_token,
-                            title=f"New Deal: {deal.deal_title}",
-                            message=f"{vendor_kyc.user.username} has a new deal: {deal.deal_title}!"
-                        )
-                        notifications_sent += 1
-
-            response_data = serializer.data
-            response_data['message'] = f"Deal created successfully. {notifications_sent} notifications sent."
-            return Response(response_data, status=status.HTTP_201_CREATED)
-
-        # Handle errors and convert to the desired format
-        error_message = self.format_errors(serializer.errors)
-        return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
-
-    def format_errors(self, errors):
-        """
-        Convert all validation errors to a single message format.
-        """
-        # If there are non-field-specific errors
-        if 'non_field_errors' in errors:
-            return errors['non_field_errors'][0]
-
-        # If there are field-specific errors, pick the first error message
-        for field, messages in errors.items():
-            return messages[0]  # Take the first message for each field error
-
-class DealImageUploadView(generics.ListCreateAPIView):
-    queryset = DealsImage.objects.all()
-    serializer_class = CreateDealImageSerializer
-    parser_classes = [MultiPartParser]
-
-    def post(self, request, *args, **kwargs):
-        """
-        Handle multiple image uploads, save them to the database, 
-        and return their details along with base64-encoded versions of resized images.
-        """
-        # Validate if images are provided in the request
-        if not request.FILES.getlist('images'):
+        # Ensure the metadata is a list of dictionaries
+        if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
             return Response(
-                {"error": "At least one image is required"},
+                {"error": "uploaded_images must be a list of dictionaries."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        images = request.FILES.getlist('images')
-        uploaded_images = []
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
 
-        # Process each uploaded image
-        for image in images:
-            try:
-                # Save the image instance to the database
-                deal_image = DealsImage(images=image)
-                deal_image.save()
+        # Add uploaded images metadata to the deal
+        deal = serializer.instance
+        deal.set_uploaded_images(uploaded_images)
+        deal.save()
 
-                # Convert the image to a base64 string
-                image_base64 = self._convert_image_to_base64(deal_image)
-
-                # Append details of the saved image
-                uploaded_images.append({
-                    "image_id": deal_image.image_id,
-                    "uploaded_at": deal_image.uploaded_at,
-                    "file_name": deal_image.images.name,
-                    "image_base64": image_base64,
-                })
-
-            except ValueError as e:
-                # Return ValueError with traceback for debugging
-                tb = traceback.format_exc()
-                return Response(
-                    {
-                        "error": f"An error occurred while processing image {image.name}: {str(e)}",
-                        "traceback": tb,
-                    },
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            except Exception as e:
-                # Return generic exceptions with traceback for debugging
-                tb = traceback.format_exc()
-                return Response(
-                    {
-                        "error": f"An unexpected error occurred while processing image {image.name}: {str(e)}",
-                        "traceback": tb,
-                    },
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-
-        # Return response for all successfully uploaded images
-        return Response(
-            {"message": "Images uploaded successfully", "uploaded_images": uploaded_images},
-            status=status.HTTP_201_CREATED
-        )
-
-    def _convert_image_to_base64(self, deal_image):
-        """
-        Convert the uploaded image to a base64-encoded string after resizing to a maximum width of 600 pixels while maintaining the aspect ratio.
-        Uses Image.ANTIALIAS for resizing and handles both local and remote storage backends.
-        """
-        try:
-            if hasattr(deal_image.images, 'file'):
-                img = Image.open(deal_image.images.file)
-            else:
-                # Fetch the image via URL if it's stored remotely
-                response = requests.get(deal_image.images.url, stream=True)
-                response.raise_for_status()
-                img = Image.open(BytesIO(response.content))
-
-            # Calculate new dimensions preserving the aspect ratio
-            base_width = 600
-            w_percent = (base_width / float(img.size[0]))
-            h_size = int((float(img.size[1]) * float(w_percent)))
-
-            # Resize the image using Image.ANTIALIAS for high-quality downsampling
-            img = img.resize((base_width, h_size), Image.ANTIALIAS)
-            output = BytesIO()
-            img.save(output, format='WEBP', quality=85)
-            output.seek(0)
-
-            # Encode the image to base64 and prepend the MIME type for HTML display
-            base64_data = base64.b64encode(output.read()).decode('utf-8')
-            return f'data:image/webp;base64,{base64_data}'
-
-        except Exception as e:
-            print(f"Error processing image: {e}")
-            raise ValueError(f"Error processing image: {str(e)}")
-
-
-def download_s3_file(request, file_key):
-    """
-    Download a file from S3 and return it as a response.
-
-    Args:
-        request: The HTTP request object.
-        file_key (str): The S3 key of the file (path in the bucket).
-
-    Returns:
-        HttpResponse: The file content as an HTTP response.
-        JsonResponse: Error message in case of failure.
-    """
-    # Initialize the S3 client with credentials from settings.py
-    s3_client = boto3.client(
-        's3',
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        region_name=settings.AWS_S3_REGION_NAME
-    )
-
-    try:
-        # Fetch the object from S3 bucket
-        file_object = s3_client.get_object(
-            Bucket=settings.AWS_STORAGE_BUCKET_NAME,
-            Key=file_key
-        )
-        file_content = file_object['Body'].read()  # Read the content of the file
-
-        # Create a response with the file content
-        response = HttpResponse(file_content, content_type=file_object['ContentType'])
-        response['Content-Disposition'] = f'attachment; filename="{file_key.split("/")[-1]}"'
-        return response
-
-    except ClientError as e:
-        # Handle errors (e.g., file not found or access denied)
-        error_message = str(e)
-        return JsonResponse({'error': error_message}, status=404)
-    
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+ 
  
 class CreateDealDetailView(APIView):
 
@@ -741,72 +651,74 @@ class CreateDealDetailView(APIView):
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
 
             # Serialize data
-            serializer = CreateDealDetailSerializer(deal, context={"request": request})
+            serializer = CreateDealDetailSerializer(deal)     # , context={"request": request}
 
-            uploaded_images = []
+            # uploaded_images = []
 
             # Process each image from S3
-            for image_data in deal.uploaded_images:
-                try:
-                    file_name = image_data.get("file_name")  # S3 file path
-                    if not file_name:
-                        raise ValueError("File name missing")
+            # for image_data in deal.uploaded_images:
+            #     try:
+            #         file_name = image_data.get("file_name")  # S3 file path
+            #         if not file_name:
+            #             raise ValueError("File name missing")
 
-                    # Download the image from S3
-                    s3_client = boto3.client(
-                        's3',
-                        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                        region_name=settings.AWS_S3_REGION_NAME
-                    )
-                    file_object = s3_client.get_object(
-                        Bucket=settings.AWS_STORAGE_BUCKET_NAME,
-                        Key=file_name
-                    )
-                    file_content = file_object['Body'].read()
+            #         # Download the image from S3
+            #         s3_client = boto3.client(
+            #             's3',
+            #             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            #             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            #             region_name=settings.AWS_S3_REGION_NAME
+            #         )
+            #         file_object = s3_client.get_object(
+            #             Bucket=settings.AWS_STORAGE_BUCKET_NAME,
+            #             Key=file_name
+            #         )
+            #         file_content = file_object['Body'].read()
 
-                    # Open the image with PIL
-                    img = Image.open(BytesIO(file_content))
+            #         # Open the image with PIL
+            #         img = Image.open(BytesIO(file_content))
 
-                    # Calculate the new size while maintaining the aspect ratio
-                    base_width = 600
-                    w_percent = base_width / float(img.size[0])  # Width scaling factor
-                    h_size = int(float(img.size[1]) * float(w_percent))  # Adjust height to keep aspect ratio
+            #         # Calculate the new size while maintaining the aspect ratio
+            #         base_width = 600
+            #         w_percent = base_width / float(img.size[0])  # Width scaling factor
+            #         h_size = int(float(img.size[1]) * float(w_percent))  # Adjust height to keep aspect ratio
 
-                    img = img.resize((base_width, h_size), Image.ANTIALIAS)  # Resize with maintained ratio
-                    buffer = BytesIO()
-                    img.save(buffer, format='WEBP', quality=85)
-                    buffer.seek(0)
+            #         img = img.resize((base_width, h_size), Image.ANTIALIAS)  # Resize with maintained ratio
+            #         buffer = BytesIO()
+            #         img.save(buffer, format='WEBP', quality=85)
+            #         buffer.seek(0)
 
-                    # Convert the image to base64
-                    image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
-                    base64_data = f"data:image/webp;base64,{image_base64}"
+            #         # Convert the image to base64
+            #         image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+            #         base64_data = f"data:image/webp;base64,{image_base64}"
 
-                    # Append image data to the list
-                    uploaded_images.append({
-                        "image_id": image_data.get("image_id"),
-                        "image_base64": base64_data,
-                        "uploaded_at": image_data.get("uploaded_at"),
-                    })
+            #         # Append image data to the list
+            #         uploaded_images.append({
+            #             "image_id": image_data.get("image_id"),
+            #             "image_base64": base64_data,
+            #             "uploaded_at": image_data.get("uploaded_at"),
+            #         })
 
-                except ClientError as e:
-                    # Handle S3 errors
-                    uploaded_images.append({
-                        "image_id": image_data.get("image_id"),
-                        "error": f"S3 error: {str(e)}",
-                        "uploaded_at": image_data.get("uploaded_at"),
-                    })
-                except Exception as e:
-                    # Handle generic errors
-                    uploaded_images.append({
-                        "image_id": image_data.get("image_id"),
-                        "error": str(e),
-                        "uploaded_at": image_data.get("uploaded_at"),
-                    })
+            #     except ClientError as e:
+            #         # Handle S3 errors
+            #         uploaded_images.append({
+            #             "image_id": image_data.get("image_id"),
+            #             "error": f"S3 error: {str(e)}",
+            #             "uploaded_at": image_data.get("uploaded_at"),
+            #         })
+            #     except Exception as e:
+            #         # Handle generic errors
+            #         uploaded_images.append({
+            #             "image_id": image_data.get("image_id"),
+            #             "error": str(e),
+            #             "uploaded_at": image_data.get("uploaded_at"),
+            #         })
 
             # Add images to the serialized data
+           
             serialized_data = serializer.data
-            serialized_data["uploaded_images"] = uploaded_images
+           
+            # serialized_data["uploaded_images"] = uploaded_images
 
             return Response(serialized_data, status=200)
 
@@ -816,96 +728,47 @@ class CreateDealDetailView(APIView):
 
 
 
-# class CreateDealDetailView(APIView):
-#     def get(self, request, deal_uuid):
-#         # Initialize S3 client
-#         s3_client = boto3.client(
-#             's3',
-#             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-#             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-#             region_name=settings.AWS_S3_REGION_NAME,
-#         )
+class UploadImagesAPI(APIView):
+    def post(self, request):
+        model_name = request.data.get("model_name")  # e.g., 'Activity', 'VendorKYC', 'CreateDeal'
+        images = request.FILES.getlist("images")
 
-#         try:
-#             # Fetch the deal instance
-#             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
+        if not model_name or not images:
+            return Response({"error": "Model name and images are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-#             # Fetch linked images for the deal
-#             images = DealsImage.objects.filter(create_deal=deal)
+        folder_mapping = {
+            "Activity": "activity",
+            "VendorKYC": "vendor_kyc",
+            "CreateDeal": "create_deal",
+        }
 
-#             # Initialize list for storing base64-encoded image data
-#             base64_images = []
+        if model_name not in folder_mapping:
+            return Response({"error": "Invalid model name."}, status=status.HTTP_400_BAD_REQUEST)
 
-#             # Process each image
-#             for image in images:
-#                 file_key = image.images.name  # Path to the image in S3
-#                 if file_key:  # Ensure the file key exists
-#                     try:
-#                         # Process the image to get base64 string
-#                         base64_data = self._download_and_process_s3_image(
-#                             s3_client, file_key
-#                         )
-#                         if base64_data:
-#                             # Add image details to the response
-#                             base64_images.append({
-#                                 "image_id": str(image.image_id),
-#                                 "uploaded_at": image.uploaded_at,
-#                                 "base64": base64_data
-#                             })
-#                     except Exception as e:
-#                         print(f"Error processing image {file_key}: {e}")
-#                 else:
-#                     print(f"Empty file key for image: {image.image_uuid}")
+        folder_name = folder_mapping[model_name]
+        uploaded_images = []
 
-#             # Serialize the deal data
-#             serializer = CreateDealDetailSerializer(deal)
-#             serialized_data = serializer.data
+        for image in images:
+            asset_uuid = generate_asset_uuid()
+            base_file_name = f"asset_{asset_uuid}.webp"
 
-#             # Add the processed images to the response
-#             serialized_data["upload_images"] = base64_images
+            # Process and upload thumbnail
+            thumbnail = process_image(image, (160, 130))
+            thumbnail_url = upload_to_s3(thumbnail, f"{folder_name}", f"thumbnail_{base_file_name}")
 
-#             return Response(serialized_data, status=status.HTTP_200_OK)
+            # Process and upload compressed image
+            compressed = process_image(image, (600, 250))
+            compressed_url = upload_to_s3(compressed, f"{folder_name}", base_file_name)
 
-#         except CreateDeal.DoesNotExist:
-#             return Response(
-#                 {"error": "No deal found for the specified deal_uuid."},
-#                 status=status.HTTP_404_NOT_FOUND,
-#             )
-#         except Exception as e:
-#             return Response(
-#                 {"error": f"An unexpected error occurred: {str(e)}"},
-#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             )
+            uploaded_images.append({
+                "thumbnail": thumbnail_url,
+                "compressed": compressed_url,
+            })
 
-#     def _download_and_process_s3_image(self, s3_client, file_key):
-#         """
-#         Download an image from S3, resize it, and convert it to base64.
-#         """
-#         try:
-#             # Fetch the file from S3
-#             response = s3_client.get_object(
-#                 Bucket=settings.AWS_STORAGE_BUCKET_NAME,
-#                 Key=file_key
-#             )
-#             image_data = response['Body'].read()
-
-#             # Load and resize the image
-#             img = Image.open(BytesIO(image_data))
-#             base_width = 600
-#             w_percent = (base_width / float(img.size[0]))
-#             h_size = int((float(img.size[1]) * float(w_percent)))
-#             img = img.resize((base_width, h_size), Image.ANTIALIAS)
-
-#             # Save the resized image to a buffer
-#             output = BytesIO()
-#             img.save(output, format="WEBP", quality=85)
-#             output.seek(0)
-
-#             # Convert to base64
-#             base64_data = base64.b64encode(output.read()).decode('utf-8')
-#             return f"data:image/webp;base64,{base64_data}"
-#         except Exception as e:
-#             raise ValueError(f"Failed to process S3 image: {str(e)}")
+        return Response({
+            "message": "Images uploaded successfully.",
+            "data": uploaded_images
+        }, status=status.HTTP_201_CREATED)
 
 
 
@@ -929,6 +792,7 @@ class CreateDeallistView(generics.ListAPIView):
             queryset = queryset.filter(location_country__iexact=country)  # Use location_country field for filtering
 
         return queryset
+
     
     
 class ActivityListsView(generics.ListAPIView):

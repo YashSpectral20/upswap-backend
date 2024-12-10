@@ -1,6 +1,7 @@
 import random
 import string
 import boto3
+import uuid
 from PIL import Image
 from io import BytesIO
 import base64
@@ -36,66 +37,35 @@ def generate_otp(user):
 
     return otp
 
-def process_images_from_s3(image_paths):
-    """
-    Fetch, resize, and convert images to Base64 strings from an S3 bucket.
+def generate_asset_uuid():
+    return str(uuid.uuid4())
 
-    Args:
-        image_paths (list): List of image paths in the S3 bucket.
 
-    Returns:
-        dict: A dictionary with successful results and error details.
-    """
-    # Initialize the S3 client
+def process_image(image_file, size):
+    img = Image.open(image_file)
+    img = img.convert("RGB")  # Ensure it's RGB
+    img.thumbnail(size)  # Resize image
+    img_io = BytesIO()
+    img.save(img_io, format="WEBP", quality=85)
+    img_io.seek(0)
+    return img_io
+
+
+def upload_to_s3(file_obj, folder_name, file_name):
     s3_client = boto3.client(
         's3',
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
         aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME,
     )
-    bucket_name = 'upswap-assets'
-    base64_images = []
-    errors = []
-
-    for image_path in image_paths:
-        if not image_path or not isinstance(image_path, str):
-            errors.append({
-                "image_path": image_path,
-                "error": "Invalid image path. Expected a non-empty string.",
-                "traceback": traceback.format_exc()
-            })
-            continue
-
-        try:
-            # Fetch the image from S3
-            response = s3_client.get_object(Bucket=bucket_name, Key=image_path)
-            image_data = response['Body'].read()
-
-            # Validate response data
-            if not image_data:
-                raise ValueError("The image data is empty or invalid.")
-
-            # Process the image
-            with Image.open(BytesIO(image_data)) as img:
-                img = img.convert('RGB')  # Convert to RGB for consistent formatting
-                img = img.resize((600, 200), Image.Resampling.LANCZOS)  # Resize to 600x200
-                
-                # Save the processed image to a buffer and encode it to Base64
-                buffer = BytesIO()
-                img.save(buffer, format="WEBP")
-                buffer.seek(0)
-                base64_image = base64.b64encode(buffer.read()).decode('utf-8')
-                base64_images.append({"image_path": image_path, "base64": base64_image})
-
-        except Exception as e:
-            # Capture and format the traceback
-            error_details = {
-                "image_path": image_path,
-                "error": str(e),
-                "traceback": traceback.format_exc()
-            }
-            errors.append(error_details)
-
-    return {"success": base64_images, "errors": errors}
+    s3_path = f"{folder_name}/{file_name}"
+    s3_client.upload_fileobj(
+        file_obj,
+        settings.AWS_STORAGE_BUCKET_NAME,
+        s3_path,
+        ExtraArgs={"ContentType": "image/webp"},
+    )
+    return f"{settings.MEDIA_URL}{s3_path}"
 
 
 def send_fcm_notification(device_token, title, message):

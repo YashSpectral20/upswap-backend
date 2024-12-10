@@ -7,13 +7,14 @@ import boto3
 import datetime as dt
 from PIL import Image
 from rest_framework import serializers
+from urllib.parse import urlparse
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, DealsImage, PlaceOrder,
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, PlaceOrder,
     ActivityCategory, ServiceCategory
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -484,77 +485,7 @@ class BusinessPhotoSerializer(serializers.ModelSerializer):
     class Meta:
         model = BusinessPhoto
         fields = ['id', 'vendor_kyc', 'photo', 'uploaded_at']
-"""     
-class DealImageSerializer(serializers.ModelSerializer):
-   
-    class Meta:
-        model = DealsImage
-        fields = ['id', 'create_deal', 'images', 'uploaded_at']
-"""
 
-
-
-# class CreateDealImageSerializer(serializers.ModelSerializer):
-#     image_base64 = serializers.SerializerMethodField()
-
-#     class Meta:
-#         model = DealsImage
-#         fields = ['image_id', 'image_base64']
-
-#     def get_image_base64(self, obj):
-#         """
-#         Convert image to base64 string after resizing to 600x200.
-#         """
-#         try:
-#             # Fetch the image from the S3 bucket
-#             response = requests.get(obj.images.url, stream=True)
-#             response.raise_for_status()  # Raise an error for bad responses
-
-#             # Open the image from the response content
-#             with Image.open(BytesIO(response.content)) as img:
-#                 # Resize the image to 600x200
-#                 img = img.resize((600, 200), Image.ANTIALIAS)
-
-#                 # Save the image to a BytesIO object in WebP format
-#                 output = BytesIO()
-#                 img.save(output, format='WEBP', quality=85)
-#                 output.seek(0)
-
-#                 # Convert the image to a base64 string
-#                 return base64.b64encode(output.read()).decode('utf-8')
-#         except Exception as e:
-#             return None  # Return None if the image couldn't be processed
-
-#     """
-#     def get_file_name(self, obj):
-        
-#         if isinstance(obj, dict):
-#             return obj.get('images', None)
-#         else:
-#             return os.path.basename(obj.images.name)
-# """
-
-
-class CreateDealImageSerializer(serializers.ModelSerializer):
-    image_base64 = serializers.SerializerMethodField()
-
-    class Meta:
-        model = DealsImage
-        fields = ['image_id', 'image_base64']
-
-    def get_image_base64(self, obj):
-        if obj.images:
-            try:
-                with obj.images.open() as img:
-                    img = Image.open(img)
-                    img = img.resize((600, 200), Image.ANTIALIAS)
-                    output = BytesIO()
-                    img.save(output, format='WEBP', quality=85)
-                    output.seek(0)
-                    return base64.b64encode(output.read()).decode('utf-8')
-            except Exception as e:
-                return None
-        return None
 
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
@@ -668,30 +599,16 @@ class CreateDealSerializer(serializers.ModelSerializer):
 
         deal = super().create(validated_data)
 
-        # Handle images if provided
-        image_paths = []
-        for image_data in images_data:
-            deal_image = DealsImage.objects.create(create_deal=deal, images=image_data['images'])
-            image_paths.append(deal_image.images.url)
+    def create(self, validated_data):
+        images_metadata = validated_data.pop('uploaded_images', [])
+        deal = super().create(validated_data)
 
-        # Save the image paths in the uploaded_images field
-        if image_paths:
-            deal.set_uploaded_images(image_paths)
+        # Save image metadata into JSONField
+        if images_metadata:
+            deal.set_uploaded_images(images_metadata)
             deal.save()
 
         return deal
-    
-    def validate_uploaded_images(self, value):
-        """
-        Ensure that each dictionary in the list contains valid metadata keys.
-        """
-        required_keys = {'image_id', 'uploaded_at', 'file_name'}
-        for image_data in value:
-            if not required_keys.issubset(image_data.keys()):
-                raise serializers.ValidationError(
-                    f"Each image metadata must contain the keys: {', '.join(required_keys)}."
-                )
-        return value
 
 #(CreateDealsListSerailizer with 160*130 resolution)
 
@@ -780,6 +697,8 @@ class CreateDealSerializer(serializers.ModelSerializer):
 #                     return representation
     
 
+    
+    
 class CreateDeallistSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
@@ -806,57 +725,63 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
             return round(discount, 2)
         return 0
 
+    def is_s3_image(self, image_url):
+        """
+        Validate if a given image URL is an S3 URL
+        """
+        if not image_url:
+            return False
+        # Parse URL to confirm it's a valid S3 image
+        parsed_url = urlparse(image_url)
+        return parsed_url.netloc == settings.AWS_STORAGE_BUCKET_NAME + '.s3.amazonaws.com'
+
+    def generate_thumbnail_url(self, image_url):
+        """
+        Generate or return a thumbnail URL for a given S3 URL
+        """
+        if not image_url:
+            return None
+        parsed_url = urlparse(image_url)
+        # This transformation assumes your S3 stores thumbnails under 'thumbnails/' directory.
+        return f"{parsed_url.scheme}://{parsed_url.netloc}/{parsed_url.path.replace('uploads/', 'thumbnails/')}"  
+
     def get_uploaded_images(self, obj):
-        """Fetch the uploaded images with original S3 content."""
+        """
+        Fetch the uploaded images from S3 and return only valid thumbnails
+        """
         uploaded_images = obj.uploaded_images
         if not uploaded_images or not isinstance(uploaded_images, list):
-            return []  # No images uploaded or invalid format
+            return []
 
-        images_with_base64 = []
-        for image_data in uploaded_images:
-            file_name = image_data.get("file_name")  # S3 file path
-            if not file_name:
-                continue  # Skip if no file name found
+        # Filter only valid S3 images
+        valid_images = []
+        for img_dict in uploaded_images:  # Make sure we parse dictionary entries properly.
+            if isinstance(img_dict, dict) and "thumbnail" in img_dict:  # Ensure we're using the thumbnail string.
+                thumbnail_url = img_dict.get("thumbnail")
+                if thumbnail_url and self.is_s3_image(thumbnail_url):
+                    valid_images.append({
+                        "thumbnail": thumbnail_url,
+                        "original": img_dict.get("original", "")
+                    })
 
-            try:
-                # Download the image from S3
-                s3_client = boto3.client(
-                    's3',
-                    aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                    aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                    region_name=settings.AWS_S3_REGION_NAME
-                )
-                file_object = s3_client.get_object(
-                    Bucket=settings.AWS_STORAGE_BUCKET_NAME,
-                    Key=file_name
-                )
-                file_content = file_object['Body'].read()
+        return valid_images
 
-                # Convert the original image to base64
-                image_base64 = base64.b64encode(file_content).decode('utf-8')
 
-                # Add image details including base64
-                images_with_base64.append({
-                    "image_id": image_data.get("image_id"),
-                    "file_name": image_data.get("file_name"),
-                    "uploaded_at": image_data.get("uploaded_at"),
-                    "image_base64": f"data:image/webp;base64,{image_base64}"
-                })
 
-            except ClientError as e:
-                return f"S3 error: {str(e)}"
-            except Exception as e:
-                return str(e)
 
-        return images_with_base64
 
-    def to_representation(self, instance):
-        """Override to modify the representation."""
-        representation = super().to_representation(instance)
-        # Add base64 images inside the 'uploaded_images' field
-        representation['uploaded_images'] = self.get_uploaded_images(instance)
-        return representation
+# class CreateDealImageSerializer(serializers.ModelSerializer):
+#     # image_base64 = serializers.SerializerMethodField()
 
+#     class Meta:
+#         model = DealsImage
+#         fields = ['images']
+        
+    # def to_representation(self, instance):
+    #     return {
+    #         'url': instance.images.url
+    #     }
+        
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
@@ -865,19 +790,20 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     vendor_phone_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
-    uploaded_images = serializers.SerializerMethodField()
+    # uploaded_images = serializers.SerializerMethodField()
+    # uploaded_images = CreateDealImageSerializer(many=True, source='deals_assets')   # , source='deals_assets'
 
     class Meta:
         model = CreateDeal
         fields = [
             'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
             'deal_uuid', 'deal_post_time', 'deal_title', 'deal_description',
-            'select_service', 'uploaded_images', 'start_date', 'end_date', 'start_time',
+            'select_service', 'start_date', 'end_date', 'start_time',
             'end_time', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'discount_percentage',
-            'latitude', 'longitude'
+            'latitude', 'longitude','uploaded_images'
         ]
         read_only_fields = ['vendor_uuid', 'deal_uuid', 'discount_percentage']
 
@@ -886,7 +812,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
             return round(discount, 2)
         return 0
-
+"""
     def get_uploaded_images(self, obj):
         # Get associated DealsImage instances
         images = obj.deals_assets.all()  # Use related_name from DealsImage model
@@ -898,7 +824,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             }
             for image in images
         ]
-
+"""
 
            
         

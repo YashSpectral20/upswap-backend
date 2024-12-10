@@ -100,6 +100,7 @@ services:
       - "8000:8000"
     depends_on:
       - redis
+      - adminer
     environment:
       - DATABASE_NAME=upswap-db
       - DATABASE_USER=upswap
@@ -108,3 +109,9 @@ services:
       - DATABASE_PORT=5432
       - REDIS_URL=redis://redis:6379/0
       - BUNNYCDN_ACCESS_KEY=e2a47c53-ae25-407d-9791-e1aa3df137714132be6b-3c64-4420-b5c5-7591b357b36d
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 3402:8080

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, DealsImage, PlaceOrder,
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, PlaceOrder,
 )
 
 # Custom User Admin
@@ -167,9 +167,6 @@ class ServiceAdmin(admin.ModelAdmin):
     list_display = ['vendor_kyc', 'item_name', 'item_description', 'item_price']
     search_fields = ['vendor_kyc__full_name', 'item_name']
     
-class DealImageInline(admin.TabularInline):
-    model = DealsImage
-    extra = 1
     
 @admin.register(CreateDeal)
 class CreateDealAdmin(admin.ModelAdmin):
@@ -179,17 +176,12 @@ class CreateDealAdmin(admin.ModelAdmin):
         'deal_post_time', 'get_discount_percentage'
     ]
     search_fields = ['deal_title', 'vendor_kyc__full_name']
-    inlines = [DealImageInline]
+    inlines = []
     
     def get_discount_percentage(self, obj):
         return obj.discount_percentage  # Access the @property correctly
     get_discount_percentage.short_description = 'Discount (%)'
 
-    
-@admin.register(DealsImage)
-class DealImageAdmin(admin.ModelAdmin):
-    list_display = ['create_deal', 'images', 'uploaded_at']
-    search_fields = ['create_deal__deal_title', 'create_deal__vendor_kyc__full_name']
     
     
     

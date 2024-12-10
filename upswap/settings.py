@@ -33,13 +33,15 @@ ENVIRONMENT = os.getenv('DJANGO_ENVIRONMENT', 'development')
 if ENVIRONMENT == 'development':
     STATIC_URL = '/static/'
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-    MEDIA_URL = '/media/'
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    # MEDIA_URL = '/media/'
+    # MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    MEDIA_URL = "https://upswap-assets.b-cdn.net/"
 elif ENVIRONMENT == 'production':
     STATIC_URL = os.getenv('STATIC_URL', 'https://upswap-assets.s3.amazonaws.com/static/')
-    MEDIA_URL = os.getenv('MEDIA_URL', 'https://upswap-assets.s3.amazonaws.com/media/')
+    #MEDIA_URL = os.getenv('MEDIA_URL', 'https://upswap-assets.s3.amazonaws.com/media/')
     STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-    MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    #MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    MEDIA_URL = "https://upswap-assets.b-cdn.net/"
 
 # AWS S3 Configuration
 

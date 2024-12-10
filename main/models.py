@@ -488,34 +488,6 @@ def deal_image_upload_path(instance, filename):
     filename = f"asset_{uuid.uuid4()}.{extension}"
     return f"upswap-assets/{filename}"
 
-class DealsImage(models.Model):
-    image_id = models.UUIDField(default=uuid.uuid4, primary_key=True, unique=True, editable=False)
-    create_deal = models.ForeignKey(
-        'CreateDeal',
-        related_name='deals_assets',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True
-    )
-    images = models.ImageField(upload_to=deal_image_upload_path)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    def save(self, *args, **kwargs):
-        """Save image in WebP format."""
-        if self.images:
-            with Image.open(self.images) as image:
-                output = BytesIO()
-                image = image.convert('RGB')
-                image.save(output, format='WEBP', quality=85)
-                output.seek(0)
-
-                self.images.save(
-                    self.images.name,
-                    ContentFile(output.getvalue()),
-                    save=False
-                )
-        super().save(*args, **kwargs)
-
     
 #PlacingOrders
 class PlaceOrder(models.Model):
