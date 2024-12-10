@@ -1037,3 +1037,5 @@ class NotificationView(APIView):
                 notifications_sent.append({"vendor_name": vendor_name, "deal_title": deal_title})
 
         return Response({"notifications": notifications_sent})    
+    
+    
