@@ -33,7 +33,7 @@ from .serializers import (
     ActivitySerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
-    VendorKYCListSerializer, ActivityListsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
+    VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer
 
 )
@@ -785,6 +785,12 @@ class ActivityListsView(generics.ListAPIView):
     queryset = Activity.objects.all()  # Retrieves all Activity instances
     serializer_class = ActivityListsSerializer
     permission_classes = [AllowAny]
+    
+class ActivityDetailsView(generics.RetrieveAPIView):
+    queryset = Activity.objects.all()  # Retrieves all Activity instances
+    serializer_class = ActivityDetailsSerializer
+    permission_classes = [AllowAny]
+    lookup_field = 'activity_id'
 
 
 class LogoutAPI(APIView):

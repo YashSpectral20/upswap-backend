@@ -120,7 +120,7 @@ from .views import (
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, CreateDealDetailView, CreateDeallistView, 
-    VendorKYCListView, ActivityListsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
+    VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
     CustomUserDetailView, PlaceOrderListsView, NotificationView, UploadImagesAPI
 )
 
@@ -188,6 +188,8 @@ urlpatterns = [
     path('deals/lists/', CreateDeallistView.as_view(), name='list-deals'),
     
     path('activities/lists/', ActivityListsView.as_view(), name='activity-list'),
+    
+    path('activities/details/<uuid:activity_id>/', ActivityDetailsView.as_view(), name='details-activities'),
     
     path('logout/', LogoutAPI.as_view(), name='logout'),
     

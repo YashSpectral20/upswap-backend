@@ -264,6 +264,39 @@ class ActivityListsSerializer(serializers.ModelSerializer):
 
 
 
+class ActivityDetailsSerializer(serializers.ModelSerializer):
+    created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
+    activity_category = ActivityCategorySerializer(required=True)
+    uploaded_images = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Activity
+        fields = [
+            'activity_id', 'activity_title', 'activity_description',
+            'activity_category', 'uploaded_images', 'user_participation', 'maximum_participants',
+            'start_date', 'end_date', 'start_time', 'end_time', 'created_at',
+            'created_by', 'set_current_datetime', 'infinite_time',
+            'location', 'latitude', 'longitude'
+        ]
+        read_only_fields = ['created_by', 'created_at']
+        
+    def get_uploaded_images(self, obj):
+            """
+            Fetch only the uploaded image compressed served via S3/CDN URLs.
+            The compressed URLs are directly mapped based on uploaded images.
+            """
+            # Ensure uploaded_images field is valid
+            if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+                return []
+
+            # Extract only the 'compressed' key from each image entry
+            compressed = [
+                image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
+            ]
+
+            # Return only compressed
+            return compressed
+
 class ChatRoomSerializer(serializers.ModelSerializer):
     participants = serializers.SlugRelatedField(
         many=True,
