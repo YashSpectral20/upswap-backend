@@ -428,10 +428,11 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     user = serializers.UUIDField(source='user.id', read_only=True)
     services = serializers.SerializerMethodField()
     addresses = serializers.SerializerMethodField()
+    uploaded_images = serializers.SerializerMethodField()
 
     class Meta:
         model = VendorKYC
-        fields = ['full_name', 'vendor_id', 'user', 'business_related_photos', 'services', 'addresses']
+        fields = ['full_name', 'vendor_id', 'user', 'uploaded_images', 'services', 'addresses']
 
     def get_services(self, obj):
         # Assuming 'services' is a related field in the VendorKYC model
@@ -442,6 +443,20 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         # Assuming 'addresses' is a related field in the VendorKYC model
         addresses = obj.addresses.all()  # Fetch related addresses
         return AddressSerializer(addresses, many=True).data
+    
+    def get_uploaded_images(self, obj):
+        """
+        Fetch only the first image thumbnail from uploaded_images.
+        This ensures only the first uploaded image's thumbnail is fetched.
+        """
+        # Ensure uploaded_images field is valid and has data
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
+
+        # Return only the thumbnail of the first image in the uploaded_images list
+        first_image = obj.uploaded_images[0]  # Get the first image
+        thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
+        return [thumbnail] if thumbnail else []
 
 
         
@@ -455,9 +470,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
     business_related_documents = serializers.ListField(
         child=serializers.CharField(), required=False, allow_empty=True
     )
-    business_related_photos = serializers.ListField(
-        child=serializers.CharField(), required=False, allow_empty=True
-    )
+    uploaded_images = serializers.SerializerMethodField()
     
     business_hours = serializers.JSONField(required=False, allow_null=True)
 
@@ -466,7 +479,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         fields = [
             'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 'business_email_id',
             'business_establishment_year', 'business_description', 'business_related_documents',
-            'business_related_photos', 'same_as_personal_phone_number', 
+            'uploaded_images', 'same_as_personal_phone_number', 
             'same_as_personal_email_id', 'addresses', 'country_code', 'dial_code', 
             'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
             'services', 'business_hours', 'is_approved'
@@ -485,7 +498,23 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
 
         return representation
-        
+    
+    def get_uploaded_images(self, obj):
+            """
+            Fetch only the uploaded image compressed served via S3/CDN URLs.
+            The compressed URLs are directly mapped based on uploaded images.
+            """
+            # Ensure uploaded_images field is valid
+            if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+                return []
+
+            # Extract only the 'compressed' key from each image entry
+            compressed = [
+                image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
+            ]
+
+            # Return only compressed
+            return compressed    
         
 
 class BusinessDocumentSerializer(serializers.ModelSerializer):
