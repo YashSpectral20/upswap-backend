@@ -115,13 +115,13 @@ from rest_framework import permissions
 from .views import (
     RegisterView, VerifyOTPView, LoginView, CustomUserCreateView,
     ActivityCreateView,
-    ActivityImageListCreateView, ChatRoomCreateView, ChatRoomRetrieveView,
+    ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
     BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView, ActivityImagesListView, NotificationView, UploadImagesAPI
+    CustomUserDetailView, PlaceOrderListsView, NotificationView, UploadImagesAPI
 )
 
 # Swagger Schema View
@@ -158,10 +158,6 @@ urlpatterns = [
     # Activities (Requires Authentication)
     path('activities/create/', ActivityCreateView.as_view(), name='activity-create'),
 
-    # Activity Images (Requires Authentication)
-    path('activities/<uuid:activity_id>/images/', ActivityImageListCreateView.as_view(), name='activity-image-list-create'),
-    path('activities/lists/<uuid:activity_id>/images/', ActivityImagesListView.as_view(), name='activity-images-list'),
-
     # Chat Rooms (Requires Authentication)
     path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),
     path('chat-rooms/<uuid:pk>/', ChatRoomRetrieveView.as_view(), name='chat-room-detail'),
@@ -191,7 +187,7 @@ urlpatterns = [
     path('deals/details/<uuid:deal_uuid>/', CreateDealDetailView.as_view(), name='details-deals'),
     path('deals/lists/', CreateDeallistView.as_view(), name='list-deals'),
     
-    path('activities/list/', ActivityListsView.as_view(), name='activity-list'),
+    path('activities/lists/', ActivityListsView.as_view(), name='activity-list'),
     
     path('logout/', LogoutAPI.as_view(), name='logout'),
     

@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, CreateDeal, PlaceOrder,
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, CreateDeal, PlaceOrder,
     ActivityCategory, ServiceCategory
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -102,34 +102,46 @@ class ActivityCategorySerializer(serializers.ModelSerializer):
         fields = ['actv_category']
     
 class ActivitySerializer(serializers.ModelSerializer):
-    images = serializers.SerializerMethodField()  # Use a method field to get the image URLs
-    uploaded_images = serializers.ListField(
-        child=serializers.CharField(),  # For storing static image paths
-        write_only=True,
-        required=False,
-        allow_empty=True
-    )
     set_current_datetime = serializers.BooleanField(write_only=True, required=False, default=False)
     infinite_time = serializers.BooleanField(write_only=True, required=False, default=True)
     location = serializers.CharField(required=False, allow_blank=True)  # Add location field
     latitude = serializers.FloatField(required=False, allow_null=True)  # Add latitude field
     longitude = serializers.FloatField(required=False, allow_null=True)  # Add longitude field
-    activity_category = ActivityCategorySerializer(source='activity_category.actv_category', allow_null=True, required=False)
+    uploaded_images = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.URLField(),
+            required=True
+        ),
+        required=False
+    )
+    activity_category = serializers.CharField(required=False)
 
     class Meta:
         model = Activity
         fields = [
             'activity_id', 'activity_title', 'activity_description',
-            'activity_category', 'user_participation', 'maximum_participants',
+            'activity_category', 'uploaded_images', 'user_participation', 'maximum_participants',
             'start_date', 'end_date', 'start_time', 'end_time', 'created_at',
-            'created_by', 'set_current_datetime', 'infinite_time', 'images',
-            'uploaded_images', 'location', 'latitude', 'longitude'
+            'created_by', 'set_current_datetime', 'infinite_time',
+            'location', 'latitude', 'longitude'
         ]
         read_only_fields = ['created_by', 'created_at']
+        
+        
+    def validate_activity_category(self, value):
+        try:
+            return ActivityCategory.objects.get(actv_category__iexact=value)
+        except ActivityCategory.DoesNotExist:
+            raise serializers.ValidationError(f"Activity category '{value}' does not exist.")
 
-    def get_images(self, obj):
-        # Generate the full URL for each image
-        return [f"{settings.BUNNYCDN_STORAGE_URL}{image}" for image in obj.images]
+    def create(self, validated_data):
+        validated_data['activity_category'] = validated_data.pop('activity_category', None)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        if 'activity_category' in validated_data:
+            validated_data['activity_category'] = validated_data.pop('activity_category', None)
+        return super().update(instance, validated_data)
 
     def validate(self, data):
         now = timezone.now().date()
@@ -163,28 +175,29 @@ class ActivitySerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        # Handle fields from validated data
+        # Extract uploaded_images
         uploaded_images = validated_data.pop('uploaded_images', [])
+
+        # Assign the created_by field
         validated_data['created_by'] = self.context['request'].user
 
-        # Set current datetime if requested
+        # Handle special flags
         if validated_data.pop('set_current_datetime', False):
             current_datetime = timezone.now()
             validated_data['start_date'] = current_datetime.date()
             validated_data['start_time'] = current_datetime.time()
 
-        # Set infinite time if requested
         if validated_data.pop('infinite_time', False):
             future_date = timezone.now() + timezone.timedelta(days=365 * 999)  # 999 years from now
             validated_data['end_date'] = future_date.date()
             validated_data['end_time'] = future_date.time()
 
-        # Create activity instance
+        # Create activity
         activity = super().create(validated_data)
 
-        # Save uploaded image paths
+        # Save uploaded_images metadata
         if uploaded_images:
-            activity.images = uploaded_images
+            activity.uploaded_images = uploaded_images
             activity.save()
 
         return activity
@@ -204,37 +217,50 @@ class ActivitySerializer(serializers.ModelSerializer):
         # Update images if provided
         uploaded_images = validated_data.pop('uploaded_images', None)
         if uploaded_images is not None:
-            instance.images = uploaded_images
+            instance.uploaded_images = uploaded_images
             instance.save()
 
         return super().update(instance, validated_data)
     
-# serializers.py
-class ActivityImageSerializer(serializers.ModelSerializer):
-    storage_url = serializers.ReadOnlyField()
-
-    class Meta:
-        model = ActivityImage
-        fields = ['image_id', 'activity', 'image', 'storage_url', 'uploaded_at']
-        read_only_fields = ['uploaded_at', 'storage_url']
-
-    def create(self, validated_data):
-        # No need to pass activity here
-        return ActivityImage.objects.create(**validated_data)
+    def validate_uploaded_images(self, value):
+        """
+        Validate that uploaded_images contains valid metadata.
+        """
+        for image in value:
+            if not all(key in image for key in ('thumbnail', 'compressed')):
+                raise serializers.ValidationError(
+                    "Each image must include 'thumbnail' and 'compressed' URLs."
+                )
+        return value
+    
 
 
 
         
 class ActivityListsSerializer(serializers.ModelSerializer):
-    images = serializers.ListField(child=serializers.CharField(), required=False, allow_empty=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    acivity_category = ActivityCategorySerializer(many=True, required=True)
+    activity_category = ActivityCategorySerializer(required=True)
+    uploaded_images = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
-        fields = ['images', 'activity_id', 'activity_title', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
+        fields = ['activity_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
                   'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
                   'location']
+        
+    def get_uploaded_images(self, obj):
+        """
+        Fetch only the first image thumbnail from uploaded_images.
+        This ensures only the first uploaded image's thumbnail is fetched.
+        """
+        # Ensure uploaded_images field is valid and has data
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
+
+        # Return only the thumbnail of the first image in the uploaded_images list
+        first_image = obj.uploaded_images[0]  # Get the first image
+        thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
+        return [thumbnail] if thumbnail else []
 
 
 
@@ -987,7 +1013,3 @@ class PlaceOrderListsSerializer(serializers.ModelSerializer):
         
         
         
-class ActivityImageListsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ActivityImage
-        fields = ['image_id', 'activity', 'image', 'storage_url', 'uploaded_at']

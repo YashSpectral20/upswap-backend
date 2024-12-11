@@ -25,16 +25,16 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, ActivityImage, BusinessDocument, BusinessPhoto, CreateDeal, PlaceOrder,
+from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, CreateDeal, PlaceOrder,
                     ActivityCategory, ServiceCategory)
 
 from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
-    ActivitySerializer, ActivityImageSerializer, ChatRoomSerializer, ChatMessageSerializer,
+    ActivitySerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
-    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, ActivityImageListsSerializer
+    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -241,29 +241,6 @@ class Distance(Func):
             **kwargs,
         )
 
-# views.py
-class ActivityImageListCreateView(generics.ListCreateAPIView):
-    serializer_class = ActivityImageSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        activity_id = self.kwargs.get('activity_id')
-        return ActivityImage.objects.filter(activity__activity_id=activity_id)
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['activity_id'] = self.kwargs.get('activity_id')
-        return context
-
-    def perform_create(self, serializer):
-        activity_id = self.kwargs.get('activity_id')
-        try:
-            activity = Activity.objects.get(activity_id=activity_id)
-        except Activity.DoesNotExist:
-            raise serializers.ValidationError("Activity not found.")
-        
-        # Pass the activity object to the serializer to associate the image with the activity
-        serializer.save(activity=activity)
 
 
 class ChatRoomCreateView(APIView):
@@ -1002,12 +979,6 @@ class PlaceOrderListsView(generics.ListAPIView):
         # Filter orders where the user is either the buyer or the vendor
         return PlaceOrder.objects.filter(Q(user=user))
     
-class ActivityImagesListView(generics.ListAPIView):
-    serializer_class = ActivityImageListsSerializer
-
-    def get_queryset(self):
-        activity_id = self.kwargs['activity_id']
-        return ActivityImage.objects.filter(activity__activity_id=activity_id)
     
     
 class NotificationView(APIView):

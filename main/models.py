@@ -119,6 +119,7 @@ class Activity(models.Model):
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     activity_title = models.CharField(max_length=50)
     activity_description = models.TextField()
+    uploaded_images = models.JSONField(default=list, blank=True)
     activity_category = models.ForeignKey(ActivityCategory, on_delete=models.SET_NULL, null=True, blank=True)
     user_participation = models.BooleanField(default=True)
     maximum_participants = models.IntegerField(default=0)
@@ -179,31 +180,6 @@ class Activity(models.Model):
     def __str__(self):
         return self.activity_title
 
-class ActivityImage(models.Model):
-    image_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name='activity_images')
-    image = models.ImageField()  # Leave upload_to blank; we will set it in the save method
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    @property
-    def storage_url(self):
-        activity_uuid = self.activity.activity_id
-        return f"https://upswap-assets.storage.bunnycdn.com/activity_images/{activity_uuid}/{self.image.name}"
-
-    def save(self, *args, **kwargs):
-        # Dynamically set the upload path using activity_id
-        self.image.field.upload_to = f'activity_images/{self.activity.activity_id}/'
-        super().save(*args, **kwargs)
-        
-        # Update the Activity model with the new image path
-        image_path = self.storage_url  # Use the storage_url property
-        activity = self.activity
-        if image_path not in activity.images:
-            activity.images.append(image_path)
-            activity.save()
-
-    def __str__(self):
-        return f"Image for {self.activity.activity_title}"
 
 
 

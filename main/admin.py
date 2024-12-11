@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
-    CustomUser, Activity, ActivityImage, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, ActivityImage, OTP, CreateDeal, PlaceOrder,
+    CustomUser, Activity, ChatRoom, ChatMessage,
+    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, OTP, CreateDeal, PlaceOrder,
 )
 
 # Custom User Admin
@@ -100,11 +100,6 @@ class ChatRequestAdmin(admin.ModelAdmin):
     to_user_display.short_description = 'To User'
 
 
-# ActivityImage Admin
-@admin.register(ActivityImage)
-class ActivityImageAdmin(admin.ModelAdmin):
-    list_display = ('image', 'activity')
-    readonly_fields = ('image', 'activity')
 
 
 class BusinessDocumentInline(admin.TabularInline):
