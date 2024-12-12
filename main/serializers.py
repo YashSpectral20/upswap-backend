@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, CreateDeal, PlaceOrder,
+    ChatRequest, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
     ActivityCategory, ServiceCategory
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -357,9 +357,14 @@ class ServiceSerializer(serializers.ModelSerializer):
         
         
 class VendorKYCSerializer(serializers.ModelSerializer):
-    business_related_documents = serializers.ListField(
-        child=serializers.CharField(), required=False, allow_empty=True
+    uploaded_business_documents = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.CharField()
+        ),
+        required=False,
+        allow_empty=True
     )
+    
     uploaded_images = serializers.ListField(
         child=serializers.DictField(
             child=serializers.URLField()
@@ -378,7 +383,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         fields = [
             'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 
             'business_email_id', 'business_establishment_year', 'business_description', 
-            'business_related_documents', 
+            'uploaded_business_documents', 
             'uploaded_images', 'same_as_personal_phone_number', 
             'same_as_personal_email_id', 'addresses',  # Include addresses field
             'country_code', 'dial_code', 
@@ -481,6 +486,37 @@ class VendorKYCSerializer(serializers.ModelSerializer):
                     "Each image must include 'thumbnail' and 'compressed' URLs."
                 )
         return value
+    
+    def update_uploaded_documents(self, instance, new_documents):
+        """
+        Add new uploaded documents metadata to the existing list.
+        """
+        if not instance.uploaded_business_documents:
+            instance.uploaded_business_documents = []
+        instance.uploaded_business_documents.extend(new_documents)
+        return instance.uploaded_business_documents
+
+    def update(self, instance, validated_data):
+        new_documents = validated_data.pop('uploaded_business_documents', [])
+        if new_documents:
+            validated_data['uploaded_business_documents'] = self.update_uploaded_documents(instance, new_documents)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.is_approved = False  # Reset is_approved when updating
+        instance.save()
+
+        return instance
+
+    def create(self, validated_data):
+        new_documents = validated_data.pop('uploaded_business_documents', [])
+        vendor_kyc = VendorKYC.objects.create(**validated_data)
+        
+        if new_documents:
+            vendor_kyc.uploaded_business_documents = self.update_uploaded_documents(vendor_kyc, new_documents)
+            vendor_kyc.save()
+        
+        return vendor_kyc
 
 class VendorKYCListSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.name', read_only=True)
@@ -586,17 +622,6 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
 
         return images    
         
-
-class BusinessDocumentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BusinessDocument
-        fields = ['id', 'vendor_kyc', 'document', 'uploaded_at']
-
-
-class BusinessPhotoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BusinessPhoto
-        fields = ['id', 'vendor_kyc', 'photo', 'uploaded_at']
 
 
 class CreateDealSerializer(serializers.ModelSerializer):

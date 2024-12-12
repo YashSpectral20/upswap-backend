@@ -25,20 +25,20 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, BusinessDocument, BusinessPhoto, CreateDeal, PlaceOrder,
+from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, CreateDeal, PlaceOrder,
                     ActivityCategory, ServiceCategory)
 
 from .serializers import (
     CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ChatRoomSerializer, ChatMessageSerializer,
-    ChatRequestSerializer, VendorKYCSerializer, BusinessDocumentSerializer, BusinessPhotoSerializer,
+    ChatRequestSerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, generate_asset_uuid, send_fcm_notification 
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, generate_asset_uuid, send_fcm_notification 
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
@@ -453,19 +453,6 @@ class VendorKYCDetailView(generics.RetrieveAPIView):
         # If VendorKYC exists, return the details
         serializer = self.get_serializer(vendor_kyc)
         return Response(serializer.data)
-
-
-# Business Document views
-class BusinessDocumentListCreateView(generics.ListCreateAPIView):
-    queryset = BusinessDocument.objects.all()  # Make sure BusinessDocument is imported
-    serializer_class = BusinessDocumentSerializer
-    permission_classes = [IsAuthenticated]
-
-# Business Photo views
-class BusinessPhotoListCreateView(generics.ListCreateAPIView):
-    queryset = BusinessPhoto.objects.all()  # Make sure BusinessPhoto is imported
-    serializer_class = BusinessPhotoSerializer
-    permission_classes = [IsAuthenticated]
     
 
 
@@ -670,8 +657,33 @@ class UploadImagesAPI(APIView):
             "message": "Images uploaded successfully.",
             "data": uploaded_images
         }, status=status.HTTP_201_CREATED)
+        
+        
 
+class UploadDocumentsAPI(APIView):
+    parser_classes = [MultiPartParser, FormParser]
 
+    def post(self, request, *args, **kwargs):
+        file = request.FILES.get('file')
+        if not file:
+            return Response({"error": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Determine file type
+        file_extension = file.name.split('.')[-1].lower()
+        if file_extension in ['jpg', 'jpeg', 'png']:
+            file_type = "image"
+        elif file_extension in ['pdf', 'doc', 'docx']:
+            file_type = "document"
+        else:
+            return Response({"error": "Unsupported file type."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Upload file to S3
+            folder = "vendor_kyc/vendor_kyc_documents"
+            file_url = upload_to_s3_documents(file, folder, file_type=file_type)
+            return Response({"message": "File uploaded successfully.", "file_url": file_url}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class CreateDeallistView(generics.ListAPIView):

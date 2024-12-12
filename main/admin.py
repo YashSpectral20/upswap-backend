@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, BusinessDocument, BusinessPhoto, OTP, CreateDeal, PlaceOrder,
+    ChatRequest, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder,
 )
 
 # Custom User Admin
@@ -100,16 +100,6 @@ class ChatRequestAdmin(admin.ModelAdmin):
     to_user_display.short_description = 'To User'
 
 
-
-
-class BusinessDocumentInline(admin.TabularInline):
-    model = BusinessDocument
-    extra = 1
-
-class BusinessPhotoInline(admin.TabularInline):
-    model = BusinessPhoto
-    extra = 1
-
 class AddressInline(admin.TabularInline):
     model = Address
     extra = 1
@@ -126,7 +116,7 @@ class VendorKYCAdmin(admin.ModelAdmin):
     ]
     search_fields = ['full_name', 'business_email_id', 'phone_number']
     list_filter = ['addresses__state', 'addresses__city', 'is_approved']  # Filter by addresses and approval status
-    inlines = [BusinessDocumentInline, BusinessPhotoInline, AddressInline, ServiceInline]
+    inlines = [AddressInline, ServiceInline]
 
     def formatted_business_hours(self, obj):
         """
@@ -142,15 +132,6 @@ class VendorKYCAdmin(admin.ModelAdmin):
         # Custom logic before saving
         super().save_model(request, obj, form, change)
 
-@admin.register(BusinessDocument)
-class BusinessDocumentAdmin(admin.ModelAdmin):
-    list_display = ['vendor_kyc', 'document', 'uploaded_at']
-    search_fields = ['vendor_kyc__full_name']
-
-@admin.register(BusinessPhoto)
-class BusinessPhotoAdmin(admin.ModelAdmin):
-    list_display = ['vendor_kyc', 'photo', 'uploaded_at']
-    search_fields = ['vendor_kyc__full_name']
 
 @admin.register(Address)
 class AddressAdmin(admin.ModelAdmin):

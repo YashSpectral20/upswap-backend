@@ -1,3 +1,4 @@
+import io
 import random
 import string
 import boto3
@@ -66,6 +67,32 @@ def upload_to_s3(file_obj, folder_name, file_name):
         ExtraArgs={"ContentType": "image/webp"},
     )
     return f"{settings.MEDIA_URL}{s3_path}"
+
+
+
+def upload_to_s3_documents(file, folder, file_type="document"):
+    s3_client = boto3.client('s3', region_name=settings.AWS_S3_REGION_NAME,
+                             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
+    
+    # Generate unique file name
+    file_extension = file.name.split('.')[-1].lower()
+    asset_uuid = str(uuid.uuid4())
+    
+    if file_type == "image" and file_extension in ['jpg', 'jpeg', 'png']:
+        # Convert image to webp
+        image = Image.open(file)
+        webp_file = io.BytesIO()
+        image.save(webp_file, 'WEBP')
+        webp_file.seek(0)
+        file_key = f"{folder}/asset_{asset_uuid}.webp"
+        s3_client.upload_fileobj(webp_file, settings.AWS_STORAGE_BUCKET_NAME, file_key, ExtraArgs={"ContentType": "image/webp"})
+    else:
+        # For documents and unsupported image formats, use the original file
+        file_key = f"{folder}/asset_{asset_uuid}.{file_extension}"
+        s3_client.upload_fileobj(file, settings.AWS_STORAGE_BUCKET_NAME, file_key)
+    
+    return f"{settings.MEDIA_URL}/{file_key}"
 
 
 def send_fcm_notification(device_token, title, message):

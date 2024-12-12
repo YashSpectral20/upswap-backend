@@ -119,9 +119,9 @@ from .views import (
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
     ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
-    BusinessDocumentListCreateView, BusinessPhotoListCreateView, CreateDealView, CreateDealDetailView, CreateDeallistView, 
+    CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView, NotificationView, UploadImagesAPI
+    CustomUserDetailView, PlaceOrderListsView, NotificationView, UploadImagesAPI, UploadDocumentsAPI
 )
 
 # Swagger Schema View
@@ -175,12 +175,6 @@ urlpatterns = [
     path('vendor-kyc/create/', VendorKYCCreateView.as_view(), name='vendor-kyc-list-create'),
     path('vendor/lists/', VendorKYCListView.as_view(), name='vendor-kyc-list'),
     path('vendor/details/<uuid:vendor_id>/', VendorKYCDetailView.as_view(), name='vendorKYC-details'),
-
-    # Business Document endpoints (Requires Authentication)
-    path('vendor-kyc/documents/', BusinessDocumentListCreateView.as_view(), name='business-document-list-create'),
-
-    # Business Photo endpoints (Requires Authentication)
-    path('vendor-kyc/photos/', BusinessPhotoListCreateView.as_view(), name='business-photo-list-create'),
     
     # Deals (Requires Authentication)
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),
@@ -207,6 +201,8 @@ urlpatterns = [
     path('notification/', NotificationView.as_view(), name='notifications'),
     
     path('UploadImagesAPI/', UploadImagesAPI.as_view(), name='upload-images'),
+    
+    path('UploadDocumentsAPI/', UploadDocumentsAPI.as_view(), name='upload-documents'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

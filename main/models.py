@@ -248,12 +248,10 @@ class VendorKYC(models.Model):
     business_email_id = models.EmailField(max_length=255, blank=True)
     business_establishment_year = models.IntegerField()
     business_description = models.TextField()
-    upload_business_related_documents = models.FileField(upload_to='business_documents/', null=True, blank=True)
+    uploaded_business_documents = models.JSONField(default=list, blank=True)
     uploaded_images = models.JSONField(default=list, blank=True)
     same_as_personal_phone_number = models.BooleanField(default=False)
     same_as_personal_email_id = models.BooleanField(default=False)
-
-    business_related_documents = models.JSONField(default=list, blank=True, help_text="List of document paths")
     
     country_code = models.CharField(max_length=10, blank=True)
     dial_code = models.CharField(max_length=10, blank=True)
@@ -351,40 +349,6 @@ class Address(models.Model):
 
     def __str__(self):
         return f"{self.house_no_building_name}, {self.road_name_area_colony}, {self.city}, {self.state}, {self.country}, {self.pincode}"
-
-class BusinessDocument(models.Model):
-    vendor_kyc = models.ForeignKey(VendorKYC, related_name='business_documents', on_delete=models.CASCADE)
-    document = models.FileField(upload_to='business_documents/', validators=[validate_file_type])
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        # Update the VendorKYC model with the new document path
-        document_path = self.document.url.replace('/media/', '')  # Remove media URL base
-        vendor_kyc = self.vendor_kyc
-        if document_path not in vendor_kyc.business_related_documents:
-            vendor_kyc.business_related_documents.append(document_path)
-            vendor_kyc.save()
-
-    def __str__(self):
-        return f"Document for {self.vendor_kyc.full_name}"
-
-class BusinessPhoto(models.Model):
-    vendor_kyc = models.ForeignKey(VendorKYC, related_name='business_photos', on_delete=models.CASCADE)
-    photo = models.ImageField(upload_to='business_photos/')
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        # Update the VendorKYC model with the new photo path
-        photo_path = self.photo.url.replace('/media/', '')  # Remove media URL base
-        vendor_kyc = self.vendor_kyc
-        if photo_path not in vendor_kyc.business_related_photos:
-            vendor_kyc.business_related_photos.append(photo_path)
-            vendor_kyc.save()
-
-    def __str__(self):
-        return f"Photo for {self.vendor_kyc.full_name}"
 
 
 class CreateDeal(models.Model):
