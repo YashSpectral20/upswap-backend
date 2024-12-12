@@ -559,21 +559,25 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         return representation
     
     def get_uploaded_images(self, obj):
-            """
-            Fetch only the uploaded image compressed served via S3/CDN URLs.
-            The compressed URLs are directly mapped based on uploaded images.
-            """
-            # Ensure uploaded_images field is valid
-            if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
-                return []
+        """
+        Fetch 'compressed' and 'thumbnail' URLs for uploaded images.
+        Each image entry in the list contains these two keys.
+        """
+        # Ensure uploaded_images field is valid
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
 
-            # Extract only the 'compressed' key from each image entry
-            compressed = [
-                image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
-            ]
+        # Extract both 'compressed' and 'thumbnail' keys for each image
+        images = [
+            {
+                "compressed": image.get("compressed"),
+                "thumbnail": image.get("thumbnail")
+            }
+            for image in obj.uploaded_images
+            if image.get("compressed") and image.get("thumbnail")
+        ]
 
-            # Return only compressed
-            return compressed    
+        return images    
         
 
 class BusinessDocumentSerializer(serializers.ModelSerializer):
