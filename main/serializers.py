@@ -512,10 +512,11 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     services = serializers.SerializerMethodField()
     addresses = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
+    profile_pic = serializers.SerializerMethodField()
 
     class Meta:
         model = VendorKYC
-        fields = ['full_name', 'vendor_id', 'user', 'uploaded_images', 'services', 'addresses']
+        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'services', 'addresses']
 
     def get_services(self, obj):
         # Assuming 'services' is a related field in the VendorKYC model
@@ -526,6 +527,23 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         # Assuming 'addresses' is a related field in the VendorKYC model
         addresses = obj.addresses.all()  # Fetch related addresses
         return AddressSerializer(addresses, many=True).data
+    
+    def get_profile_pic(self, obj):
+        
+        # Ensure uploaded_images field is valid
+        if not obj.profile_pic or not isinstance(obj.profile_pic, list):
+            return []
+
+       
+        images = [
+            {
+                "file_url": image.get("file_url"),
+            }
+            for image in obj.profile_pic
+            if image.get("file_url") and image.get("file_url")
+        ]
+
+        return images
     
     def get_uploaded_images(self, obj):
         """
