@@ -38,7 +38,7 @@ from .serializers import (
 
 )
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, generate_asset_uuid, send_fcm_notification 
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_fcm_notification 
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
@@ -689,6 +689,30 @@ class UploadDocumentsAPI(APIView):
                 return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({"message": "Files uploaded successfully.", "file_urls": file_urls}, status=status.HTTP_200_OK)
+    
+class UploadProfileImageAPI(APIView):
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, *args, **kwargs):
+        file = request.FILES.get('file')
+        
+        if not file:
+            return Response({"error": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Determine file type based on extension
+        file_extension = file.name.split('.')[-1].lower()
+        if file_extension in ['jpg', 'jpeg', 'png']:
+            file_type = "image"
+        else:
+            return Response({"error": "Unsupported file type."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Upload image to S3
+            folder = "vendor_kyc/vendor_kyc_profile_images"
+            file_url = upload_to_s3_profile_image(file, folder, file_type=file_type)
+            return Response({"message": "Profile image uploaded successfully.", "file_url": file_url}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 

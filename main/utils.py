@@ -94,6 +94,33 @@ def upload_to_s3_documents(file, folder, file_type="document"):
     
     return f"{settings.MEDIA_URL}{file_key}"
 
+def upload_to_s3_profile_image(file, folder, file_type="image"):
+    s3_client = boto3.client('s3', region_name=settings.AWS_S3_REGION_NAME,
+                             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
+    
+    # Generate unique file name using UUID
+    asset_uuid = str(uuid.uuid4())
+    
+    # Resize and convert the image to WebP format
+    if file_type == "image":
+        image = Image.open(file)
+        # Resize the image to 160x130
+        image = image.resize((160, 130))
+        
+        # Convert the image to WebP format
+        webp_file = BytesIO()
+        image.save(webp_file, 'WEBP')
+        webp_file.seek(0)
+        
+        file_key = f"{folder}/asset_{asset_uuid}.webp"
+        s3_client.upload_fileobj(webp_file, settings.AWS_STORAGE_BUCKET_NAME, file_key,
+                                 ExtraArgs={"ContentType": "image/webp"})
+    else:
+        raise ValueError("Unsupported file type")
+
+    return f"{settings.MEDIA_URL}{file_key}"
+
 
 def send_fcm_notification(device_token, title, message):
     FCM_SERVER_KEY = settings.FCM_SERVER_KEY  # .env se load karein

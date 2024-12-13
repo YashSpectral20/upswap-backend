@@ -121,7 +121,7 @@ from .views import (
     VendorKYCCreateView, VendorKYCDetailView, 
     CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView, NotificationView, UploadImagesAPI, UploadDocumentsAPI
+    CustomUserDetailView, PlaceOrderListsView, NotificationView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI
 )
 
 # Swagger Schema View
@@ -203,6 +203,8 @@ urlpatterns = [
     path('UploadImagesAPI/', UploadImagesAPI.as_view(), name='upload-images'),
     
     path('UploadDocumentsAPI/', UploadDocumentsAPI.as_view(), name='upload-documents'),
+    
+    path('UploadProfileImageAPI/', UploadProfileImageAPI.as_view(), name='upload-profileimages'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
