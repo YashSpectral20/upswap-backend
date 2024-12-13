@@ -92,7 +92,7 @@ def upload_to_s3_documents(file, folder, file_type="document"):
         file_key = f"{folder}/asset_{asset_uuid}.{file_extension}"
         s3_client.upload_fileobj(file, settings.AWS_STORAGE_BUCKET_NAME, file_key)
     
-    return f"{settings.MEDIA_URL}/{file_key}"
+    return f"{settings.MEDIA_URL}{file_key}"
 
 
 def send_fcm_notification(device_token, title, message):

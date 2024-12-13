@@ -402,79 +402,6 @@ class VendorKYCSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Each business hour entry must be a dictionary with 'day' and 'time'.")
         
         return value
-    
-    def create(self, validated_data):
-        services_data = validated_data.pop('services', [])  # Extract services data
-        addresses_data = validated_data.pop('addresses', [])  # Extract addresses data
-        user = validated_data.get('user')  # Get the user
-
-        # Check if a VendorKYC already exists for the user
-        try:
-            vendor_kyc = VendorKYC.objects.get(user=user)
-            # Update the existing instance instead of creating a new one
-            for attr, value in validated_data.items():
-                setattr(vendor_kyc, attr, value)
-            vendor_kyc.is_approved = False  # Set is_approved to False when the vendor updates KYC
-            vendor_kyc.save()
-
-            # Update addresses
-            vendor_kyc.addresses.all().delete()  # Remove old addresses
-            for address_data in addresses_data:
-                Address.objects.create(vendor=vendor_kyc, **address_data)
-
-            # Update services
-            vendor_kyc.services.all().delete()  # Remove old services
-            for service_data in services_data:
-                Service.objects.create(vendor_kyc=vendor_kyc, **service_data)
-
-            return vendor_kyc
-
-        except VendorKYC.DoesNotExist:
-            # If no VendorKYC exists for the user, create a new instance
-            vendor_kyc = VendorKYC.objects.create(**validated_data)
-
-            # Create addresses
-            for address_data in addresses_data:
-                Address.objects.create(vendor=vendor_kyc, **address_data)
-
-            # Create services
-            for service_data in services_data:
-                Service.objects.create(vendor_kyc=vendor_kyc, **service_data)
-
-            return vendor_kyc
-
-    def update(self, instance, validated_data):
-        services_data = validated_data.pop('services', None)
-        addresses_data = validated_data.pop('addresses', None)
-
-        # Update VendorKYC instance
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.is_approved = False  # Reset is_approved when updating
-        instance.save()
-
-        # Update addresses
-        if addresses_data is not None:
-            instance.addresses.all().delete()  # Remove old addresses
-            for address_data in addresses_data:
-                Address.objects.create(vendor=instance, **address_data)
-
-        # Update services
-        if services_data is not None:
-            instance.services.all().delete()  # Remove old services
-            for service_data in services_data:
-                Service.objects.create(vendor_kyc=instance, **service_data)
-
-        return instance
-
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        # Convert services and addresses back to list for response
-        representation['services'] = ServiceSerializer(instance.services.all(), many=True).data
-        representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
-        # Ensure 'is_approved' is included in the representation
-        representation['is_approved'] = instance.is_approved
-        return representation
 
     def validate_uploaded_images(self, value):
         """
@@ -507,6 +434,17 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         instance.save()
 
         return instance
+    
+    def handle_addresses_and_services(self, instance, addresses_data, services_data):
+        if addresses_data is not None:
+            instance.addresses.all().delete()
+            for address_data in addresses_data:
+                Address.objects.create(vendor=instance, **address_data)
+
+        if services_data is not None:
+            instance.services.all().delete()
+            for service_data in services_data:
+                Service.objects.create(vendor_kyc=instance, **service_data)
 
     def create(self, validated_data):
         new_documents = validated_data.pop('uploaded_business_documents', [])
@@ -517,6 +455,45 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             vendor_kyc.save()
         
         return vendor_kyc
+    
+        def create(self, validated_data):
+            addresses_data = validated_data.pop('addresses', [])
+            services_data = validated_data.pop('services', [])
+            new_documents = validated_data.pop('uploaded_business_documents', [])
+
+            vendor_kyc = VendorKYC.objects.create(**validated_data)
+            self.handle_addresses_and_services(vendor_kyc, addresses_data, services_data)
+
+            if new_documents:
+                vendor_kyc.uploaded_business_documents = self.update_uploaded_documents(vendor_kyc, new_documents)
+                vendor_kyc.save()
+
+            return vendor_kyc
+
+    def update(self, instance, validated_data):
+        addresses_data = validated_data.pop('addresses', None)
+        services_data = validated_data.pop('services', None)
+        new_documents = validated_data.pop('uploaded_business_documents', [])
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.is_approved = False  # Reset is_approved when updating
+        instance.save()
+
+        self.handle_addresses_and_services(instance, addresses_data, services_data)
+
+        if new_documents:
+            instance.uploaded_business_documents = self.update_uploaded_documents(instance, new_documents)
+            instance.save()
+
+        return instance
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        representation['services'] = ServiceSerializer(instance.services.all(), many=True).data
+        representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
+        representation['is_approved'] = instance.is_approved
+        return representation
 
 class VendorKYCListSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.name', read_only=True)
