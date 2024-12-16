@@ -529,21 +529,20 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         return AddressSerializer(addresses, many=True).data
     
     def get_profile_pic(self, obj):
-        
-        # Ensure uploaded_images field is valid
+        """
+        Return a single profile picture URL in the required format.
+        """
+        # Ensure the profile_pic field is valid
         if not obj.profile_pic or not isinstance(obj.profile_pic, list):
-            return []
+            return None  # Return None if no valid profile picture is found
 
-       
-        images = [
-            {
-                "file_url": image.get("file_url"),
-            }
-            for image in obj.profile_pic
-            if image.get("file_url") and image.get("file_url")
-        ]
+        # Extract the first valid URL from the list
+        for image in obj.profile_pic:
+            file_url = image.get("file_url")
+            if file_url:  # If a valid file_url exists, return it
+                return file_url
 
-        return images
+        return None
     
     def get_uploaded_images(self, obj):
         """
