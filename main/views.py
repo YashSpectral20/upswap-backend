@@ -664,14 +664,14 @@ class UploadDocumentsAPI(APIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request, *args, **kwargs):
-        files = request.FILES.getlist('file')  # This will get a list of files
+        files = request.FILES.getlist('file')  # Get the list of uploaded files
         
         if not files:
             return Response({"error": "No files provided."}, status=status.HTTP_400_BAD_REQUEST)
         
         file_urls = []
         for file in files:
-            # Determine file type
+            # Determine file type based on file extension
             file_extension = file.name.split('.')[-1].lower()
             if file_extension in ['jpg', 'jpeg', 'png']:
                 file_type = "image"
@@ -681,14 +681,15 @@ class UploadDocumentsAPI(APIView):
                 return Response({"error": f"Unsupported file type for {file.name}."}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
-                # Upload file to S3
+                # Upload file to S3 and get its URL
                 folder = "vendor_kyc/vendor_kyc_documents"
                 file_url = upload_to_s3_documents(file, folder, file_type=file_type)
                 file_urls.append(file_url)
             except Exception as e:
                 return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response({"message": "Files uploaded successfully.", "file_urls": file_urls}, status=status.HTTP_200_OK)
+        # Directly return the list of file URLs
+        return Response(file_urls, status=status.HTTP_200_OK)
     
 class UploadProfileImageAPI(APIView):
     parser_classes = [MultiPartParser, FormParser]

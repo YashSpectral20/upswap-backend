@@ -359,9 +359,7 @@ class ServiceSerializer(serializers.ModelSerializer):
 class VendorKYCSerializer(serializers.ModelSerializer):
     profile_pic = serializers.JSONField(required=False)
     uploaded_business_documents = serializers.ListField(
-        child=serializers.DictField(
-            child=serializers.CharField()
-        ),
+        child=serializers.URLField(),
         required=False,
         allow_empty=True
     )
@@ -430,27 +428,46 @@ class VendorKYCSerializer(serializers.ModelSerializer):
                 )
         return value
     
-    def update_uploaded_documents(self, instance, new_documents):
-        """
-        Add new uploaded documents metadata to the existing list.
-        """
-        if not instance.uploaded_business_documents:
-            instance.uploaded_business_documents = []
-        instance.uploaded_business_documents.extend(new_documents)
-        return instance.uploaded_business_documents
+    def create(self, validated_data):
+        addresses_data = validated_data.pop('addresses', [])
+        services_data = validated_data.pop('services', [])
+        uploaded_documents = validated_data.pop('uploaded_business_documents', [])
+
+        # Create the VendorKYC instance
+        vendor_kyc = VendorKYC.objects.create(**validated_data)
+
+        # Handle addresses and services
+        self.handle_addresses_and_services(vendor_kyc, addresses_data, services_data)
+
+        # Add uploaded business documents
+        if uploaded_documents:
+            vendor_kyc.uploaded_business_documents = uploaded_documents
+            vendor_kyc.save()
+
+        return vendor_kyc
 
     def update(self, instance, validated_data):
-        new_documents = validated_data.pop('uploaded_business_documents', [])
-        if new_documents:
-            validated_data['uploaded_business_documents'] = self.update_uploaded_documents(instance, new_documents)
+        addresses_data = validated_data.pop('addresses', None)
+        services_data = validated_data.pop('services', None)
+        uploaded_documents = validated_data.pop('uploaded_business_documents', [])
 
+        # Update fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        instance.is_approved = False  # Reset is_approved when updating
-        instance.save()
 
+        # Reset approval status on update
+        instance.is_approved = False
+
+        # Handle addresses and services
+        self.handle_addresses_and_services(instance, addresses_data, services_data)
+
+        # Update uploaded business documents
+        if uploaded_documents:
+            instance.uploaded_business_documents = uploaded_documents
+
+        instance.save()
         return instance
-    
+
     def handle_addresses_and_services(self, instance, addresses_data, services_data):
         if addresses_data is not None:
             instance.addresses.all().delete()  # Clear existing addresses
@@ -461,40 +478,6 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             instance.services.set(  # Use .set() for many-to-many relationships
                 [Service.objects.create(vendor_kyc=instance, **service_data) for service_data in services_data]
             )
-
-
-    def create(self, validated_data):
-        addresses_data = validated_data.pop('addresses', [])
-        services_data = validated_data.pop('services', [])
-        new_documents = validated_data.pop('uploaded_business_documents', [])
-
-        vendor_kyc = VendorKYC.objects.create(**validated_data)
-        self.handle_addresses_and_services(vendor_kyc, addresses_data, services_data)
-
-        if new_documents:
-            vendor_kyc.uploaded_business_documents = self.update_uploaded_documents(vendor_kyc, new_documents)
-            vendor_kyc.save()
-
-        return vendor_kyc
-
-
-    def update(self, instance, validated_data):
-        addresses_data = validated_data.pop('addresses', None)
-        services_data = validated_data.pop('services', None)
-        new_documents = validated_data.pop('uploaded_business_documents', [])
-
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.is_approved = False  # Reset is_approved when updating
-        instance.save()
-
-        self.handle_addresses_and_services(instance, addresses_data, services_data)
-
-        if new_documents:
-            instance.uploaded_business_documents = self.update_uploaded_documents(instance, new_documents)
-            instance.save()
-
-        return instance
 
 
     def to_representation(self, instance):
