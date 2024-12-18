@@ -363,7 +363,6 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True
     )
-    
     uploaded_images = serializers.ListField(
         child=serializers.DictField(
             child=serializers.URLField()
@@ -371,9 +370,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         required=False,
         allow_empty=True
     )
-    
     business_hours = serializers.JSONField(required=False, allow_null=True)
-    
     addresses = AddressSerializer(many=True, required=False)
     services = ServiceSerializer(many=True, required=True)  # Updated to include services correctly
 
@@ -390,32 +387,14 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             'retype_bank_account_number', 'bank_name', 'ifsc_code', 
             'services', 'business_hours', 'is_approved'  # Ensure 'is_approved' is included here
         ]
-        
+
     def validate_business_hours(self, value):
-        # Validate that business_hours is a list of dictionaries
         if not isinstance(value, list):
             raise serializers.ValidationError("Business hours must be a list.")
-        
         for item in value:
             if not isinstance(item, dict) or 'day' not in item or 'time' not in item:
                 raise serializers.ValidationError("Each business hour entry must be a dictionary with 'day' and 'time'.")
-        
         return value
-    
-    def update(self, instance, validated_data):
-        profile_pic = validated_data.pop('profile_pic', None)
-        
-        # Update profile_pic only if provided
-        if profile_pic:
-            instance.profile_pic = profile_pic
-
-        # Update other fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-
-        instance.save()
-        return instance
-
 
     def validate_uploaded_images(self, value):
         """
@@ -427,7 +406,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
                     "Each image must include 'thumbnail' and 'compressed' URLs."
                 )
         return value
-    
+
     def create(self, validated_data):
         addresses_data = validated_data.pop('addresses', [])
         services_data = validated_data.pop('services', [])
@@ -450,6 +429,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         addresses_data = validated_data.pop('addresses', None)
         services_data = validated_data.pop('services', None)
         uploaded_documents = validated_data.pop('uploaded_business_documents', [])
+        profile_pic = validated_data.pop('profile_pic', None)
 
         # Update fields
         for attr, value in validated_data.items():
@@ -457,6 +437,10 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 
         # Reset approval status on update
         instance.is_approved = False
+
+        # Handle profile picture update
+        if profile_pic:
+            instance.profile_pic = profile_pic
 
         # Handle addresses and services
         self.handle_addresses_and_services(instance, addresses_data, services_data)
@@ -479,13 +463,13 @@ class VendorKYCSerializer(serializers.ModelSerializer):
                 [Service.objects.create(vendor_kyc=instance, **service_data) for service_data in services_data]
             )
 
-
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         representation['services'] = ServiceSerializer(instance.services.all(), many=True).data
         representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
         representation['is_approved'] = instance.is_approved
         return representation
+
     
     
 
@@ -495,8 +479,7 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     services = serializers.SerializerMethodField()
     addresses = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
-    profile_pic = serializers.SerializerMethodField()
-
+    
     class Meta:
         model = VendorKYC
         fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'services', 'addresses']
@@ -510,22 +493,6 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         # Assuming 'addresses' is a related field in the VendorKYC model
         addresses = obj.addresses.all()  # Fetch related addresses
         return AddressSerializer(addresses, many=True).data
-    
-    def get_profile_pic(self, obj):
-        """
-        Return a single profile picture URL in the required format.
-        """
-        # Ensure the profile_pic field is valid
-        if not obj.profile_pic or not isinstance(obj.profile_pic, list):
-            return None  # Return None if no valid profile picture is found
-
-        # Extract the first valid URL from the list
-        for image in obj.profile_pic:
-            file_url = image.get("file_url")
-            if file_url:  # If a valid file_url exists, return it
-                return file_url
-
-        return None
     
     def get_uploaded_images(self, obj):
         """
