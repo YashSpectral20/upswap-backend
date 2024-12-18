@@ -557,9 +557,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
     services = ServiceSerializer(many=True, read_only=True)
 
     # Handling the business related documents and photos as lists of strings
-    business_related_documents = serializers.ListField(
-        child=serializers.CharField(), required=False, allow_empty=True
-    )
+    uploaded_business_documents = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
     
     business_hours = serializers.JSONField(required=False, allow_null=True)
@@ -568,7 +566,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         model = VendorKYC
         fields = [
             'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 'business_email_id',
-            'business_establishment_year', 'business_description', 'business_related_documents',
+            'business_establishment_year', 'business_description', 'uploaded_business_documents',
             'uploaded_images', 'same_as_personal_phone_number', 
             'same_as_personal_email_id', 'addresses', 'country_code', 'dial_code', 
             'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
@@ -588,6 +586,12 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
 
         return representation
+    
+    def get_uploaded_business_documents(self, obj):
+        """
+        Fetch the list of uploaded business document URLs.
+        """
+        return obj.uploaded_business_documents if obj.uploaded_business_documents else []
     
     def get_uploaded_images(self, obj):
         """
