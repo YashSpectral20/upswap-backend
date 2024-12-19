@@ -454,14 +454,18 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 
     def handle_addresses_and_services(self, instance, addresses_data, services_data):
         if addresses_data is not None:
-            instance.addresses.all().delete()  # Clear existing addresses
+            # Clear existing addresses
+            instance.addresses.all().delete()
+            # Add new addresses
             for address_data in addresses_data:
                 Address.objects.create(vendor=instance, **address_data)
 
         if services_data is not None:
-            instance.services.set(  # Use .set() for many-to-many relationships
-                [Service.objects.create(vendor_kyc=instance, **service_data) for service_data in services_data]
-            )
+            # Delete existing services
+            instance.services.all().delete()
+            # Add new services
+            for service_data in services_data:
+                Service.objects.create(vendor_kyc=instance, **service_data)
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
