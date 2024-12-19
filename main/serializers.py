@@ -585,7 +585,12 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
 
         return images    
         
-
+class VendorKYCStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = VendorKYC
+        fields = ['vendor_id', 'is_approved']
+    
+    
 
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)

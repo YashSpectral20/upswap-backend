@@ -121,7 +121,7 @@ from .views import (
     VendorKYCCreateView, VendorKYCDetailView, 
     CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView, NotificationView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI
+    CustomUserDetailView, PlaceOrderListsView, NotificationView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView
 )
 
 # Swagger Schema View
@@ -175,6 +175,7 @@ urlpatterns = [
     path('vendor-kyc/create/', VendorKYCCreateView.as_view(), name='vendor-kyc-list-create'),
     path('vendor/lists/', VendorKYCListView.as_view(), name='vendor-kyc-list'),
     path('vendor/details/<uuid:vendor_id>/', VendorKYCDetailView.as_view(), name='vendorKYC-details'),
+    path('vendor/status/<str:vendor_id>/', VendorKYCStatusView.as_view(), name='vendor-status'),
     
     # Deals (Requires Authentication)
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),

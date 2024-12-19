@@ -34,7 +34,7 @@ from .serializers import (
     ChatRequestSerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
-    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer
+    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -400,6 +400,16 @@ class VendorKYCListView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = VendorKYCListSerializer
     permission_classes = [AllowAny]
 """
+
+class VendorKYCStatusView(generics.RetrieveAPIView):
+    def get(self, request, vendor_id):
+        try:
+            # Fetch VendorKYC instance by vendor_id
+            vendor_kyc = VendorKYC.objects.get(vendor_id=vendor_id)
+            serializer = VendorKYCStatusSerializer(vendor_kyc)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except VendorKYC.DoesNotExist:
+            return Response({"message": "VendorKYC not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class VendorKYCListView(ListAPIView):
