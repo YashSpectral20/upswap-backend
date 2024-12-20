@@ -34,7 +34,7 @@ from .serializers import (
     ChatRequestSerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
-    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer
+    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -948,6 +948,24 @@ class CustomUserDetailView(generics.RetrieveAPIView):
     def get_queryset(self):
         # Now use deal_uuid instead of pk
         return CustomUser.objects.filter(id=self.kwargs['id'])
+    
+    
+class CustomUserEditView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        serializer = CustomUserEditSerializer(user, context={'request': request})  # Pass the request
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request, *args, **kwargs):
+        user = request.user
+        serializer = CustomUserEditSerializer(user, data=request.data, partial=True, context={'request': request})  # Pass the request
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
     
 class PlaceOrderListsView(generics.ListAPIView):
     serializer_class = PlaceOrderListsSerializer

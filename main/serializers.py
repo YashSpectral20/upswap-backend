@@ -943,6 +943,36 @@ class CustomUserDetailsSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
         
+class CustomUserEditSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = [
+            'name', 
+            'username', 
+            'email', 
+            'phone_number', 
+            'gender', 
+            'date_of_birth', 
+            'bio', 
+            'profile_pic'
+        ]
+        extra_kwargs = {
+            'email': {'required': True},  # Ensure email is mandatory during updates
+            'username': {'required': True},  # Ensure username is mandatory
+        }
+
+    def validate_email(self, value):
+        user = self.context['request'].user
+        if CustomUser.objects.exclude(id=user.id).filter(email=value).exists():
+            raise serializers.ValidationError("This email is already in use.")
+        return value
+
+    def validate_phone_number(self, value):
+        user = self.context['request'].user
+        if CustomUser.objects.exclude(id=user.id).filter(phone_number=value).exists():
+            raise serializers.ValidationError("This phone number is already in use.")
+        return value
+        
         
 class PlaceOrderListsSerializer(serializers.ModelSerializer):
     order_id = serializers.UUIDField(format='hex_verbose', read_only=True)
