@@ -422,9 +422,10 @@ class VendorKYCListView(ListAPIView):
         queryset = VendorKYC.objects.all()
 
         if country:
-            queryset = queryset.filter(addresses__country=country)  # Filter based on related 'Address' country field
+            queryset = queryset.filter(addresses__country=country).distinct()  # Ensure unique vendors
 
         return queryset
+
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
