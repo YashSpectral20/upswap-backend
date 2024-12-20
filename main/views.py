@@ -38,7 +38,7 @@ from .serializers import (
 
 )
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_fcm_notification 
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid 
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
@@ -963,32 +963,32 @@ class PlaceOrderListsView(generics.ListAPIView):
     
     
     
-class NotificationView(APIView):
-    permission_classes = [AllowAny]
+# class NotificationView(APIView):
+#     permission_classes = [AllowAny]
 
-    def post(self, request):
-        user_location = request.data.get('location')  # {'latitude': 21.643640, 'longitude': 69.615650}
-        if not user_location:
-            return Response({"error": "Location is required"}, status=400)
+#     def post(self, request):
+#         user_location = request.data.get('location')  # {'latitude': 21.643640, 'longitude': 69.615650}
+#         if not user_location:
+#             return Response({"error": "Location is required"}, status=400)
 
-        user_point = Point(user_location['longitude'], user_location['latitude'])
+#         user_point = Point(user_location['longitude'], user_location['latitude'])
 
-        # Fetch active deals within 15 KM radius
-        deals = CreateDeal.objects.filter(
-            location__distance_lte=(user_point, D(km=15))
-        )
+#         # Fetch active deals within 15 KM radius
+#         deals = CreateDeal.objects.filter(
+#             location__distance_lte=(user_point, D(km=15))
+#         )
 
-        # Send notifications to users
-        notifications_sent = []
-        for deal in deals:
-            vendor_name = deal.vendor_kyc.full_name
-            deal_title = deal.deal_title
-            user_device_token = request.user.device_token
+#         # Send notifications to users
+#         notifications_sent = []
+#         for deal in deals:
+#             vendor_name = deal.vendor_kyc.full_name
+#             deal_title = deal.deal_title
+#             user_device_token = request.user.device_token
 
-            if user_device_token:
-                send_notification(user_device_token, vendor_name, deal_title)
-                notifications_sent.append({"vendor_name": vendor_name, "deal_title": deal_title})
+#             if user_device_token:
+#                 send_notification(user_device_token, vendor_name, deal_title)
+#                 notifications_sent.append({"vendor_name": vendor_name, "deal_title": deal_title})
 
-        return Response({"notifications": notifications_sent})    
+#         return Response({"notifications": notifications_sent})    
     
     

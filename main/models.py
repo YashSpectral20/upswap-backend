@@ -81,7 +81,6 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
     otp_verified = models.BooleanField(default=False)
-    device_token = models.CharField(max_length=255, blank=True, null=True)
     
     objects = CustomUserManager()
     

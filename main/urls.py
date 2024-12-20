@@ -121,7 +121,7 @@ from .views import (
     VendorKYCCreateView, VendorKYCDetailView, 
     CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView, NotificationView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView
+    CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView
 )
 
 # Swagger Schema View
@@ -199,7 +199,7 @@ urlpatterns = [
     path('categories/', CategoriesView.as_view(), name='categories'),
     
     path('customuser/details/<uuid:id>/', CustomUserDetailView.as_view(), name='customuser-details'),
-    path('notification/', NotificationView.as_view(), name='notifications'),
+    # path('notification/', NotificationView.as_view(), name='notifications'),
     
     path('UploadImagesAPI/', UploadImagesAPI.as_view(), name='upload-images'),
     

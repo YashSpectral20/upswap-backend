@@ -122,25 +122,25 @@ def upload_to_s3_profile_image(file, folder, file_type="image"):
     return f"{settings.MEDIA_URL}{file_key}"
 
 
-def send_fcm_notification(device_token, title, message):
-    FCM_SERVER_KEY = settings.FCM_SERVER_KEY  # .env se load karein
-    headers = {
-        "Authorization": f"key={FCM_SERVER_KEY}",
-        "Content-Type": "application/json"
-    }
+# def send_fcm_notification(device_token, title, message):
+#     FCM_SERVER_KEY = settings.FCM_SERVER_KEY  # .env se load karein
+#     headers = {
+#         "Authorization": f"key={FCM_SERVER_KEY}",
+#         "Content-Type": "application/json"
+#     }
 
-    payload = {
-        "to": device_token,
-        "notification": {
-            "title": title,
-            "body": message
-        },
-        "data": {
-            "click_action": "FLUTTER_NOTIFICATION_CLICK",
-            "title": title,
-            "body": message
-        }
-    }
+#     payload = {
+#         "to": device_token,
+#         "notification": {
+#             "title": title,
+#             "body": message
+#         },
+#         "data": {
+#             "click_action": "FLUTTER_NOTIFICATION_CLICK",
+#             "title": title,
+#             "body": message
+#         }
+#     }
 
-    response = requests.post("https://fcm.googleapis.com/fcm/send", json=payload, headers=headers)
-    return response.json()
+#     response = requests.post("https://fcm.googleapis.com/fcm/send", json=payload, headers=headers)
+#     return response.json()
