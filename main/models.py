@@ -83,7 +83,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     otp_verified = models.BooleanField(default=False)
     
     bio = models.TextField(blank=True, null=True)
-    profile_pic = models.JSONField(default=list, blank=True)
+    profile_pic = models.JSONField(default=list, blank=True, null=True)
     
     objects = CustomUserManager()
     
