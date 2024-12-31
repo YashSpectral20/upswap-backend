@@ -238,13 +238,14 @@ class ActivitySerializer(serializers.ModelSerializer):
 
         
 class ActivityListsSerializer(serializers.ModelSerializer):
+    user_id = serializers.UUIDField(source='created_by.id', read_only=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
     activity_category = ActivityCategorySerializer(required=True)
     uploaded_images = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
-        fields = ['activity_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
+        fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
                   'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
                   'location']
         
@@ -265,6 +266,7 @@ class ActivityListsSerializer(serializers.ModelSerializer):
 
 
 class ActivityDetailsSerializer(serializers.ModelSerializer):
+    user_id = serializers.UUIDField(source='created_by.id', read_only=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
     activity_category = ActivityCategorySerializer(required=True)
     uploaded_images = serializers.SerializerMethodField()
@@ -272,7 +274,7 @@ class ActivityDetailsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Activity
         fields = [
-            'activity_id', 'activity_title', 'activity_description',
+            'activity_id', 'user_id', 'activity_title', 'activity_description',
             'activity_category', 'uploaded_images', 'user_participation', 'maximum_participants',
             'start_date', 'end_date', 'start_time', 'end_time', 'created_at',
             'created_by', 'set_current_datetime', 'infinite_time',
