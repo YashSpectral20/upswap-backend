@@ -942,7 +942,17 @@ class CustomUserDetailsSerializer(serializers.ModelSerializer):
             'gender', 'country_code', 'dial_code', 'country'
         ]
         read_only_fields = fields
-        
+    
+    def to_representation(self, instance):
+        # Call the default `to_representation` to get the serialized data
+        data = super().to_representation(instance)
+
+        # Modify the `profile_pic` field to return "" if it's empty or null
+        if not instance.profile_pic:
+            data['profile_pic'] = ""
+
+        return data
+    
 class CustomUserEditSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
