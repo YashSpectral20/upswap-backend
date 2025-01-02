@@ -352,10 +352,26 @@ class AddressSerializer(serializers.ModelSerializer):
 
 
 class ServiceSerializer(serializers.ModelSerializer):
+    service_category = serializers.CharField()  # Accept category name as a string
+
     class Meta:
         model = Service
         fields = ['uuid', 'item_name', 'service_category', 'item_description', 'item_price']
         read_only_fields = ['uuid']
+
+    def validate_service_category(self, value):
+        """
+        Validate and convert the string input to a ServiceCategory instance.
+        """
+        if isinstance(value, str):
+            # Get or create the ServiceCategory instance by name
+            service_category, created = ServiceCategory.objects.get_or_create(serv_category=value)
+            return service_category
+        raise serializers.ValidationError("Invalid value for service_category. Expected a string.")
+
+    def create(self, validated_data):
+        # `service_category` is now a `ServiceCategory` instance
+        return super().create(validated_data)
         
         
 class VendorKYCSerializer(serializers.ModelSerializer):
