@@ -875,6 +875,9 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
             'payment_mode', 'created_at'
         ]
         read_only_fields = ['order_id', 'user_id', 'vendor_id', 'total_amount']
+        
+    def get_created_at(self, obj):
+        return obj.created_at.strftime("%Y-%m-%d %H:%M:%S")  # Format datetime as required
 
     def validate_deal_uuid(self, value):
         try:

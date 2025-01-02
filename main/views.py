@@ -887,7 +887,7 @@ class PlaceOrderView(generics.CreateAPIView):
             "transaction_id": place_order.transaction_id,
             "payment_status": place_order.payment_status,
             "payment_mode": place_order.payment_mode,
-            "created_at": place_order.created_at.isoformat()  # Convert datetime to ISO 8601 string
+            "created_at": place_order.created_at.strftime("%Y-%m-%d %H:%M:%S")  # Format datetime
         }
 
         # Return the response with the message and data
