@@ -1015,6 +1015,7 @@ class PlaceOrderListsSerializer(serializers.ModelSerializer):
     deal_price = serializers.CharField(source='deal.deal_price', read_only=True)
     deal_description = serializers.CharField(source='deal.deal_description', read_only=True)
     uploaded_images = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S', read_only=True)
 
     class Meta:
         model = PlaceOrder
