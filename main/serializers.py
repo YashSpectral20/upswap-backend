@@ -1014,15 +1014,24 @@ class PlaceOrderListsSerializer(serializers.ModelSerializer):
     deal_title = serializers.CharField(source='deal.deal_title', read_only=True)
     deal_price = serializers.CharField(source='deal.deal_price', read_only=True)
     deal_description = serializers.CharField(source='deal.deal_description', read_only=True)
+    uploaded_images = serializers.SerializerMethodField()
 
     class Meta:
         model = PlaceOrder
         fields = [
-            'order_id', 'deal_uuid', 'deal_title', 'deal_price', 'deal_description', 'user_id', 'vendor_id', 'vendor_name', 'quantity', 'country',
+            'order_id', 'deal_uuid', 'uploaded_images', 'deal_title', 'deal_price', 'deal_description', 'user_id', 'vendor_id', 'vendor_name', 'quantity', 'country',
             'latitude', 'longitude', 'total_amount', 'transaction_id', 'payment_status',
             'payment_mode', 'created_at'
         ]
         read_only_fields = fields
         
+    def get_uploaded_images(self, obj):
+        """
+        Fetch only the first image thumbnail from the uploaded_images of the deal.
+        """
+        if not obj.deal.uploaded_images or not isinstance(obj.deal.uploaded_images, list):
+            return []
         
-        
+        first_image = obj.deal.uploaded_images[0]  # Get the first image
+        thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
+        return [thumbnail] if thumbnail else []
