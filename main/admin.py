@@ -6,19 +6,20 @@ from .models import (
 
 # Custom User Admin
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ('id', 'email', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 'country_code', 'dial_code', 'country')
-    list_filter = ('is_staff', 'is_active', 'otp_verified', 'country')
+    list_display = ('id', 'email', 'name', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio')
+    list_filter = ('is_staff', 'is_active', 'otp_verified', 'country', 'type')
     fieldsets = (
-        (None, {'fields': ('username', 'password')}),
-        ('Personal info', {'fields': ('id', 'name', 'email', 'phone_number', 'date_of_birth', 'gender', 'country_code', 'dial_code', 'country')}),
+        (None, {'fields': ('username', 'password', 'email', 'social_id', 'type')}),
+        ('Personal info', {'fields': ('id', 'name', 'phone_number', 'date_of_birth', 'gender', 'country_code', 'dial_code', 'country', 'bio', 'profile_pic')}),
         ('Permissions', {'fields': ('is_staff', 'is_active', 'otp_verified', 'is_superuser')}),
     )
     readonly_fields = ('id',)
-    search_fields = ('username', 'email', 'phone_number', 'country_code', 'dial_code', 'country')
+    search_fields = ('username', 'email', 'phone_number', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio')
     ordering = ('email',)
     filter_horizontal = ()
 
 admin.site.register(CustomUser, CustomUserAdmin)
+
 
 # Activity Admin
 @admin.register(Activity)
