@@ -121,7 +121,7 @@ from .views import (
     VendorKYCCreateView, VendorKYCDetailView, 
     CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
-    CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView
+    CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin
 )
 
 # Swagger Schema View
@@ -151,6 +151,9 @@ urlpatterns = [
 
     # Login (No Authentication Required)
     path('login/', LoginView.as_view(), name='login'),
+    
+    #SocialLogin API()
+    path('social-login/', SocialLogin.as_view(), name='social_login'),
     
     # Custom User Creation (Requires Authentication)
     path('custom-user/create/', CustomUserCreateView.as_view(), name='custom-user-create'),

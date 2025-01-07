@@ -33,10 +33,11 @@ class CustomUserSerializer(serializers.ModelSerializer):
     country_code = serializers.CharField(required=False, allow_blank=True)
     dial_code = serializers.CharField(required=False, allow_blank=True)
     country = serializers.CharField(required=False, allow_blank=True)
+    social_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password', 'country_code', 'dial_code', 'country']
+        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password', 'country_code', 'dial_code', 'country', 'social_id']
         extra_kwargs = {'password': {'write_only': True}}
 
     def validate(self, data):

@@ -82,6 +82,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     is_admin = models.BooleanField(default=False)
     otp_verified = models.BooleanField(default=False)
     
+    social_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    
     bio = models.TextField(blank=True, null=True)
     profile_pic = models.JSONField(default=list, blank=True, null=True)
     

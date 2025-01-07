@@ -979,6 +979,46 @@ class PlaceOrderListsView(generics.ListAPIView):
         # Filter orders where the user is either the buyer or the vendor
         return PlaceOrder.objects.filter(Q(user=user))
     
+class SocialLogin(generics.GenericAPIView):
+    serializer_class = CustomUserSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        social_id = request.data.get("social_id")
+        email = request.data.get("email")
+        name = request.data.get("name")
+
+        if not social_id or not email:
+            return Response({"message": "social_id and email are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if user exists with the same email
+        user = CustomUser.objects.filter(email=email).first()
+
+        if user:
+            # Update social_id if blank
+            if not user.social_id:
+                user.social_id = social_id
+                user.save()
+        else:
+            # Create new user for social login
+            user = CustomUser.objects.create(
+                social_id=social_id,
+                email=email,
+                name=name,
+            )
+
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        return Response({
+            "user": CustomUserSerializer(user).data,
+            "refresh": str(refresh),
+            "access": access_token,
+            "message": "Login successful.",
+        }, status=status.HTTP_200_OK)
+    
+    
     
     
 # class NotificationView(APIView):
