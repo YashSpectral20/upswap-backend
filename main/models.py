@@ -66,6 +66,10 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('F', 'Female'),
         ('O', 'Other'),
     ]
+    LOGIN_TYPE_CHOICES = [
+        ('google', 'Google'),
+        ('apple', 'Apple'),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     username = models.CharField(max_length=150, unique=True)
@@ -83,6 +87,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     otp_verified = models.BooleanField(default=False)
     
     social_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    type = models.CharField(max_length=10, choices=LOGIN_TYPE_CHOICES, blank=True, null=True)
     
     bio = models.TextField(blank=True, null=True)
     profile_pic = models.JSONField(default=list, blank=True, null=True)

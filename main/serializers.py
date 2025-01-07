@@ -34,6 +34,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
     dial_code = serializers.CharField(required=False, allow_blank=True)
     country = serializers.CharField(required=False, allow_blank=True)
     social_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    type = serializers.ChoiceField(choices=CustomUser.LOGIN_TYPE_CHOICES, required=False)
 
     class Meta:
         model = CustomUser

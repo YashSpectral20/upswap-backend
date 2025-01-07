@@ -987,24 +987,28 @@ class SocialLogin(generics.GenericAPIView):
         social_id = request.data.get("social_id")
         email = request.data.get("email")
         name = request.data.get("name")
+        login_type = request.data.get("type")  # Google ya Apple
 
-        if not social_id or not email:
-            return Response({"message": "social_id and email are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not social_id or not email or not login_type:
+            return Response({"message": "social_id, email, and type (google/apple) are required."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if user exists with the same email
         user = CustomUser.objects.filter(email=email).first()
 
         if user:
-            # Update social_id if blank
+            # Update social_id and type if blank
             if not user.social_id:
                 user.social_id = social_id
-                user.save()
+            if not user.type:
+                user.type = login_type
+            user.save()
         else:
             # Create new user for social login
             user = CustomUser.objects.create(
                 social_id=social_id,
                 email=email,
                 name=name,
+                type=login_type,  # Set login type
             )
 
         # Generate JWT tokens
@@ -1017,6 +1021,7 @@ class SocialLogin(generics.GenericAPIView):
             "access": access_token,
             "message": "Login successful.",
         }, status=status.HTTP_200_OK)
+
     
     
     
