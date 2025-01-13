@@ -978,7 +978,8 @@ class PlaceOrderListsView(generics.ListAPIView):
 
         # Filter orders where the user is either the buyer or the vendor
         return PlaceOrder.objects.filter(Q(user=user))
-    
+
+
 class SocialLogin(generics.GenericAPIView):
     serializer_class = CustomUserSerializer
     permission_classes = [AllowAny]
@@ -987,10 +988,13 @@ class SocialLogin(generics.GenericAPIView):
         social_id = request.data.get("social_id")
         email = request.data.get("email")
         name = request.data.get("name")
-        login_type = request.data.get("type")  # Google ya Apple
+        login_type = request.data.get("type")  # Google or Apple
 
         if not social_id or not email or not login_type:
-            return Response({"message": "social_id, email, and type (google/apple) are required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "social_id, email, and type (google/apple) are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Check if user exists with the same email
         user = CustomUser.objects.filter(email=email).first()
@@ -1003,24 +1007,80 @@ class SocialLogin(generics.GenericAPIView):
                 user.type = login_type
             user.save()
         else:
-            # Create new user for social login
+            # Create new user with minimal required data
             user = CustomUser.objects.create(
                 social_id=social_id,
                 email=email,
                 name=name,
-                type=login_type,  # Set login type
+                username=email.split('@')[0],  # Default username from email
+                phone_number='',               # Placeholder for phone number
+                date_of_birth=None,            # Default for date of birth
+                gender=None,                   # Default for gender
+                type=login_type,               # Login type (Google/Apple)
             )
 
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
-        return Response({
-            "user": CustomUserSerializer(user).data,
-            "refresh": str(refresh),
-            "access": access_token,
-            "message": "Login successful.",
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "user": CustomUserSerializer(user).data,
+                "refresh": str(refresh),
+                "access": access_token,
+                "message": "Login successful.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+
+
+
+
+    
+# class SocialLogin(generics.GenericAPIView):
+#     serializer_class = CustomUserSerializer
+#     permission_classes = [AllowAny]
+
+#     def post(self, request, *args, **kwargs):
+#         social_id = request.data.get("social_id")
+#         email = request.data.get("email")
+#         name = request.data.get("name")
+#         login_type = request.data.get("type")  # Google ya Apple
+
+#         if not social_id or not email or not login_type:
+#             return Response({"message": "social_id, email, and type (google/apple) are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         # Check if user exists with the same email
+#         user = CustomUser.objects.filter(email=email).first()
+
+#         if user:
+#             # Update social_id and type if blank
+#             if not user.social_id:
+#                 user.social_id = social_id
+#             if not user.type:
+#                 user.type = login_type
+#             user.save()
+#         else:
+#             # Create new user for social login
+#             user = CustomUser.objects.create(
+#                 social_id=social_id,
+#                 email=email,
+#                 name=name,
+#                 type=login_type,  # Set login type
+#             )
+
+#         # Generate JWT tokens
+#         refresh = RefreshToken.for_user(user)
+#         access_token = str(refresh.access_token)
+
+#         return Response({
+#             "user": CustomUserSerializer(user).data,
+#             "refresh": str(refresh),
+#             "access": access_token,
+#             "message": "Login successful.",
+#         }, status=status.HTTP_200_OK)
 
     
     
