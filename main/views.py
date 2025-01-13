@@ -1007,16 +1007,19 @@ class SocialLogin(generics.GenericAPIView):
                 user.type = login_type
             user.save()
         else:
-            # Create new user with minimal required data
+            # Generate a unique placeholder phone number
+            placeholder_phone = f"phone_{uuid.uuid4().hex[:8]}"
+            
+            # Create a new user with minimal required data
             user = CustomUser.objects.create(
                 social_id=social_id,
                 email=email,
                 name=name,
                 username=email.split('@')[0],  # Default username from email
-                phone_number='',               # Placeholder for phone number
-                date_of_birth=None,            # Default for date of birth
-                gender=None,                   # Default for gender
-                type=login_type,               # Login type (Google/Apple)
+                phone_number=placeholder_phone,  # Temporary placeholder phone number
+                date_of_birth=None,             # Default for date of birth
+                gender=None,                    # Default for gender
+                type=login_type,                # Login type (Google/Apple)
             )
 
         # Generate JWT tokens
@@ -1032,6 +1035,7 @@ class SocialLogin(generics.GenericAPIView):
             },
             status=status.HTTP_200_OK,
         )
+
 
 
 
