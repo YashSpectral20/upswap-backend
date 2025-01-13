@@ -4,7 +4,7 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 from .views import (
-    RegisterView, VerifyOTPView, LoginView, CustomUserCreateView,
+    RegisterView, SendOTPView, VerifyOTPView, LoginView, CustomUserCreateView,
     ActivityCreateView, ActivityListView,
     ActivityImageListCreateView, ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
@@ -70,6 +70,11 @@ urlpatterns = [
     path('activities/list/', ActivityListView.as_view(), name='activity-list'),
     
     path('logout/', LogoutView.as_view(), name='logout'),
+    
+    # Forgot Password
+    path('send-otp/', SendOTPView.as_view(), name='send-otp'),
+    # path('validate-otp/', ValidateOTPView.as_view(), name='validate-otp'),
+    # path('reset-password-otp/', OTPResetPasswordView.as_view(), name='reset-password-otp'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
