@@ -1,4 +1,0 @@
-user 1 create activity = api 1 -> create new activity row in table
-user 2 I'm interested = api 2 -> create a chat window + update activity data (participants json)
-user 1 view activity = api 3 -> fetch activity details + participants details
-user 2 view activity = api 4 -> (if accepted) -> conversation activated
