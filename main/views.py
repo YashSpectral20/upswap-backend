@@ -739,20 +739,28 @@ class CreateDeallistView(generics.ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Get current date
+        # Current date and time
         now = timezone.now()
 
-        # Extract country filter if passed
-        country = self.request.query_params.get('country', None)
+        # Extract search keyword from query params
+        search_keyword = self.request.query_params.get('address', None)
 
-        # Query to fetch CreateDeal entries
+        # Base query: fetch only active deals (end_date >= now)
         queryset = CreateDeal.objects.filter(end_date__gte=now)
 
-        # Apply filtering by country if passed
-        if country:
-            queryset = queryset.filter(location_country__iexact=country)
+        # If search keyword is provided, filter deals based on address fields
+        if search_keyword:
+            queryset = queryset.filter(
+                Q(location_house_no__icontains=search_keyword) |
+                Q(location_road_name__icontains=search_keyword) |
+                Q(location_country__icontains=search_keyword) |
+                Q(location_state__icontains=search_keyword) |
+                Q(location_city__icontains=search_keyword) |
+                Q(location_pincode__icontains=search_keyword)
+            )
 
         return queryset
+
 
 
     
