@@ -744,7 +744,7 @@ class CreateDeallistView(generics.ListAPIView):
         now = timezone.now()
 
         # Extract search keyword from query params
-        search_keyword = self.request.query_params.get('search', None)
+        search_keyword = self.request.query_params.get('address', None)
 
         # Base query: fetch only active deals (end_date >= now)
         queryset = CreateDeal.objects.filter(end_date__gte=now)
