@@ -734,7 +734,7 @@ class UploadProfileImageAPI(APIView):
 
 
 
-
+# Changes Commit
 class CreateDeallistView(generics.ListAPIView):
     serializer_class = CreateDeallistSerializer
     permission_classes = [AllowAny]
