@@ -13,6 +13,8 @@ from django.contrib.postgres.fields import JSONField
 from datetime import datetime, timedelta
 from django.conf import settings
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
+from django.utils.timezone import now
+from datetime import timedelta
 
 #from django.contrib.auth import get_user_model
 
@@ -455,3 +457,13 @@ class PlaceOrder(models.Model):
 
     def __str__(self):
         return f"Order {self.order_id} by {self.user.username}"
+    
+
+class PasswordResetOTP(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    otp = models.CharField(max_length=6)
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        return now() > self.created_at + timedelta(minutes=10)

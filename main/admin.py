@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder,
+    ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder,
 )
 
 # Custom User Admin
@@ -190,3 +190,9 @@ class PlaceOrderAdmin(admin.ModelAdmin):
 
     # Add date hierarchy to filter by date in the admin
     date_hierarchy = 'created_at'
+
+
+@admin.register(PasswordResetOTP)
+class PasswordResetOTPAdmin(admin.ModelAdmin):
+    list_display = ('user', 'otp', 'used', 'created_at')
+    search_fields = ('user__username', 'otp')

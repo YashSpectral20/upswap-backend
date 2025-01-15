@@ -14,7 +14,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
+    ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
     ActivityCategory, ServiceCategory
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -1053,3 +1053,64 @@ class PlaceOrderListsSerializer(serializers.ModelSerializer):
         first_image = obj.deal.uploaded_images[0]  # Get the first image
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
+    
+class OTPRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    
+class OTPResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+    new_password = serializers.CharField(write_only=True, validators=[validate_password_strength])
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match.")
+        return data
+
+    def save(self):
+        email = self.validated_data['email']
+        otp = self.validated_data['otp']
+        new_password = self.validated_data['new_password']
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User with this email does not exist.")
+
+        try:
+            otp_entry = PasswordResetOTP.objects.get(user=user, otp=otp)
+        except PasswordResetOTP.DoesNotExist:
+            raise serializers.ValidationError("Invalid OTP.")
+
+        if otp_entry.is_expired():
+            raise serializers.ValidationError("OTP has expired.")
+
+        user.set_password(new_password)
+        user.save()
+        otp_entry.delete()
+        
+class OTPValidationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, data):
+        email = data.get('email')
+        otp = data.get('otp')
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User with this email does not exist.")
+
+        try:
+            otp_entry = PasswordResetOTP.objects.get(user=user, otp=otp)
+        except PasswordResetOTP.DoesNotExist:
+            raise serializers.ValidationError("Invalid OTP.")
+
+        if otp_entry.is_expired() or otp_entry.used == True:
+            raise serializers.ValidationError("OTP has expired.")
+
+        otp_entry.used = True
+        otp_entry.save()
+        return data

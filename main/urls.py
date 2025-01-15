@@ -113,7 +113,7 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
 from .views import (
-    RegisterView, VerifyOTPView, LoginView, CustomUserCreateView,
+    OTPResetPasswordView, RegisterView, SendOTPView, ValidateOTPView, VerifyOTPView, LoginView, CustomUserCreateView,
     ActivityCreateView,
     ChatRoomCreateView, ChatRoomRetrieveView,
     ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
@@ -190,6 +190,10 @@ urlpatterns = [
     path('activities/details/<uuid:activity_id>/', ActivityDetailsView.as_view(), name='details-activities'),
     
     path('logout/', LogoutAPI.as_view(), name='logout'),
+    
+    path('send-otp/', SendOTPView.as_view(), name='send-otp'),
+    path('validate-otp/', ValidateOTPView.as_view(), name='validate-otp'),
+    path('reset-password-otp/', OTPResetPasswordView.as_view(), name='reset-password-otp'),
     
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('password-reset-confirm/<uidb64>/<token>/', ResetPasswordView.as_view(), name='password-reset-confirm'),

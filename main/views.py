@@ -1,3 +1,4 @@
+import random
 from PIL import Image
 from io import BytesIO
 import logging
@@ -25,11 +26,11 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, VendorKYC, CreateDeal, PlaceOrder,
+from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, PasswordResetOTP, VendorKYC, CreateDeal, PlaceOrder,
                     ActivityCategory, ServiceCategory)
 
 from .serializers import (
-    CustomUserSerializer, VerifyOTPSerializer, LoginSerializer,
+    CustomUserSerializer, OTPRequestSerializer, OTPResetPasswordSerializer, OTPValidationSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, ChatRoomSerializer, ChatMessageSerializer,
     ChatRequestSerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
@@ -1126,4 +1127,75 @@ class SocialLogin(generics.GenericAPIView):
 
 #         return Response({"notifications": notifications_sent})    
     
+
+class SendOTPView(APIView):
+    serializer_class = OTPRequestSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            # Delete any existing OTP for the user
+            existing_otp = PasswordResetOTP.objects.filter(user=user)
+            if existing_otp.exists():
+                existing_otp.delete()
+        except PasswordResetOTP.DoesNotExist:
+            # This exception will not occur when using `filter()`
+            # because `filter()` does not raise `DoesNotExist`.
+            pass
+        
+
+        # Generate a new OTP
+        otp = str(random.randint(100000, 999999))
+        try:
+            PasswordResetOTP.objects.create(user=user, otp=otp)
+        except Exception as e:
+            # Handle unexpected errors during OTP creation
+            return Response(
+                {"error": "An error occurred while generating a new OTP. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        # Send the OTP via email
+        try:
+            send_mail(
+                'Password Reset OTP',
+                f'Your OTP for password reset is: {otp}',
+                'admin@example.com',  # From email
+                [email],
+                fail_silently=False,
+            )
+        except Exception as e:
+            return Response(
+                {"error": "Failed to send OTP email. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response({"message": "OTP sent to your email."}, status=status.HTTP_200_OK)
     
+class ValidateOTPView(APIView):
+    serializer_class = OTPValidationSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # OTP is valid
+        return Response({"message": "OTP is valid. Proceed to reset your password."}, status=status.HTTP_200_OK)
+    
+class OTPResetPasswordView(APIView):
+    serializer_class = OTPResetPasswordSerializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)
