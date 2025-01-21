@@ -414,26 +414,82 @@ class VendorKYCStatusView(generics.RetrieveAPIView):
 
 
 class VendorKYCListView(ListAPIView):
-    queryset = VendorKYC.objects.all()
     serializer_class = VendorKYCListSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        country = self.request.query_params.get('country', None)
+        # Get the search keyword from query params
+        search_keyword = self.request.query_params.get('address', None)
+
+        # Base query for fetching all vendors
         queryset = VendorKYC.objects.all()
 
-        if country:
-            queryset = queryset.filter(addresses__country=country).distinct()  # Ensure unique vendors
+        if search_keyword:
+            # Split the search keyword into individual terms
+            search_terms = search_keyword.split(',')
+
+            # Start with a Q object for the filtering conditions
+            query = Q()
+
+            if len(search_terms) == 1:
+                # If only one term, assume it's a country, state, or city
+                clean_term = search_terms[0].strip()
+
+                # If the term matches a country, filter by country
+                query |= Q(addresses__country__icontains=clean_term)
+                
+                # If the term matches a state, filter by state
+                query |= Q(addresses__state__icontains=clean_term)
+                
+                # If the term matches a city, filter by city
+                query |= Q(addresses__city__icontains=clean_term)
+
+            elif len(search_terms) == 2:
+                # Two terms: Could be (city, state) or (city, country) or (state, country)
+                clean_first = search_terms[0].strip()
+                clean_second = search_terms[1].strip()
+
+                # Check for city, state (e.g., Mathura, Uttar Pradesh)
+                query |= (
+                    Q(addresses__city__icontains=clean_first) & 
+                    Q(addresses__state__icontains=clean_second)
+                )
+
+                # Check for city, country (e.g., Mathura, India)
+                query |= (
+                    Q(addresses__city__icontains=clean_first) & 
+                    Q(addresses__country__icontains=clean_second)
+                )
+
+                # Check for state, country (e.g., Uttar Pradesh, India)
+                query |= (
+                    Q(addresses__state__icontains=clean_first) & 
+                    Q(addresses__country__icontains=clean_second)
+                )
+
+            elif len(search_terms) == 3:
+                # Three terms: Could be full address with house, road, city, state, country
+                clean_house = search_terms[0].strip()
+                clean_road = search_terms[1].strip()
+                clean_city = search_terms[2].strip()
+
+                query |= (
+                    Q(addresses__house_no_building_name__icontains=clean_house) &
+                    Q(addresses__road_name_area_colony__icontains=clean_road) &
+                    Q(addresses__city__icontains=clean_city)
+                )
+
+            # Apply the query filter
+            queryset = queryset.filter(query).distinct()
 
         return queryset
-
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
 
-        # Prepare the response structure
+        # Prepare response structure
         response_data = {
-            "message": "No Vendor KYC entries available for the specified country." if not queryset.exists() else "Lists of Vendors",
+            "message": "No Vendor KYC entries available for the specified search keyword." if not queryset.exists() else "Lists of Vendors",
             "vendors": []
         }
 
@@ -442,6 +498,10 @@ class VendorKYCListView(ListAPIView):
             response_data["vendors"] = serializer.data
 
         return Response(response_data, status=status.HTTP_200_OK)
+
+
+
+
     
 
 class VendorKYCDetailView(generics.RetrieveAPIView):
@@ -749,18 +809,81 @@ class CreateDeallistView(generics.ListAPIView):
         # Base query: fetch only active deals (end_date >= now)
         queryset = CreateDeal.objects.filter(end_date__gte=now)
 
-        # If search keyword is provided, filter deals based on address fields
         if search_keyword:
-            queryset = queryset.filter(
-                Q(location_house_no__icontains=search_keyword) |
-                Q(location_road_name__icontains=search_keyword) |
-                Q(location_country__icontains=search_keyword) |
-                Q(location_state__icontains=search_keyword) |
-                Q(location_city__icontains=search_keyword) |
-                Q(location_pincode__icontains=search_keyword)
-            )
+            # Split the search keyword into individual terms
+            search_terms = search_keyword.split(',')
+
+            # Start with a Q object for the filtering conditions
+            query = Q()
+
+            if len(search_terms) == 1:
+                # If only one term, assume it's a country, state, or city
+                clean_term = search_terms[0].strip()
+
+                # If the term matches a country, filter by country
+                query |= Q(location_country__icontains=clean_term)
+                
+                # If the term matches a state, filter by state
+                query |= Q(location_state__icontains=clean_term)
+                
+                # If the term matches a city, filter by city
+                query |= Q(location_city__icontains=clean_term)
+
+            elif len(search_terms) == 2:
+                # Two terms: Could be (city, state) or (city, country) or (state, country)
+                clean_first = search_terms[0].strip()
+                clean_second = search_terms[1].strip()
+
+                # Check for city, state (e.g., Mathura, Uttar Pradesh)
+                query |= (
+                    Q(location_city__icontains=clean_first) & 
+                    Q(location_state__icontains=clean_second)
+                )
+
+                # Check for city, country (e.g., Mathura, India)
+                query |= (
+                    Q(location_city__icontains=clean_first) & 
+                    Q(location_country__icontains=clean_second)
+                )
+
+                # Check for state, country (e.g., Uttar Pradesh, India)
+                query |= (
+                    Q(location_state__icontains=clean_first) & 
+                    Q(location_country__icontains=clean_second)
+                )
+
+            elif len(search_terms) == 3:
+                # Three terms: Could be full address with house, road, city, state, country
+                clean_house = search_terms[0].strip()
+                clean_road = search_terms[1].strip()
+                clean_city = search_terms[2].strip()
+
+                query |= (
+                    Q(location_house_no__icontains=clean_house) &
+                    Q(location_road_name__icontains=clean_road) &
+                    Q(location_city__icontains=clean_city)
+                )
+
+            # Apply the query filter
+            queryset = queryset.filter(query).distinct()
 
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+
+        # Prepare response structure
+        response_data = {
+            "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Deals",
+            "deals": []
+        }
+
+        if queryset.exists():
+            serializer = self.get_serializer(queryset, many=True)
+            response_data["deals"] = serializer.data
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
 
 
 
@@ -770,6 +893,31 @@ class ActivityListsView(generics.ListAPIView):
     queryset = Activity.objects.all()  # Retrieves all Activity instances
     serializer_class = ActivityListsSerializer
     permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        # Extract search keyword from query params
+        search_keyword = self.request.query_params.get('address', None)
+
+        # Base queryset
+        queryset = Activity.objects.all()
+
+        if search_keyword:
+            # Split the search keyword into individual terms (e.g., 'Chhaya', 'Porbandar')
+            search_terms = search_keyword.split(',')
+
+            # Start with a Q object for the filtering conditions
+            query = Q()
+
+            # Loop through each keyword and apply the filter on location
+            for term in search_terms:
+                clean_term = term.strip()
+                query |= Q(location__icontains=clean_term)
+
+            # Apply the filter to the queryset
+            queryset = queryset.filter(query).distinct()
+
+        return queryset
+
     
 class ActivityDetailsView(generics.RetrieveAPIView):
     queryset = Activity.objects.all()  # Retrieves all Activity instances
