@@ -1179,19 +1179,28 @@ class SocialLogin(generics.GenericAPIView):
                 type=login_type,                # Login type (Google/Apple)
             )
 
+        # Check if the user has an associated VendorKYC instance
+        vendor_kyc = VendorKYC.objects.filter(user=user).first()
+        vendor_id = str(vendor_kyc.vendor_id) if vendor_kyc else ""
+        is_approved = vendor_kyc.is_approved if vendor_kyc else False
+
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
+        # Build response
         return Response(
             {
                 "user": CustomUserSerializer(user).data,
                 "refresh": str(refresh),
                 "access": access_token,
+                "vendor_id": vendor_id,
+                "is_approved": is_approved,
                 "message": "Login successful.",
             },
             status=status.HTTP_200_OK,
         )
+
 
 
 
