@@ -930,32 +930,21 @@ class LogoutAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        # Extract tokens from request data
+        # Extract refresh token from request data
         refresh_token = request.data.get('refresh')
-        access_token = request.data.get('access')
 
-        # Check for presence of both tokens
-        if not refresh_token or not access_token:
-            return Response({"message": "Refresh and Access tokens are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not refresh_token:
+            return Response({"message": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         # Handle refresh token
         try:
             refresh = RefreshToken(refresh_token)
             refresh.blacklist()  # Blacklists the refresh token
         except TokenError:
-            return Response({"message": "User already logged out."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Handle access token
-        try:
-            access = AccessToken(access_token)
-            # Blacklist access token logic can be implemented here if supported by the application.
-            # In many cases, logging out only invalidates the refresh token.
-            # Custom handling can be done to add access tokens to blacklist manually if required.
-        except TokenError:
-            # Access token is either already expired or invalid.
-            return Response({"message": "Access token invalid or already expired."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Invalid or expired refresh token."}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
+
     
 class ForgotPasswordView(generics.GenericAPIView):
     serializer_class = ForgotPasswordSerializer
