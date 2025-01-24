@@ -35,7 +35,7 @@ from .serializers import (
     ChatRequestSerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
-    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer
+    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -55,7 +55,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import generics, serializers
 #from django.contrib.gis.measure import D
 #from django.contrib.gis.geos import Point
-
+from datetime import datetime
 from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
@@ -1454,3 +1454,42 @@ class OTPResetPasswordView(APIView):
             {"message": "Password has been reset successfully."},
             status=status.HTTP_200_OK
         )
+
+
+class MyDealView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        vendor_kyc = VendorKYC.objects.get(user=request.user)  # vendor_kyc ko fetch kiya
+        current_time = datetime.now()
+
+        # Fetch all deals created by the logged-in vendor
+        deals = CreateDeal.objects.filter(vendor_kyc=vendor_kyc)  # vendor_kyc ko use kiya
+
+        live_deals = []
+        scheduled_deals = []
+        history_deals = []
+
+        for deal in deals:
+            # Check if the current time is within the deal's active period
+            deal_start_datetime = datetime.combine(deal.start_date, deal.start_time)
+            deal_end_datetime = datetime.combine(deal.end_date, deal.end_time)
+
+            if deal_start_datetime <= current_time <= deal_end_datetime:
+                live_deals.append(deal)
+            elif current_time < deal_start_datetime:
+                scheduled_deals.append(deal)
+            elif current_time > deal_end_datetime:
+                history_deals.append(deal)
+
+        # Serialize the data
+        live_deals_serializer = MyDealSerializer(live_deals, many=True)
+        scheduled_deals_serializer = MyDealSerializer(scheduled_deals, many=True)
+        history_deals_serializer = MyDealSerializer(history_deals, many=True)
+
+        # Return the data in the required structure
+        return Response({
+            'live': live_deals_serializer.data,
+            'scheduled': scheduled_deals_serializer.data,
+            'history': history_deals_serializer.data
+        }, status=status.HTTP_200_OK)

@@ -1259,3 +1259,29 @@ class OTPValidationSerializer(serializers.Serializer):
         # OTP is valid
         data['message'] = "OTP is valid. Proceed to reset your password."
         return data
+
+
+class MyDealSerializer(serializers.ModelSerializer):
+    vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
+    vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
+    country = serializers.CharField(source='vendor_kyc.country', read_only=True)
+    discount_percentage = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CreateDeal
+        fields = [
+            'deal_uuid', 'deal_post_time', 'deal_title', 'select_service',
+            'uploaded_images', 'start_date', 'end_date', 'start_time', 'end_time',
+            'actual_price', 'deal_price', 'available_deals',
+            'location_house_no', 'location_road_name', 'location_country',
+            'location_state', 'location_city', 'location_pincode',
+            'vendor_name', 'vendor_uuid', 'country',
+            'discount_percentage', 'latitude', 'longitude'
+        ]
+
+    def get_discount_percentage(self, obj):
+        if obj.actual_price > 0:
+            discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
+            return round(discount, 2)
+        return 0.0
+
