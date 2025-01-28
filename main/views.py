@@ -817,52 +817,33 @@ class CreateDeallistView(generics.ListAPIView):
             query = Q()
 
             if len(search_terms) == 1:
-                # If only one term, assume it's a country, state, or city
+                # If only one term, it could be city, state, or country
                 clean_term = search_terms[0].strip()
 
-                # If the term matches a country, filter by country
-                query |= Q(location_country__icontains=clean_term)
-                
-                # If the term matches a state, filter by state
-                query |= Q(location_state__icontains=clean_term)
-                
-                # If the term matches a city, filter by city
                 query |= Q(location_city__icontains=clean_term)
+                query |= Q(location_state__icontains=clean_term)
+                query |= Q(location_country__icontains=clean_term)
 
             elif len(search_terms) == 2:
-                # Two terms: Could be (city, state) or (city, country) or (state, country)
+                # If two terms, focus only on city and state or city and country
                 clean_first = search_terms[0].strip()
                 clean_second = search_terms[1].strip()
 
-                # Check for city, state (e.g., Mathura, Uttar Pradesh)
-                query |= (
-                    Q(location_city__icontains=clean_first) & 
-                    Q(location_state__icontains=clean_second)
-                )
+                # Handle city and state
+                query |= Q(location_city__icontains=clean_first)
+                # Ignore state if city is present
+                if not queryset.filter(location_city__icontains=clean_first).exists():
+                    query |= Q(location_state__icontains=clean_first)
 
-                # Check for city, country (e.g., Mathura, India)
-                query |= (
-                    Q(location_city__icontains=clean_first) & 
-                    Q(location_country__icontains=clean_second)
-                )
+                # Handle state and country (ignore country)
+                query |= Q(location_state__icontains=clean_second)
 
-                # Check for state, country (e.g., Uttar Pradesh, India)
-                query |= (
-                    Q(location_state__icontains=clean_first) & 
-                    Q(location_country__icontains=clean_second)
-                )
-
-            elif len(search_terms) == 3:
-                # Three terms: Could be full address with house, road, city, state, country
-                clean_house = search_terms[0].strip()
-                clean_road = search_terms[1].strip()
-                clean_city = search_terms[2].strip()
-
-                query |= (
-                    Q(location_house_no__icontains=clean_house) &
-                    Q(location_road_name__icontains=clean_road) &
-                    Q(location_city__icontains=clean_city)
-                )
+            elif len(search_terms) >= 3:
+                # For full address with multiple components
+                clean_terms = [term.strip() for term in search_terms]
+                query |= Q(location_city__icontains=clean_terms[-3])
+                query |= Q(location_state__icontains=clean_terms[-2])
+                query |= Q(location_country__icontains=clean_terms[-1])
 
             # Apply the query filter
             queryset = queryset.filter(query).distinct()
@@ -883,6 +864,8 @@ class CreateDeallistView(generics.ListAPIView):
             response_data["deals"] = serializer.data
 
         return Response(response_data, status=status.HTTP_200_OK)
+
+
 
 
 

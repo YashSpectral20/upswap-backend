@@ -1266,6 +1266,7 @@ class MyDealSerializer(serializers.ModelSerializer):
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
+    deal_post_time = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
@@ -1285,3 +1286,7 @@ class MyDealSerializer(serializers.ModelSerializer):
             return round(discount, 2)
         return 0.0
 
+    def get_deal_post_time(self, obj):
+        if obj.deal_post_time:
+            return obj.deal_post_time.strftime('%Y-%m-%d %H:%M:%S')
+        return None
