@@ -1267,6 +1267,7 @@ class MyDealSerializer(serializers.ModelSerializer):
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
     deal_post_time = serializers.SerializerMethodField()
+    uploaded_images = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
@@ -1290,3 +1291,17 @@ class MyDealSerializer(serializers.ModelSerializer):
         if obj.deal_post_time:
             return obj.deal_post_time.strftime('%Y-%m-%d %H:%M:%S')
         return None
+    
+    def get_uploaded_images(self, obj):
+        """
+        Fetch only the first image thumbnail from uploaded_images.
+        This ensures only the first uploaded image's thumbnail is fetched.
+        """
+        # Ensure uploaded_images field is valid and has data
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
+
+        # Return only the thumbnail of the first image in the uploaded_images list
+        first_image = obj.uploaded_images[0]  # Get the first image
+        thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
+        return [thumbnail] if thumbnail else []
