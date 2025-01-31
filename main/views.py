@@ -858,8 +858,10 @@ class CreateDeallistView(generics.ListAPIView):
     def get_queryset(self):
         now = timezone.now()
         search_keyword = self.request.query_params.get('address', None)
-        queryset = CreateDeal.objects.filter(end_date__gte=now)
-        
+
+        # Filter only currently active deals (start_date <= now and end_date >= now)
+        queryset = CreateDeal.objects.filter(start_date__lte=now, end_date__gte=now)
+
         if search_keyword:
             search_terms = [term.strip() for term in search_keyword.split(',')]
             query = Q()
