@@ -800,70 +800,61 @@ class CreateDeallistView(generics.ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Current date and time
         now = timezone.now()
-
-        # Extract search keyword from query params
         search_keyword = self.request.query_params.get('address', None)
-
-        # Base query: fetch only active deals (end_date >= now)
         queryset = CreateDeal.objects.filter(end_date__gte=now)
-
+        
         if search_keyword:
-            # Split the search keyword into individual terms
-            search_terms = search_keyword.split(',')
-
-            # Start with a Q object for the filtering conditions
+            search_terms = [term.strip() for term in search_keyword.split(',')]
             query = Q()
 
             if len(search_terms) == 1:
-                # If only one term, it could be city, state, or country
-                clean_term = search_terms[0].strip()
-
+                clean_term = search_terms[0]
                 query |= Q(location_city__icontains=clean_term)
                 query |= Q(location_state__icontains=clean_term)
                 query |= Q(location_country__icontains=clean_term)
-
+                query |= Q(location_pincode__icontains=clean_term)
+                query |= Q(location_road_name__icontains=clean_term)
+            
             elif len(search_terms) == 2:
-                # If two terms, focus only on city and state or city and country
-                clean_first = search_terms[0].strip()
-                clean_second = search_terms[1].strip()
+                if queryset.filter(location_city__icontains=search_terms[0]).exists():
+                    query |= Q(location_city__icontains=search_terms[0])
+                elif queryset.filter(location_state__icontains=search_terms[0]).exists():
+                    query |= Q(location_state__icontains=search_terms[0])
+                elif queryset.filter(location_country__icontains=search_terms[0]).exists():
+                    query |= Q(location_country__icontains=search_terms[0])
 
-                # Handle city and state
-                query |= Q(location_city__icontains=clean_first)
-                # Ignore state if city is present
-                if not queryset.filter(location_city__icontains=clean_first).exists():
-                    query |= Q(location_state__icontains=clean_first)
+            elif len(search_terms) == 3:
+                if queryset.filter(location_city__icontains=search_terms[0]).exists():
+                    query |= Q(location_city__icontains=search_terms[0])
+                elif queryset.filter(location_state__icontains=search_terms[1]).exists():
+                    query |= Q(location_state__icontains=search_terms[1])
+                elif queryset.filter(location_country__icontains=search_terms[2]).exists():
+                    query |= Q(location_country__icontains=search_terms[2])
 
-                # Handle state and country (ignore country)
-                query |= Q(location_state__icontains=clean_second)
-
-            elif len(search_terms) >= 3:
-                # For full address with multiple components
-                clean_terms = [term.strip() for term in search_terms]
-                query |= Q(location_city__icontains=clean_terms[-3])
-                query |= Q(location_state__icontains=clean_terms[-2])
-                query |= Q(location_country__icontains=clean_terms[-1])
-
-            # Apply the query filter
+            elif len(search_terms) >= 4:
+                if queryset.filter(location_road_name__icontains=search_terms[0]).exists():
+                    query |= Q(location_road_name__icontains=search_terms[0])
+                else:
+                    return CreateDeal.objects.none()
+            
             queryset = queryset.filter(query).distinct()
-
+        
         return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-
-        # Prepare response structure
         response_data = {
             "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Deals",
             "deals": []
         }
-
+        
         if queryset.exists():
             serializer = self.get_serializer(queryset, many=True)
             response_data["deals"] = serializer.data
-
+        
         return Response(response_data, status=status.HTTP_200_OK)
+
 
 
 
