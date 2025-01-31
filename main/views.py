@@ -920,7 +920,7 @@ class CreateDeallistView(generics.ListAPIView):
     
     
 class ActivityListsView(generics.ListAPIView):
-    queryset = Activity.objects.all()  # Retrieves all Activity instances
+    queryset = Activity.objects.all()
     serializer_class = ActivityListsSerializer
     permission_classes = [AllowAny]
 
@@ -941,7 +941,7 @@ class ActivityListsView(generics.ListAPIView):
             # Loop through each keyword and apply the filter on location
             for term in search_terms:
                 clean_term = term.strip()
-                query |= Q(location__icontains=clean_term)
+                query &= Q(location__icontains=clean_term)
 
             # Apply the filter to the queryset
             queryset = queryset.filter(query).distinct()
