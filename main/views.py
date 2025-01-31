@@ -413,95 +413,151 @@ class VendorKYCStatusView(generics.RetrieveAPIView):
             return Response({"message": "VendorKYC not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
+# class VendorKYCListView(ListAPIView):
+#     serializer_class = VendorKYCListSerializer
+#     permission_classes = [AllowAny]
+
+#     def get_queryset(self):
+#         # Get the search keyword from query params
+#         search_keyword = self.request.query_params.get('address', None)
+
+#         # Base query for fetching all vendors
+#         queryset = VendorKYC.objects.all()
+
+#         if search_keyword:
+#             # Split the search keyword into individual terms
+#             search_terms = search_keyword.split(',')
+
+#             # Start with a Q object for the filtering conditions
+#             query = Q()
+
+#             if len(search_terms) == 1:
+#                 # If only one term, assume it's a country, state, or city
+#                 clean_term = search_terms[0].strip()
+
+#                 # If the term matches a country, filter by country
+#                 query |= Q(addresses__country__icontains=clean_term)
+                
+#                 # If the term matches a state, filter by state
+#                 query |= Q(addresses__state__icontains=clean_term)
+                
+#                 # If the term matches a city, filter by city
+#                 query |= Q(addresses__city__icontains=clean_term)
+
+#             elif len(search_terms) == 2:
+#                 # Two terms: Could be (city, state) or (city, country) or (state, country)
+#                 clean_first = search_terms[0].strip()
+#                 clean_second = search_terms[1].strip()
+
+#                 # Check for city, state (e.g., Mathura, Uttar Pradesh)
+#                 query |= (
+#                     Q(addresses__city__icontains=clean_first) & 
+#                     Q(addresses__state__icontains=clean_second)
+#                 )
+
+#                 # Check for city, country (e.g., Mathura, India)
+#                 query |= (
+#                     Q(addresses__city__icontains=clean_first) & 
+#                     Q(addresses__country__icontains=clean_second)
+#                 )
+
+#                 # Check for state, country (e.g., Uttar Pradesh, India)
+#                 query |= (
+#                     Q(addresses__state__icontains=clean_first) & 
+#                     Q(addresses__country__icontains=clean_second)
+#                 )
+
+#             elif len(search_terms) == 3:
+#                 # Three terms: Could be full address with house, road, city, state, country
+#                 clean_house = search_terms[0].strip()
+#                 clean_road = search_terms[1].strip()
+#                 clean_city = search_terms[2].strip()
+
+#                 query |= (
+#                     Q(addresses__house_no_building_name__icontains=clean_house) &
+#                     Q(addresses__road_name_area_colony__icontains=clean_road) &
+#                     Q(addresses__city__icontains=clean_city)
+#                 )
+
+#             # Apply the query filter
+#             queryset = queryset.filter(query).distinct()
+
+#         return queryset
+
+#     def list(self, request, *args, **kwargs):
+#         queryset = self.get_queryset()
+
+#         # Prepare response structure
+#         response_data = {
+#             "message": "No Vendor KYC entries available for the specified search keyword." if not queryset.exists() else "Lists of Vendors",
+#             "vendors": []
+#         }
+
+#         if queryset.exists():
+#             serializer = self.get_serializer(queryset, many=True)
+#             response_data["vendors"] = serializer.data
+
+#         return Response(response_data, status=status.HTTP_200_OK)
+
+
+
 class VendorKYCListView(ListAPIView):
     serializer_class = VendorKYCListSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Get the search keyword from query params
         search_keyword = self.request.query_params.get('address', None)
-
-        # Base query for fetching all vendors
-        queryset = VendorKYC.objects.all()
-
+        queryset = VendorKYC.objects.all()  # Removed the end_date filter
+        
         if search_keyword:
-            # Split the search keyword into individual terms
-            search_terms = search_keyword.split(',')
-
-            # Start with a Q object for the filtering conditions
+            search_terms = [term.strip() for term in search_keyword.split(',')]
             query = Q()
 
             if len(search_terms) == 1:
-                # If only one term, assume it's a country, state, or city
-                clean_term = search_terms[0].strip()
-
-                # If the term matches a country, filter by country
-                query |= Q(addresses__country__icontains=clean_term)
-                
-                # If the term matches a state, filter by state
-                query |= Q(addresses__state__icontains=clean_term)
-                
-                # If the term matches a city, filter by city
+                clean_term = search_terms[0]
                 query |= Q(addresses__city__icontains=clean_term)
-
+                query |= Q(addresses__state__icontains=clean_term)
+                query |= Q(addresses__country__icontains=clean_term)
+                query |= Q(addresses__pincode__icontains=clean_term)
+                query |= Q(addresses__road_name_area_colony__icontains=clean_term)
+            
             elif len(search_terms) == 2:
-                # Two terms: Could be (city, state) or (city, country) or (state, country)
-                clean_first = search_terms[0].strip()
-                clean_second = search_terms[1].strip()
-
-                # Check for city, state (e.g., Mathura, Uttar Pradesh)
-                query |= (
-                    Q(addresses__city__icontains=clean_first) & 
-                    Q(addresses__state__icontains=clean_second)
-                )
-
-                # Check for city, country (e.g., Mathura, India)
-                query |= (
-                    Q(addresses__city__icontains=clean_first) & 
-                    Q(addresses__country__icontains=clean_second)
-                )
-
-                # Check for state, country (e.g., Uttar Pradesh, India)
-                query |= (
-                    Q(addresses__state__icontains=clean_first) & 
-                    Q(addresses__country__icontains=clean_second)
-                )
+                if queryset.filter(addresses__city__icontains=search_terms[0]).exists():
+                    query |= Q(addresses__city__icontains=search_terms[0])
+                elif queryset.filter(addresses__state__icontains=search_terms[0]).exists():
+                    query |= Q(addresses__state__icontains=search_terms[0])
+                elif queryset.filter(addresses__country__icontains=search_terms[0]).exists():
+                    query |= Q(addresses__country__icontains=search_terms[0])
 
             elif len(search_terms) == 3:
-                # Three terms: Could be full address with house, road, city, state, country
-                clean_house = search_terms[0].strip()
-                clean_road = search_terms[1].strip()
-                clean_city = search_terms[2].strip()
+                if queryset.filter(addresses__city__icontains=search_terms[0]).exists():
+                    query |= Q(addresses__city__icontains=search_terms[0])
+                elif queryset.filter(addresses__state__icontains=search_terms[1]).exists():
+                    query |= Q(addresses__state__icontains=search_terms[1])
+                elif queryset.filter(addresses__country__icontains=search_terms[2]).exists():
+                    query |= Q(addresses__country__icontains=search_terms[2])
 
-                query |= (
-                    Q(addresses__house_no_building_name__icontains=clean_house) &
-                    Q(addresses__road_name_area_colony__icontains=clean_road) &
-                    Q(addresses__city__icontains=clean_city)
-                )
-
-            # Apply the query filter
+            elif len(search_terms) >= 4:
+                if queryset.filter(addresses__road_name_area_colony__icontains=search_terms[0]).exists():
+                    query |= Q(addresses__road_name_area_colony__icontains=search_terms[0])
+                else:
+                    return VendorKYC.objects.none()
+            
             queryset = queryset.filter(query).distinct()
-
+        
         return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-
-        # Prepare response structure
         response_data = {
-            "message": "No Vendor KYC entries available for the specified search keyword." if not queryset.exists() else "Lists of Vendors",
-            "vendors": []
+            "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Deals",
+            "deals": []
         }
-
+        
         if queryset.exists():
             serializer = self.get_serializer(queryset, many=True)
-            response_data["vendors"] = serializer.data
-
+            response_data["vendors"] = serializer.data 
         return Response(response_data, status=status.HTTP_200_OK)
-
-
-
-
     
 
 class VendorKYCDetailView(generics.RetrieveAPIView):
