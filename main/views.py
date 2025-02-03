@@ -864,40 +864,32 @@ class CreateDeallistView(generics.ListAPIView):
 
         if search_keyword:
             search_terms = [term.strip() for term in search_keyword.split(',')]
-            query = Q()
 
-            if len(search_terms) == 1:
-                clean_term = search_terms[0]
-                query |= Q(location_city__icontains=clean_term)
-                query |= Q(location_state__icontains=clean_term)
-                query |= Q(location_country__icontains=clean_term)
-                query |= Q(location_pincode__icontains=clean_term)
-                query |= Q(location_road_name__icontains=clean_term)
-            
-            elif len(search_terms) == 2:
-                if queryset.filter(location_city__icontains=search_terms[0]).exists():
-                    query |= Q(location_city__icontains=search_terms[0])
-                elif queryset.filter(location_state__icontains=search_terms[0]).exists():
-                    query |= Q(location_state__icontains=search_terms[0])
-                elif queryset.filter(location_country__icontains=search_terms[0]).exists():
-                    query |= Q(location_country__icontains=search_terms[0])
+            # Ensure all search terms match at least one field, otherwise return empty queryset
+            filters = Q()
+            all_match = True  # This flag ensures that all terms must match
 
-            elif len(search_terms) == 3:
-                if queryset.filter(location_city__icontains=search_terms[0]).exists():
-                    query |= Q(location_city__icontains=search_terms[0])
-                elif queryset.filter(location_state__icontains=search_terms[1]).exists():
-                    query |= Q(location_state__icontains=search_terms[1])
-                elif queryset.filter(location_country__icontains=search_terms[2]).exists():
-                    query |= Q(location_country__icontains=search_terms[2])
+            for term in search_terms:
+                sub_query = (
+                    Q(location_city__icontains=term) |
+                    Q(location_state__icontains=term) |
+                    Q(location_country__icontains=term) |
+                    Q(location_pincode__icontains=term) |
+                    Q(location_road_name__icontains=term)
+                )
 
-            elif len(search_terms) >= 4:
-                if queryset.filter(location_road_name__icontains=search_terms[0]).exists():
-                    query |= Q(location_road_name__icontains=search_terms[0])
-                else:
-                    return CreateDeal.objects.none()
-            
-            queryset = queryset.filter(query).distinct()
-        
+                # Agar kisi term ka match nahi mila to all_match ko False kar dete hain
+                if not queryset.filter(sub_query).exists():
+                    all_match = False
+                    break  # Ek bhi term match nahi hui to loop break kar dete hain
+
+                filters &= sub_query  # Har term ke liye filter apply karte hain
+
+            if not all_match:
+                return CreateDeal.objects.none()  # Ek bhi match nahi mila to empty queryset return karte hain
+
+            queryset = queryset.filter(filters).distinct()
+
         return queryset
 
     def list(self, request, *args, **kwargs):
