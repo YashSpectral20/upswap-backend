@@ -22,10 +22,11 @@ from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth import get_user_model
 from django.utils.encoding import force_str
 from .validators import validate_password_strength
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, AuthenticationFailed
 from io import BytesIO
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.contrib.auth import authenticate
 
 User = get_user_model()
 
@@ -1305,3 +1306,23 @@ class MyDealSerializer(serializers.ModelSerializer):
         first_image = obj.uploaded_images[0]  # Get the first image
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
+    
+class SuperadminLoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        email = data.get("email")
+        password = data.get("password")
+
+        # ✅ Authenticate User
+        user = authenticate(email=email, password=password)
+
+        if not user:
+            raise AuthenticationFailed("Invalid email or password.")
+
+        if not user.is_superuser:
+            raise AuthenticationFailed("Access denied. Superadmin only.")
+
+        data["user"] = user
+        return data

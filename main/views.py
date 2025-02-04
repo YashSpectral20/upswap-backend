@@ -35,7 +35,7 @@ from .serializers import (
     ChatRequestSerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
-    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer
+    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -859,38 +859,30 @@ class CreateDeallistView(generics.ListAPIView):
         now = timezone.now()
         search_keyword = self.request.query_params.get('address', None)
 
-        # Filter only currently active deals (start_date <= now and end_date >= now)
+        # Get active deals
         queryset = CreateDeal.objects.filter(start_date__lte=now, end_date__gte=now)
 
-        if search_keyword:
-            search_terms = [term.strip() for term in search_keyword.split(',')]
+        if not search_keyword:
+            return queryset
 
-            # Ensure all search terms match at least one field, otherwise return empty queryset
-            filters = Q()
-            all_match = True  # This flag ensures that all terms must match
+        search_terms = [term.strip() for term in search_keyword.split(',')]
+        query = Q()
+        filter_priority = ["location_road_name", "location_city", "location_state", "location_country", "location_pincode"]
+        matched_fields = []
 
-            for term in search_terms:
-                sub_query = (
-                    Q(location_city__icontains=term) |
-                    Q(location_state__icontains=term) |
-                    Q(location_country__icontains=term) |
-                    Q(location_pincode__icontains=term) |
-                    Q(location_road_name__icontains=term)
-                )
+        for i, field in enumerate(filter_priority[: len(search_terms)]):
+            search_value = search_terms[i]
+            if queryset.filter(**{f"{field}__icontains": search_value}).exists():
+                query &= Q(**{f"{field}__icontains": search_value})
+                matched_fields.append(field)
+            else:
+                return CreateDeal.objects.none()  # If any search term doesn't match, return empty list
+        
+        # If multiple fields are searched, filter only by the last matching field
+        if matched_fields:
+            queryset = queryset.filter(Q(**{f"{matched_fields[-1]}__icontains": search_terms[len(matched_fields)-1]}))
 
-                # Agar kisi term ka match nahi mila to all_match ko False kar dete hain
-                if not queryset.filter(sub_query).exists():
-                    all_match = False
-                    break  # Ek bhi term match nahi hui to loop break kar dete hain
-
-                filters &= sub_query  # Har term ke liye filter apply karte hain
-
-            if not all_match:
-                return CreateDeal.objects.none()  # Ek bhi match nahi mila to empty queryset return karte hain
-
-            queryset = queryset.filter(filters).distinct()
-
-        return queryset
+        return queryset.distinct()
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -898,19 +890,12 @@ class CreateDeallistView(generics.ListAPIView):
             "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Deals",
             "deals": []
         }
-        
+
         if queryset.exists():
             serializer = self.get_serializer(queryset, many=True)
             response_data["deals"] = serializer.data
-        
+
         return Response(response_data, status=status.HTTP_200_OK)
-
-
-
-
-
-
-
     
     
 class ActivityListsView(generics.ListAPIView):
@@ -1516,4 +1501,33 @@ class MyDealView(APIView):
             'live': live_deals_serializer.data,
             'scheduled': scheduled_deals_serializer.data,
             'history': history_deals_serializer.data
+        }, status=status.HTTP_200_OK)
+
+
+class SuperadminLoginView(APIView):
+    def post(self, request):
+        serializer = SuperadminLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.validated_data["user"]
+
+        # ✅ Check if user is superadmin
+        if not user.is_superuser:
+            raise AuthenticationFailed("Access denied. Only superadmins can log in.")
+
+       
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+
+        return Response({
+            "message": "Superadmin logged in successfully.",
+            "access_token": access_token,
+            "refresh_token": str(refresh),
+            "user": {
+                "id": str(user.id),
+                "name": user.name,
+                "email": user.email,
+                "username": user.username,
+                "is_superuser": user.is_superuser  
+            }
         }, status=status.HTTP_200_OK)
