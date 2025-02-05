@@ -1508,13 +1508,24 @@ class SuperadminLoginView(APIView):
         serializer = SuperadminLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        user = serializer.validated_data["user"]
+        email = serializer.validated_data.get("email")
+        password = serializer.validated_data.get("password")
+
+        # ✅ Check if user exists
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise AuthenticationFailed("User not exists.")
+
+        # ✅ Authenticate user
+        user = authenticate(email=email, password=password)
+        if user is None:
+            raise AuthenticationFailed("Invalid Credentials.")
 
         # ✅ Check if user is superadmin
         if not user.is_superuser:
             raise AuthenticationFailed("Access denied. Only superadmins can log in.")
 
-       
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
