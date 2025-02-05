@@ -1515,7 +1515,7 @@ class SuperadminLoginView(APIView):
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
-            raise AuthenticationFailed("User not exists.")
+            raise AuthenticationFailed("User do not exists.")
 
         # ✅ Authenticate user
         user = authenticate(email=email, password=password)
