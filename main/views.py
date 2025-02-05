@@ -550,8 +550,7 @@ class VendorKYCListView(ListAPIView):
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         response_data = {
-            "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Deals",
-            "deals": []
+            "message": "No vendors found for the specified search keyword." if not queryset.exists() else "List of Vendors",
         }
         
         if queryset.exists():
