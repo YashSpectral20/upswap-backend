@@ -1545,7 +1545,7 @@ class SuperadminLoginView(APIView):
                 "type": user.type,
                 "is_superuser": user.is_superuser
             },
-            "message": "Superadmin logged in successfully.",
+            "message": "Superadmin logged inn successfully.",
             "access_token": access_token,
             "refresh_token": str(refresh),
         }, status=status.HTTP_200_OK)
