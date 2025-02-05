@@ -1520,14 +1520,22 @@ class SuperadminLoginView(APIView):
         access_token = str(refresh.access_token)
 
         return Response({
-            "message": "Superadmin logged in successfully.",
-            "access_token": access_token,
-            "refresh_token": str(refresh),
             "user": {
                 "id": str(user.id),
                 "name": user.name,
-                "email": user.email,
                 "username": user.username,
-                "is_superuser": user.is_superuser  
-            }
+                "email": user.email,
+                "phone_number": user.phone_number,
+                "date_of_birth": user.date_of_birth,
+                "gender": user.gender,
+                "country_code": user.country_code,
+                "dial_code": user.dial_code,
+                "country": user.country,
+                "social_id": user.social_id,
+                "type": user.type,
+                "is_superuser": user.is_superuser
+            },
+            "message": "Superadmin logged in successfully.",
+            "access_token": access_token,
+            "refresh_token": str(refresh),
         }, status=status.HTTP_200_OK)
