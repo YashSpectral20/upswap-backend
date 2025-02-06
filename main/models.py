@@ -467,3 +467,14 @@ class PasswordResetOTP(models.Model):
 
     def is_expired(self):
         return now() > self.created_at + timedelta(minutes=10)
+    
+class FavoriteVendor(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorite_vendors')
+    vendor = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='favorited_by')
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'vendor')  # Same vendor ko ek user multiple baar favorite nahi kar sakta
+
+    def __str__(self):
+        return f"{self.user.email} favorited {self.vendor.full_name}"

@@ -15,7 +15,7 @@ from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
     ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory
+    ActivityCategory, ServiceCategory, FavoriteVendor
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
@@ -505,10 +505,11 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     services = serializers.SerializerMethodField()
     addresses = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
+    is_favorite = serializers.SerializerMethodField()
     
     class Meta:
         model = VendorKYC
-        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'services', 'addresses']
+        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'services', 'addresses', 'is_favorite']
 
     def get_services(self, obj):
         # Assuming 'services' is a related field in the VendorKYC model
@@ -540,6 +541,14 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         ]
 
         return images
+    
+    def get_is_favorite(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            # Check if this vendor is favorited by the logged-in user
+            favorite_vendor = FavoriteVendor.objects.filter(user=user, vendor=obj).exists()
+            return favorite_vendor
+        return False  # If user is not authenticated, return False
 
 
         
@@ -1307,6 +1316,14 @@ class MyDealSerializer(serializers.ModelSerializer):
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
     
+class FavoriteVendorSerializer(serializers.ModelSerializer):
+    vendor_name = serializers.CharField(source='vendor.full_name', read_only=True)
+
+    class Meta:
+        model = FavoriteVendor
+        fields = ['id', 'vendor', 'vendor_name', 'added_at']
+
+# For Upswap Web App Version:
 class SuperadminLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)

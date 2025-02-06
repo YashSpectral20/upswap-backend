@@ -27,7 +27,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
 from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, PasswordResetOTP, VendorKYC, CreateDeal, PlaceOrder,
-                    ActivityCategory, ServiceCategory)
+                    ActivityCategory, ServiceCategory, FavoriteVendor)
 
 from .serializers import (
     CustomUserSerializer, OTPRequestSerializer, OTPResetPasswordSerializer, OTPValidationSerializer, VerifyOTPSerializer, LoginSerializer,
@@ -35,7 +35,7 @@ from .serializers import (
     ChatRequestSerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
-    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer
+    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -554,7 +554,7 @@ class VendorKYCListView(ListAPIView):
         }
         
         if queryset.exists():
-            serializer = self.get_serializer(queryset, many=True)
+            serializer = self.get_serializer(queryset, many=True, context={'request': request})
             response_data["vendors"] = serializer.data 
         return Response(response_data, status=status.HTTP_200_OK)
     
@@ -1501,8 +1501,29 @@ class MyDealView(APIView):
             'scheduled': scheduled_deals_serializer.data,
             'history': history_deals_serializer.data
         }, status=status.HTTP_200_OK)
+        
+class FavoriteVendorView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request, vendor_id):
+        try:
+            # Get the vendor
+            vendor = VendorKYC.objects.get(vendor_id=vendor_id)
+        except VendorKYC.DoesNotExist:
+            return Response({"error": "Vendor not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Check if the vendor is already favorited by the user
+        try:
+            favorite = FavoriteVendor.objects.get(user=request.user, vendor=vendor)
+            # If the vendor is already in favorites, delete it (unfavorite)
+            favorite.delete()
+            return Response({"message": f"{vendor.full_name} removed from favorites."}, status=status.HTTP_200_OK)
+        except FavoriteVendor.DoesNotExist:
+            # If the vendor is not in favorites, create a new entry (favorite)
+            FavoriteVendor.objects.create(user=request.user, vendor=vendor)
+            return Response({"message": f"{vendor.full_name} added to favorites."}, status=status.HTTP_201_CREATED)
+        
+# For Upswap Web App Version:
 class SuperadminLoginView(APIView):
     def post(self, request):
         serializer = SuperadminLoginSerializer(data=request.data)
