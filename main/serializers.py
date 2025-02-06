@@ -1332,7 +1332,7 @@ class SuperadminLoginSerializer(serializers.Serializer):
         email = data.get("email")
         password = data.get("password")
 
-        # ✅ Authenticate User
+        # Authenticate User
         user = authenticate(email=email, password=password)
 
         if not user:
