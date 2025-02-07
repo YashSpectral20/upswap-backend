@@ -1523,6 +1523,20 @@ class FavoriteVendorView(APIView):
             FavoriteVendor.objects.create(user=request.user, vendor=vendor)
             return Response({"message": f"{vendor.full_name} added to favorites."}, status=status.HTTP_201_CREATED)
         
+class FavoriteVendorListView(ListAPIView):
+    serializer_class = VendorKYCListSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        favorite_vendors = FavoriteVendor.objects.filter(user=user).values_list('vendor', flat=True)
+        return VendorKYC.objects.filter(vendor_id__in=favorite_vendors, is_approved=True)
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context.update({"request": self.request})
+        return context
+        
 # For Upswap Web App Version:
 class SuperadminLoginView(APIView):
     def post(self, request):

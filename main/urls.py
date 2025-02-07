@@ -122,7 +122,7 @@ from .views import (
     CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
-    SuperadminLoginView, FavoriteVendorView
+    SuperadminLoginView, FavoriteVendorView, FavoriteVendorListView
 )
 
 # Swagger Schema View
@@ -222,6 +222,8 @@ urlpatterns = [
     path('superadmin/login/', SuperadminLoginView.as_view(), name='superadmin-login'),
     
     path('vendors/<uuid:vendor_id>/favorite/', FavoriteVendorView.as_view(), name='favorite_vendor'),
+    
+    path('favorite-vendors/lists/', FavoriteVendorListView.as_view(), name='favorite-vendors-list'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
