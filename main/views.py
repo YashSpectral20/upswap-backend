@@ -35,7 +35,8 @@ from .serializers import (
     ChatRequestSerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
-    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer
+    ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
+    MyActivitysSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -1464,6 +1465,41 @@ class OTPResetPasswordView(APIView):
         )
 
 
+class MyActivityView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        current_time = datetime.now()
+
+        # Get activities created by the authenticated user
+        activities = Activity.objects.filter(created_by=request.user)
+
+        live_activities = []
+        scheduled_activities = []
+        history_activities = []
+
+        for activity in activities:
+            activity_start_datetime = datetime.combine(activity.start_date, activity.start_time)
+            activity_end_datetime = datetime.combine(activity.end_date, activity.end_time)
+
+            if activity_start_datetime <= current_time <= activity_end_datetime:
+                live_activities.append(activity)
+            elif current_time < activity_start_datetime:
+                scheduled_activities.append(activity)
+            elif current_time > activity_end_datetime:
+                history_activities.append(activity)
+
+        # Serialize activities
+        live_activities_serializer = MyActivitysSerializer(live_activities, many=True)
+        scheduled_activities_serializer = MyActivitysSerializer(scheduled_activities, many=True)
+        history_activities_serializer = MyActivitysSerializer(history_activities, many=True)
+
+        return Response({
+            'live': live_activities_serializer.data,
+            'scheduled': scheduled_activities_serializer.data,
+            'history': history_activities_serializer.data
+        }, status=status.HTTP_200_OK)
+
 class MyDealView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1523,7 +1559,7 @@ class FavoriteVendorView(APIView):
             FavoriteVendor.objects.create(user=request.user, vendor=vendor)
             return Response({"message": f"{vendor.full_name} added to favorites."}, status=status.HTTP_201_CREATED)
         
-class FavoriteVendorListView(ListAPIView):
+class FavoriteVendorListView(ListAPIView): 
     serializer_class = VendorKYCListSerializer
     permission_classes = [IsAuthenticated]
 
@@ -1536,6 +1572,17 @@ class FavoriteVendorListView(ListAPIView):
         context = super().get_serializer_context()
         context.update({"request": self.request})
         return context
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        response_data = {
+            "message": "No favorite vendors found." if not queryset.exists() else "List of Favorite Vendors",
+        }
+
+        if queryset.exists():
+            serializer = self.get_serializer(queryset, many=True, context={'request': request})
+            response_data["vendors"] = serializer.data
+        return Response(response_data, status=status.HTTP_200_OK)
         
 # For Upswap Web App Version:
 class SuperadminLoginView(APIView):

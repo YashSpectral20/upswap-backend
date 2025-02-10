@@ -1269,7 +1269,32 @@ class OTPValidationSerializer(serializers.Serializer):
         # OTP is valid
         data['message'] = "OTP is valid. Proceed to reset your password."
         return data
+    
+class MyActivitysSerializer(serializers.ModelSerializer):
+    user_id = serializers.UUIDField(source='created_by.id', read_only=True)
+    created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
+    activity_category = ActivityCategorySerializer(required=True)
+    uploaded_images = serializers.SerializerMethodField()
 
+    class Meta:
+        model = Activity
+        fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
+                  'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
+                  'location']
+        
+    def get_uploaded_images(self, obj):
+        """
+        Fetch only the first image thumbnail from uploaded_images.
+        This ensures only the first uploaded image's thumbnail is fetched.
+        """
+        # Ensure uploaded_images field is valid and has data
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
+
+        # Return only the thumbnail of the first image in the uploaded_images list
+        first_image = obj.uploaded_images[0]  # Get the first image
+        thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
+        return [thumbnail] if thumbnail else []
 
 class MyDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
