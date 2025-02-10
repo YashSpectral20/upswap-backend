@@ -1347,6 +1347,63 @@ class FavoriteVendorSerializer(serializers.ModelSerializer):
     class Meta:
         model = FavoriteVendor
         fields = ['id', 'vendor', 'vendor_name', 'added_at']
+        
+class FavoriteVendorsListSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source='user.name', read_only=True)
+    user = serializers.UUIDField(source='user.id', read_only=True)
+    services = serializers.SerializerMethodField()
+    addresses = serializers.SerializerMethodField()
+    uploaded_images = serializers.SerializerMethodField()
+    is_favorite = serializers.SerializerMethodField()
+
+    # Add phone_number and business_email_id fields
+    phone_number = serializers.CharField(source='vendor.phone_number', read_only=True)
+    business_email_id = serializers.EmailField(source='vendor.business_email_id', read_only=True)
+    profile_pic = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = FavoriteVendor  # Assuming FavoriteVendor links to VendorKYC
+        fields = [
+            'profile_pic', 'full_name', 'phone_number', 'business_email_id', 'vendor_id', 'user',
+            'uploaded_images', 'services', 'addresses',
+            'is_favorite'
+        ]
+
+    def get_profile_pic(self, obj):
+        return obj.vendor.profile_pic
+
+    
+    def get_services(self, obj):
+        services = obj.vendor.services.all()  # Assuming 'vendor' is the related field to VendorKYC
+        return ServiceSerializer(services, many=True).data
+
+    def get_addresses(self, obj):
+        addresses = obj.vendor.addresses.all()  # Assuming 'vendor' is the related field
+        return AddressSerializer(addresses, many=True).data
+
+    def get_uploaded_images(self, obj):
+        uploaded_images = obj.vendor.uploaded_images  # Fetching from related vendor
+        if not uploaded_images or not isinstance(uploaded_images, list):
+            return []
+        images = [
+            {
+                "compressed": image.get("compressed"),
+                "thumbnail": image.get("thumbnail")
+            }
+            for image in uploaded_images
+            if image.get("compressed") and image.get("thumbnail")
+        ]
+        return images
+
+    def get_is_favorite(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            return FavoriteVendor.objects.filter(user=user, vendor=obj.vendor).exists()
+        return False
+
+
+
+
 
 # For Upswap Web App Version:
 class SuperadminLoginSerializer(serializers.Serializer):

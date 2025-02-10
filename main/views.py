@@ -36,7 +36,7 @@ from .serializers import (
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
-    MyActivitysSerializer
+    MyActivitysSerializer, FavoriteVendorsListSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -1559,29 +1559,25 @@ class FavoriteVendorView(APIView):
             FavoriteVendor.objects.create(user=request.user, vendor=vendor)
             return Response({"message": f"{vendor.full_name} added to favorites."}, status=status.HTTP_201_CREATED)
         
-class FavoriteVendorListView(ListAPIView): 
-    serializer_class = VendorKYCListSerializer
-    permission_classes = [IsAuthenticated]
+class FavoriteVendorsListView(generics.ListAPIView):
+    serializer_class = FavoriteVendorsListSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
+        # Fetching only the vendors favorited by the authenticated user
         user = self.request.user
-        favorite_vendors = FavoriteVendor.objects.filter(user=user).values_list('vendor', flat=True)
-        return VendorKYC.objects.filter(vendor_id__in=favorite_vendors, is_approved=True)
-
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context.update({"request": self.request})
-        return context
+        return FavoriteVendor.objects.filter(user=user)
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         response_data = {
             "message": "No favorite vendors found." if not queryset.exists() else "List of Favorite Vendors",
         }
-
+        
         if queryset.exists():
             serializer = self.get_serializer(queryset, many=True, context={'request': request})
-            response_data["vendors"] = serializer.data
+            response_data["vendors"] = serializer.data 
+        
         return Response(response_data, status=status.HTTP_200_OK)
         
 # For Upswap Web App Version:
