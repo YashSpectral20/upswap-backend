@@ -1349,7 +1349,7 @@ class FavoriteVendorSerializer(serializers.ModelSerializer):
         fields = ['id', 'vendor', 'vendor_name', 'added_at']
         
 class FavoriteVendorsListSerializer(serializers.ModelSerializer):
-    full_name = serializers.CharField(source='user.name', read_only=True)
+    full_name = serializers.CharField(source='vendor.full_name', read_only=True)
     user = serializers.UUIDField(source='user.id', read_only=True)
     services = serializers.SerializerMethodField()
     addresses = serializers.SerializerMethodField()

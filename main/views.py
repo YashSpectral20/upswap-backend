@@ -1570,15 +1570,8 @@ class FavoriteVendorsListView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
-        response_data = {
-            "message": "No favorite vendors found." if not queryset.exists() else "List of Favorite Vendors",
-        }
-        
-        if queryset.exists():
-            serializer = self.get_serializer(queryset, many=True, context={'request': request})
-            response_data["vendors"] = serializer.data 
-        
-        return Response(response_data, status=status.HTTP_200_OK)
+        serializer = self.get_serializer(queryset, many=True, context={'request': request})
+        return Response(serializer.data)
         
 # For Upswap Web App Version:
 class SuperadminLoginView(APIView):
