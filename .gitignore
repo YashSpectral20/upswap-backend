@@ -45,3 +45,5 @@ coverage.xml
 postgres-db/data
 
 datas
+
+logs

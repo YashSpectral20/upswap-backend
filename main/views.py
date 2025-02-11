@@ -1571,7 +1571,14 @@ class FavoriteVendorsListView(generics.ListAPIView):
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True, context={'request': request})
-        return Response(serializer.data)
+        
+        # Customizing the response format
+        response_data = {
+            "message": "List of Favorite Vendors",
+            "vendors": serializer.data
+        }
+        
+        return Response(response_data)
         
 # For Upswap Web App Version:
 class SuperadminLoginView(APIView):
