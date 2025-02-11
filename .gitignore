@@ -46,4 +46,4 @@ postgres-db/data
 
 datas
 
-logs
+logs/*.log*
