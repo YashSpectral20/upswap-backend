@@ -1288,12 +1288,18 @@ class MyActivitysSerializer(serializers.ModelSerializer):
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
     activity_category = ActivityCategorySerializer(required=True)
     uploaded_images = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
         fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
                   'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
-                  'location']
+                  'location', 'created_at']
+        
+    def get_created_at(self, obj):
+        if obj.created_at:
+            return obj.created_at.strftime('%Y-%m-%d %H:%M:%S')
+        return None
         
     def get_uploaded_images(self, obj):
         """
