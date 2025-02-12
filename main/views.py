@@ -40,7 +40,7 @@ from .serializers import (
 
 )
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid 
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, calculate_distance, send_push_notification 
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
@@ -62,8 +62,9 @@ from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.urls import reverse
-
+from geopy.distance import distance
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.utils.timezone import make_aware
 
 from django.shortcuts import get_object_or_404
 
@@ -697,9 +698,6 @@ class VendorKYCDetailView(generics.RetrieveAPIView):
 ########################################################################################################
 
 class CreateDealView(generics.CreateAPIView):
-    """
-    API endpoint to create a new deal.
-    """
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
@@ -712,29 +710,29 @@ class CreateDealView(generics.CreateAPIView):
             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
         serializer.save(vendor_kyc=vendor_kyc)
+        
+        # Get vendor's location
+        vendor_lat = vendor_kyc.latitude
+        vendor_lon = vendor_kyc.longitude
+        
+        # Find nearby users within 15 KM
+        nearby_users = []
+        for user in CustomUser.objects.exclude(id=self.request.user.id):
+            if user.latitude and user.longitude:
+                distance = calculate_distance(vendor_lat, vendor_lon, user.latitude, user.longitude)
+                if distance <= 15:
+                    if user.fcm_token:
+                        nearby_users.append(user.fcm_token)
 
-    def create(self, request, *args, **kwargs):
-        # Extract uploaded images metadata from the request if provided
-        uploaded_images = request.data.get('uploaded_images', [])
-
-        # Ensure the metadata is a list of dictionaries
-        if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
-            return Response(
-                {"error": "uploaded_images must be a list of dictionaries."},
-                status=status.HTTP_400_BAD_REQUEST
+        # Send Notification
+        if nearby_users:
+            send_fcm_notification(
+                registration_ids=nearby_users,
+                title="New Deal Alert!",
+                message=f"{self.request.user.name} has created a new deal near you!"
             )
 
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
 
-        # Add uploaded images metadata to the deal
-        deal = serializer.instance
-        deal.set_uploaded_images(uploaded_images)
-        deal.save()
-
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class CreateDealDetailView(generics.RetrieveAPIView):
@@ -1469,9 +1467,9 @@ class MyActivityView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        current_time = datetime.now()
+        current_time = make_aware(datetime.now())  # Timezone aware datetime
 
-        # Get activities created by the authenticated user
+        # Authenticated user ki activities filter karna
         activities = Activity.objects.filter(created_by=request.user)
 
         live_activities = []
@@ -1479,8 +1477,14 @@ class MyActivityView(APIView):
         history_activities = []
 
         for activity in activities:
-            activity_start_datetime = datetime.combine(activity.start_date, activity.start_time)
-            activity_end_datetime = datetime.combine(activity.end_date, activity.end_time)
+            # Agar start_date ya start_time missing hai, toh default values set karte hain
+            start_date = activity.start_date or current_time.date()
+            start_time = activity.start_time or time(0, 0)
+            end_date = activity.end_date or current_time.date()
+            end_time = activity.end_time or time(23, 59)
+
+            activity_start_datetime = make_aware(datetime.combine(start_date, start_time))
+            activity_end_datetime = make_aware(datetime.combine(end_date, end_time))
 
             if activity_start_datetime <= current_time <= activity_end_datetime:
                 live_activities.append(activity)
@@ -1489,17 +1493,19 @@ class MyActivityView(APIView):
             elif current_time > activity_end_datetime:
                 history_activities.append(activity)
 
-        # Serialize activities
+        # Teeno categories ko serialize karna
         live_activities_serializer = MyActivitysSerializer(live_activities, many=True)
         scheduled_activities_serializer = MyActivitysSerializer(scheduled_activities, many=True)
         history_activities_serializer = MyActivitysSerializer(history_activities, many=True)
+        all_activities_serializer = MyActivitysSerializer(activities, many=True)
 
         return Response({
             'live': live_activities_serializer.data,
             'scheduled': scheduled_activities_serializer.data,
-            'history': history_activities_serializer.data
+            'history': history_activities_serializer.data,
+            'all': all_activities_serializer.data  # Sabhi activities
         }, status=status.HTTP_200_OK)
-
+        
 class MyDealView(APIView):
     permission_classes = [IsAuthenticated]
 

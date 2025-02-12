@@ -93,6 +93,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     
     bio = models.TextField(blank=True, null=True)
     profile_pic = models.JSONField(default=list, blank=True, null=True)
+    fcm_token = models.CharField(max_length=255, blank=True, null=True)
+
     
     objects = CustomUserManager()
     

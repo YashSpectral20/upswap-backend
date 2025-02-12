@@ -1,4 +1,5 @@
 import io
+import math
 import random
 import string
 import boto3
@@ -120,6 +121,24 @@ def upload_to_s3_profile_image(file, folder, file_type="image"):
         raise ValueError("Unsupported file type")
 
     return f"{settings.MEDIA_URL}{file_key}"
+
+def send_push_notification(registration_ids, title, message):
+    push_service = FCMNotification(api_key=settings.FCM_API_KEY)
+    
+    result = push_service.notify_multiple_devices(
+        registration_ids=registration_ids,
+        message_title=title,
+        message_body=message
+    )
+    return result
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    R = 6371  # Earth radius in KM
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = math.sin(d_lat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c  # Distance in KM
 
 
 # def send_fcm_notification(device_token, title, message):
