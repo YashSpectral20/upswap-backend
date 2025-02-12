@@ -687,6 +687,9 @@ class VendorKYCDetailView(generics.RetrieveAPIView):
 ########################################################################################################
 
 class CreateDealView(generics.CreateAPIView):
+    """
+    API endpoint to create a new deal.
+    """
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
@@ -698,41 +701,30 @@ class CreateDealView(generics.CreateAPIView):
         if not vendor_kyc.is_approved:
             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
-        # Ensure vendor coordinates are not None
-        if vendor_kyc.latitude is None or vendor_kyc.longitude is None:
-            raise ValidationError("Vendor location (latitude/longitude) is missing.")
+        serializer.save(vendor_kyc=vendor_kyc)
 
-        vendor_lat = vendor_kyc.latitude
-        vendor_lon = vendor_kyc.longitude
+    def create(self, request, *args, **kwargs):
+        # Extract uploaded images metadata from the request if provided
+        uploaded_images = request.data.get('uploaded_images', [])
 
-        deal = serializer.save(vendor_kyc=vendor_kyc)
-
-        nearby_users = []
-        for user in CustomUser.objects.exclude(id=self.request.user.id):
-            user_activity = user.activity_set.first()  # Check user's activity
-            
-            # Ensure user activity coordinates are valid
-            if user_activity and user_activity.latitude is not None and user_activity.longitude is not None:
-                distance = calculate_distance(vendor_lat, vendor_lon, user_activity.latitude, user_activity.longitude)
-                if distance <= 15:
-                    if user.fcm_token:
-                        nearby_users.append(user.fcm_token)
-
-        # Send Notification to Nearby Users
-        if nearby_users:
-            send_fcm_notification(
-                registration_ids=nearby_users,
-                title="New Deal Alert!",
-                message=f"{self.request.user.name} has created a new deal near you!"
+        # Ensure the metadata is a list of dictionaries
+        if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
+            return Response(
+                {"error": "uploaded_images must be a list of dictionaries."},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Vendor Confirmation Notification
-        if self.request.user.fcm_token:
-            send_fcm_notification(
-                registration_ids=[self.request.user.fcm_token],
-                title="Deal Posted Successfully!",
-                message=f"Your deal '{deal.title}' has been posted and shared with nearby users!"
-            )
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+
+        # Add uploaded images metadata to the deal
+        deal = serializer.instance
+        deal.set_uploaded_images(uploaded_images)
+        deal.save()
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 

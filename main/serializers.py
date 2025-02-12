@@ -420,7 +420,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             'country_code', 'dial_code', 
             'bank_account_number', 
             'retype_bank_account_number', 'bank_name', 'ifsc_code', 
-            'services', 'business_hours', 'is_approved'  # Ensure 'is_approved' is included here
+            'services', 'business_hours', 'is_approved', 'latitude', 'longitude'  # Ensure 'is_approved' is included here
         ]
 
     def validate_business_hours(self, value):
