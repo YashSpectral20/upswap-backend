@@ -1292,7 +1292,7 @@ class MyActivitysSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Activity
-        fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
+        fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'activity_description', 'created_by', 'user_participation', 'maximum_participants', 'infinite_time', 'activity_category',
                   'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
                   'location', 'created_at']
         

@@ -133,12 +133,24 @@ def send_push_notification(registration_ids, title, message):
     return result
 
 def calculate_distance(lat1, lon1, lat2, lon2):
-    R = 6371  # Earth radius in KM
-    d_lat = math.radians(lat2 - lat1)
-    d_lon = math.radians(lon2 - lon1)
-    a = math.sin(d_lat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon / 2) ** 2
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-    return R * c  # Distance in KM
+    if None in [lat1, lon1, lat2, lon2]:
+        return float('inf')  # Return a very large distance if any coordinate is missing
+    
+    # Proceed with distance calculation
+    from math import radians, cos, sin, asin, sqrt
+
+    # Convert decimal to float for calculations
+    lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
+    
+    # Haversine Formula
+    dlon = radians(lon2 - lon1)
+    dlat = radians(lat2 - lat1)
+    a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
+    c = 2 * asin(sqrt(a))
+    
+    r = 6371  # Radius of Earth in kilometers
+    return c * r
+
 
 
 # def send_fcm_notification(device_token, title, message):

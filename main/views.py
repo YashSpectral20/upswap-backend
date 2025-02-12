@@ -698,17 +698,21 @@ class CreateDealView(generics.CreateAPIView):
         if not vendor_kyc.is_approved:
             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
-        deal = serializer.save(vendor_kyc=vendor_kyc)
-        
-        # Vendor ka location le rahe hain
+        # Ensure vendor coordinates are not None
+        if vendor_kyc.latitude is None or vendor_kyc.longitude is None:
+            raise ValidationError("Vendor location (latitude/longitude) is missing.")
+
         vendor_lat = vendor_kyc.latitude
         vendor_lon = vendor_kyc.longitude
-        
-        # Nearby users dhundh rahe hain 15 KM ke andar
+
+        deal = serializer.save(vendor_kyc=vendor_kyc)
+
         nearby_users = []
         for user in CustomUser.objects.exclude(id=self.request.user.id):
-            user_activity = user.activity_set.first()  # User ka koi activity location le lete hain
-            if user_activity and user_activity.latitude and user_activity.longitude:
+            user_activity = user.activity_set.first()  # Check user's activity
+            
+            # Ensure user activity coordinates are valid
+            if user_activity and user_activity.latitude is not None and user_activity.longitude is not None:
                 distance = calculate_distance(vendor_lat, vendor_lon, user_activity.latitude, user_activity.longitude)
                 if distance <= 15:
                     if user.fcm_token:
@@ -721,14 +725,16 @@ class CreateDealView(generics.CreateAPIView):
                 title="New Deal Alert!",
                 message=f"{self.request.user.name} has created a new deal near you!"
             )
-        
-        # Vendor ko bhi ek confirmation notification bhej do
+
+        # Vendor Confirmation Notification
         if self.request.user.fcm_token:
             send_fcm_notification(
                 registration_ids=[self.request.user.fcm_token],
                 title="Deal Posted Successfully!",
                 message=f"Your deal '{deal.title}' has been posted and shared with nearby users!"
             )
+
+
 
 
 
@@ -959,7 +965,7 @@ class LogoutAPI(APIView):
 
     def post(self, request):
         # Extract refresh token from request data
-        refresh_token = request.data.get('refresh')
+        refresh_token = request.data.get('refresh_token')
 
         if not refresh_token:
             return Response({"message": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
