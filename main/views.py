@@ -213,26 +213,10 @@ class ActivityCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        # Set `user_participation` to True by default if not provided in the request data
+        # Set user_participation to True by default if not provided in the request data
         if 'user_participation' not in serializer.validated_data:
             serializer.validated_data['user_participation'] = True
         serializer.save(created_by=self.request.user)
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        try:
-            serializer.is_valid(raise_exception=True)
-        except ValidationError as e:
-            # Extract the first error message and return it in the custom format
-            error_messages = []
-            for field, messages in e.detail.items():
-                for message in messages:
-                    error_messages.append(f"{field.replace('_', ' ').capitalize()} {message.lower()}")
-            return Response({"message": error_messages[0]}, status=status.HTTP_400_BAD_REQUEST)
-
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class Distance(Func):
