@@ -159,47 +159,36 @@ class VerifyOTPView(generics.GenericAPIView):
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
-    authentication_classes = []  # No authentication required for login
-    permission_classes = [AllowAny]  # Allow any user to access the login API
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        # Validate login credentials
         serializer = self.get_serializer(data=request.data)
         if not serializer.is_valid():
             return Response({"message": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
         user = serializer.validated_data['user']
 
-        # Check if OTP has been verified
         try:
             otp_instance = OTP.objects.get(user=user)
             if not otp_instance.is_verified:
-                return Response({"message": "OTP not verified. Please verify your OTP first."},
-                                status=status.HTTP_403_FORBIDDEN)
+                return Response({"message": "OTP not verified. Please verify your OTP first."}, status=status.HTTP_403_FORBIDDEN)
         except OTP.DoesNotExist:
-            return Response({"message": "OTP not found for this user. Please register and verify OTP."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "OTP not found for this user. Please register and verify OTP."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # OTP is verified, proceed with login
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
-        # Check if user has VendorKYC
         vendor_kyc = VendorKYC.objects.filter(user=user).first()
-        is_approved = False  # Default value
-        vendor_id = ""  # Default empty string for non-vendors
+        is_approved = vendor_kyc.is_approved if vendor_kyc else False
+        vendor_id = str(vendor_kyc.vendor_id) if vendor_kyc else ""
 
-        if vendor_kyc:
-            is_approved = vendor_kyc.is_approved
-            vendor_id = str(vendor_kyc.vendor_id)  # Use vendor_id instead of vendor_uuid
-
-        # Prepare response
         return Response({
             'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
-            'access': access_token,  # Return access token after successful login
-            'is_approved': is_approved,  # Include is_approved status
-            'vendor_id': vendor_id,  # Include vendor_id if the user is a vendor
+            'access': access_token,
+            'is_approved': is_approved,
+            'vendor_id': vendor_id,
             'message': 'User logged in successfully.'
         }, status=status.HTTP_200_OK)
 
@@ -709,28 +698,38 @@ class CreateDealView(generics.CreateAPIView):
         if not vendor_kyc.is_approved:
             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
-        serializer.save(vendor_kyc=vendor_kyc)
+        deal = serializer.save(vendor_kyc=vendor_kyc)
         
-        # Get vendor's location
+        # Vendor ka location le rahe hain
         vendor_lat = vendor_kyc.latitude
         vendor_lon = vendor_kyc.longitude
         
-        # Find nearby users within 15 KM
+        # Nearby users dhundh rahe hain 15 KM ke andar
         nearby_users = []
         for user in CustomUser.objects.exclude(id=self.request.user.id):
-            if user.latitude and user.longitude:
-                distance = calculate_distance(vendor_lat, vendor_lon, user.latitude, user.longitude)
+            user_activity = user.activity_set.first()  # User ka koi activity location le lete hain
+            if user_activity and user_activity.latitude and user_activity.longitude:
+                distance = calculate_distance(vendor_lat, vendor_lon, user_activity.latitude, user_activity.longitude)
                 if distance <= 15:
                     if user.fcm_token:
                         nearby_users.append(user.fcm_token)
 
-        # Send Notification
+        # Send Notification to Nearby Users
         if nearby_users:
             send_fcm_notification(
                 registration_ids=nearby_users,
                 title="New Deal Alert!",
                 message=f"{self.request.user.name} has created a new deal near you!"
             )
+        
+        # Vendor ko bhi ek confirmation notification bhej do
+        if self.request.user.fcm_token:
+            send_fcm_notification(
+                registration_ids=[self.request.user.fcm_token],
+                title="Deal Posted Successfully!",
+                message=f"Your deal '{deal.title}' has been posted and shared with nearby users!"
+            )
+
 
 
 
@@ -857,30 +856,50 @@ class CreateDeallistView(generics.ListAPIView):
         now = timezone.now()
         search_keyword = self.request.query_params.get('address', None)
 
-        # Get active deals
+        # Active deals filter
         queryset = CreateDeal.objects.filter(start_date__lte=now, end_date__gte=now)
 
-        if not search_keyword:
-            return queryset
+        if search_keyword:
+            search_terms = [term.strip() for term in search_keyword.split(',')]
+            query = Q()
 
-        search_terms = [term.strip() for term in search_keyword.split(',')]
-        query = Q()
-        filter_priority = ["location_road_name", "location_city", "location_state", "location_country", "location_pincode"]
-        matched_fields = []
+            # Single search term ke liye multiple fields me search karenge
+            if len(search_terms) == 1:
+                clean_term = search_terms[0]
+                query |= Q(location_city__icontains=clean_term)
+                query |= Q(location_state__icontains=clean_term)
+                query |= Q(location_country__icontains=clean_term)
+                query |= Q(location_pincode__icontains=clean_term)
+                query |= Q(location_road_name__icontains=clean_term)
 
-        for i, field in enumerate(filter_priority[: len(search_terms)]):
-            search_value = search_terms[i]
-            if queryset.filter(**{f"{field}__icontains": search_value}).exists():
-                query &= Q(**{f"{field}__icontains": search_value})
-                matched_fields.append(field)
-            else:
-                return CreateDeal.objects.none()  # If any search term doesn't match, return empty list
-        
-        # If multiple fields are searched, filter only by the last matching field
-        if matched_fields:
-            queryset = queryset.filter(Q(**{f"{matched_fields[-1]}__icontains": search_terms[len(matched_fields)-1]}))
+            # Do search terms ke liye priority dete hue filter karenge
+            elif len(search_terms) == 2:
+                if queryset.filter(location_city__icontains=search_terms[0]).exists():
+                    query |= Q(location_city__icontains=search_terms[0])
+                elif queryset.filter(location_state__icontains=search_terms[0]).exists():
+                    query |= Q(location_state__icontains=search_terms[0])
+                elif queryset.filter(location_country__icontains=search_terms[0]).exists():
+                    query |= Q(location_country__icontains=search_terms[0])
 
-        return queryset.distinct()
+            # Teen search terms ke liye bhi similarly handle karenge
+            elif len(search_terms) == 3:
+                if queryset.filter(location_city__icontains=search_terms[0]).exists():
+                    query |= Q(location_city__icontains=search_terms[0])
+                elif queryset.filter(location_state__icontains=search_terms[1]).exists():
+                    query |= Q(location_state__icontains=search_terms[1])
+                elif queryset.filter(location_country__icontains=search_terms[2]).exists():
+                    query |= Q(location_country__icontains=search_terms[2])
+
+            # Agar 4 ya usse zyada terms hain to road name ya pincode ko priority denge
+            elif len(search_terms) >= 4:
+                if queryset.filter(location_road_name__icontains=search_terms[0]).exists():
+                    query |= Q(location_road_name__icontains=search_terms[0])
+                else:
+                    return CreateDeal.objects.none()
+
+            queryset = queryset.filter(query).distinct()
+
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
@@ -894,6 +913,8 @@ class CreateDeallistView(generics.ListAPIView):
             response_data["deals"] = serializer.data
 
         return Response(response_data, status=status.HTTP_200_OK)
+
+
     
     
 class ActivityListsView(generics.ListAPIView):
@@ -1141,61 +1162,57 @@ class SocialLogin(generics.GenericAPIView):
         social_id = request.data.get("social_id")
         email = request.data.get("email")
         name = request.data.get("name")
-        login_type = request.data.get("type")  # Google or Apple
+        login_type = request.data.get("type")
+        fcm_token = request.data.get("fcm_token")
+        latitude = request.data.get("latitude")
+        longitude = request.data.get("longitude")
 
         if not social_id or not email or not login_type:
-            return Response(
-                {"message": "social_id, email, and type (google/apple) are required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return Response({"message": "social_id, email, and type (google/apple) are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check if user exists with the same email
         user = CustomUser.objects.filter(email=email).first()
 
         if user:
-            # Update social_id and type if blank
             if not user.social_id:
                 user.social_id = social_id
             if not user.type:
                 user.type = login_type
+            user.fcm_token = fcm_token or user.fcm_token
+            user.latitude = latitude or user.latitude
+            user.longitude = longitude or user.longitude
             user.save()
         else:
-            # Generate a unique placeholder phone number
             placeholder_phone = f"phone_{uuid.uuid4().hex[:8]}"
-            
-            # Create a new user with minimal required data
             user = CustomUser.objects.create(
                 social_id=social_id,
                 email=email,
                 name=name,
-                username=email.split('@')[0],  # Default username from email
-                phone_number=placeholder_phone,  # Temporary placeholder phone number
-                date_of_birth=None,             # Default for date of birth
-                gender=None,                    # Default for gender
-                type=login_type,                # Login type (Google/Apple)
+                username=email.split('@')[0],
+                phone_number=placeholder_phone,
+                date_of_birth=None,
+                gender=None,
+                type=login_type,
+                fcm_token=fcm_token,
+                latitude=latitude,
+                longitude=longitude
             )
 
-        # Check if the user has an associated VendorKYC instance
         vendor_kyc = VendorKYC.objects.filter(user=user).first()
         vendor_id = str(vendor_kyc.vendor_id) if vendor_kyc else ""
         is_approved = vendor_kyc.is_approved if vendor_kyc else False
 
-        # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
-        # Build response
-        return Response(
-            {
-                "user": CustomUserSerializer(user).data,
-                "refresh": str(refresh),
-                "access": access_token,
-                "vendor_id": vendor_id,
-                "is_approved": is_approved,
-                "message": "Login successful.",
-            },
-            status=status.HTTP_200_OK,
-        )
+        return Response({
+            "user": CustomUserSerializer(user).data,
+            "refresh": str(refresh),
+            "access": access_token,
+            "vendor_id": vendor_id,
+            "is_approved": is_approved,
+            "message": "Login successful."
+        }, status=status.HTTP_200_OK)
+
 
 
 

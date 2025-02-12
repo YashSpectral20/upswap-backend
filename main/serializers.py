@@ -37,10 +37,13 @@ class CustomUserSerializer(serializers.ModelSerializer):
     country = serializers.CharField(required=False, allow_blank=True)
     social_id = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     type = serializers.ChoiceField(choices=CustomUser.LOGIN_TYPE_CHOICES, required=False)
+    fcm_token = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
 
     class Meta:
         model = CustomUser
-        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password', 'country_code', 'dial_code', 'country', 'social_id', 'type']
+        fields = ['id', 'name', 'username', 'email', 'phone_number', 'date_of_birth', 'gender', 'password', 'confirm_password', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'fcm_token', 'latitude', 'longitude']
         extra_kwargs = {'password': {'write_only': True}}
 
     def validate(self, data):
@@ -90,6 +93,9 @@ class VerifyOTPSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField()
+    fcm_token = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
 
     def validate(self, data):
         email = data.get('email')
@@ -97,6 +103,13 @@ class LoginSerializer(serializers.Serializer):
         user = authenticate(email=email, password=password)
         if user is None:
             raise serializers.ValidationError('Invalid credentials')
+        
+        # Update fcm_token, latitude, longitude if provided
+        user.fcm_token = data.get('fcm_token', user.fcm_token)
+        user.latitude = data.get('latitude', user.latitude)
+        user.longitude = data.get('longitude', user.longitude)
+        user.save()
+        
         data['user'] = user
         return data
     
