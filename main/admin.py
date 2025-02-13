@@ -6,19 +6,20 @@ from .models import (
 
 # Custom User Admin
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ('id', 'email', 'name', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio')
+    list_display = ('id', 'email', 'name', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio', 'fcm_token', 'latitude', 'longitude')
     list_filter = ('is_staff', 'is_active', 'otp_verified', 'country', 'type')
     fieldsets = (
         (None, {'fields': ('username', 'password', 'email', 'social_id', 'type')}),
-        ('Personal info', {'fields': ('id', 'name', 'phone_number', 'date_of_birth', 'gender', 'country_code', 'dial_code', 'country', 'bio', 'profile_pic')}),
+        ('Personal info', {'fields': ('id', 'name', 'phone_number', 'date_of_birth', 'gender', 'country_code', 'dial_code', 'country', 'bio', 'profile_pic', 'fcm_token', 'latitude', 'longitude')}),
         ('Permissions', {'fields': ('is_staff', 'is_active', 'otp_verified', 'is_superuser')}),
     )
     readonly_fields = ('id',)
-    search_fields = ('username', 'email', 'phone_number', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio')
+    search_fields = ('username', 'email', 'phone_number', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio', 'fcm_token')
     ordering = ('email',)
     filter_horizontal = ()
 
 admin.site.register(CustomUser, CustomUserAdmin)
+
 
 
 # Activity Admin
@@ -113,10 +114,11 @@ class ServiceInline(admin.TabularInline):
 class VendorKYCAdmin(admin.ModelAdmin):
     list_display = [
         'vendor_id', 'full_name', 'phone_number', 'business_email_id', 
-        'business_establishment_year', 'country_code', 'dial_code', 'is_approved'
+        'business_establishment_year', 'country_code', 'dial_code', 
+        'is_approved', 'fcm_token', 'latitude', 'longitude'
     ]
-    search_fields = ['full_name', 'business_email_id', 'phone_number']
-    list_filter = ['addresses__state', 'addresses__city', 'is_approved']  # Filter by addresses and approval status
+    search_fields = ['full_name', 'business_email_id', 'phone_number', 'fcm_token']
+    list_filter = ['addresses__state', 'addresses__city', 'is_approved']
     inlines = [AddressInline, ServiceInline]
 
     def formatted_business_hours(self, obj):
@@ -132,6 +134,7 @@ class VendorKYCAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         # Custom logic before saving
         super().save_model(request, obj, form, change)
+
 
 
 @admin.register(Address)
