@@ -16,6 +16,8 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 from django.db.models import Q
 from django.db.models import F, Func, FloatField
+from math import radians, sin, cos, sqrt, atan2
+from math import radians, sin, cos, sqrt, asin
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken, TokenError
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
@@ -687,9 +689,6 @@ class VendorKYCDetailView(generics.RetrieveAPIView):
 ########################################################################################################
 
 class CreateDealView(generics.CreateAPIView):
-    """
-    API endpoint to create a new deal.
-    """
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
@@ -704,10 +703,8 @@ class CreateDealView(generics.CreateAPIView):
         serializer.save(vendor_kyc=vendor_kyc)
 
     def create(self, request, *args, **kwargs):
-        # Extract uploaded images metadata from the request if provided
         uploaded_images = request.data.get('uploaded_images', [])
 
-        # Ensure the metadata is a list of dictionaries
         if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
             return Response(
                 {"error": "uploaded_images must be a list of dictionaries."},
@@ -718,13 +715,56 @@ class CreateDealView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
 
-        # Add uploaded images metadata to the deal
+        # Get the saved deal instance
         deal = serializer.instance
+        vendor_kyc = deal.vendor_kyc  
+
+        # Add uploaded images metadata to the deal
         deal.set_uploaded_images(uploaded_images)
         deal.save()
 
+        # **Vendor Notification**
+        vendor_notification_sent = False
+        vendor_fcm_token = vendor_kyc.user.fcm_token
+        if vendor_fcm_token:
+            send_push_notification(
+                registration_ids=[vendor_fcm_token],
+                title="Deal Created",
+                message=f"Your deal '{deal.deal_title}' has been created successfully."
+            )
+            vendor_notification_sent = True  # Confirm notification sent
+
+        # **Nearby Users Notification**
+        users_to_notify = []
+        if vendor_kyc.latitude and vendor_kyc.longitude:
+            users_within_radius = CustomUser.objects.filter(
+                Q(latitude__isnull=False) & Q(longitude__isnull=False)
+            )
+            for user in users_within_radius:
+                distance = calculate_distance(vendor_kyc.latitude, vendor_kyc.longitude, user.latitude, user.longitude)
+                if distance <= 15 and user.fcm_token:
+                    users_to_notify.append(user.fcm_token)
+
+            if users_to_notify:
+                send_push_notification(
+                    registration_ids=users_to_notify,
+                    title="New Deal Nearby",
+                    message=f"A new deal '{deal.deal_title}' has been created near you."
+                )
+
+        users_notification_sent = len(users_to_notify) > 0  # Confirm users received notification
+
         headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        return Response({
+            "deal": serializer.data,
+            "notifications": {
+                "vendor_notification_sent": vendor_notification_sent,
+                "users_notification_sent": users_notification_sent,
+                "users_notified_count": len(users_to_notify)
+            }
+        }, status=status.HTTP_201_CREATED, headers=headers)
+
+
 
 
 

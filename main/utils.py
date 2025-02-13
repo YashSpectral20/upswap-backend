@@ -14,8 +14,7 @@ from django.conf import settings
 from .models import OTP
 from botocore.exceptions import BotoCoreError, ClientError
 import traceback
-import requests
-
+from math import radians, cos, sin, asin, sqrt 
 from pyfcm import FCMNotification #For push notification
 
 def generate_otp(user):
@@ -136,9 +135,6 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     if None in [lat1, lon1, lat2, lon2]:
         return float('inf')  # Return a very large distance if any coordinate is missing
     
-    # Proceed with distance calculation
-    from math import radians, cos, sin, asin, sqrt
-
     # Convert decimal to float for calculations
     lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
     

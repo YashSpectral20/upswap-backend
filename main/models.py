@@ -272,6 +272,7 @@ class VendorKYC(models.Model):
     dial_code = models.CharField(max_length=10, blank=True)
     
     # Latitude and Longitude
+    fcm_token = models.CharField(max_length=255, null=True, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
 
