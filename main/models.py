@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from django.conf import settings
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 from django.utils.timezone import now
+from decimal import Decimal
 from datetime import timedelta
 
 #from django.contrib.auth import get_user_model
@@ -170,15 +171,17 @@ class Activity(models.Model):
 
     def save(self, *args, **kwargs):
         # Apply the special condition logic
-        if self.infinite_time:
+        if self.infinite_time and not (self.start_date or self.start_time or self.end_date or self.end_time):
             future_date = timezone.now() + timezone.timedelta(days=365 * 999)  # 999 years from now
             self.end_date = future_date.date()
             self.end_time = future_date.time()
-        if self.set_current_datetime:
+
+        if self.set_current_datetime and not (self.start_date or self.start_time):
             current_datetime = timezone.now()
             self.start_date = current_datetime.date()
             self.start_time = current_datetime.time()
-        if self.infinite_time and self.set_current_datetime:
+
+        if self.infinite_time and self.set_current_datetime and not (self.start_date or self.start_time or self.end_date or self.end_time):
             self.start_date = None
             self.start_time = None
             self.end_date = None
@@ -191,6 +194,7 @@ class Activity(models.Model):
         self.clean()
         
         super().save(*args, **kwargs)
+
 
     def __str__(self):
         return self.activity_title
@@ -483,3 +487,22 @@ class FavoriteVendor(models.Model):
 
     def __str__(self):
         return f"{self.user.email} favorited {self.vendor.full_name}"
+    
+class VendorRating(models.Model):
+    rating_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # User jo rating de raha hai
+    vendor = models.ForeignKey('VendorKYC', on_delete=models.CASCADE)  # Jisko rating mil rahi hai
+    order = models.ForeignKey('PlaceOrder', on_delete=models.CASCADE)  # Kis order pe rating di ja rahi hai
+    rating = models.DecimalField(max_digits=2, decimal_places=1, choices=[
+        (Decimal('0.5'), '0.5'), (Decimal('1.0'), '1'), (Decimal('1.5'), '1.5'), 
+        (Decimal('2.0'), '2'), (Decimal('2.5'), '2.5'), (Decimal('3.0'), '3'),
+        (Decimal('3.5'), '3.5'), (Decimal('4.0'), '4'), (Decimal('4.5'), '4.5'), (Decimal('5.0'), '5')
+    ])  # Allowed rating values
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'order')  # Ek user ek order pe ek hi rating de sakta hai
+
+    def __str__(self):
+        return f"Rating {self.rating} by {self.user.username} for {self.vendor}"
+

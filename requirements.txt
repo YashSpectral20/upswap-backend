@@ -20,6 +20,6 @@ boto3
 drf-yasg
 django-cors-headers
 pytz
-pyfcm
+pyfcm>=1.5.6
 requests
 geopy

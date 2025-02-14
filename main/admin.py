@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CustomUser, Activity, ChatRoom, ChatMessage,
-    ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder,
+    ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder, VendorRating
 )
 
 # Custom User Admin
@@ -199,3 +199,28 @@ class PlaceOrderAdmin(admin.ModelAdmin):
 class PasswordResetOTPAdmin(admin.ModelAdmin):
     list_display = ('user', 'otp', 'used', 'created_at')
     search_fields = ('user__username', 'otp')
+    
+@admin.register(VendorRating)
+class VendorRatingAdmin(admin.ModelAdmin):
+    list_display = ('rating_id', 'user', 'vendor', 'order', 'rating', 'created_at')  # ✅ Admin panel me show hone wale columns
+    list_filter = ('rating', 'created_at')  # ✅ Filter options rating aur created_at ke basis par
+    search_fields = ('user__username', 'vendor__business_name', 'order__id')  # ✅ Search by username, vendor name, order ID
+    ordering = ('-created_at',)  # ✅ Latest rating sabse upar dikhayega
+    readonly_fields = ('rating_id', 'created_at')  # ✅ UUID aur created_at ko readonly rakhenge
+
+    fieldsets = (
+        ("User & Vendor Details", {
+            'fields': ('user', 'vendor', 'order')
+        }),
+        ("Rating Details", {
+            'fields': ('rating', 'created_at')
+        }),
+    )
+
+    def vendor_name(self, obj):
+        return obj.vendor.business_name  # ✅ Vendor ka naam show karega
+    vendor_name.short_description = "Vendor Name"
+
+    def user_email(self, obj):
+        return obj.user.email  # ✅ User ka email show karega
+    user_email.short_description = "User Email"

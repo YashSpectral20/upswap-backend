@@ -38,11 +38,11 @@ from .serializers import (
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
-    MyActivitysSerializer, FavoriteVendorsListSerializer
+    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, calculate_distance, send_push_notification 
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
@@ -688,7 +688,12 @@ class VendorKYCDetailView(generics.RetrieveAPIView):
 
 ########################################################################################################
 
+
+
 class CreateDealView(generics.CreateAPIView):
+    """
+    API endpoint to create a new deal.
+    """
     queryset = CreateDeal.objects.all()
     serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
@@ -703,8 +708,10 @@ class CreateDealView(generics.CreateAPIView):
         serializer.save(vendor_kyc=vendor_kyc)
 
     def create(self, request, *args, **kwargs):
+        # Extract uploaded images metadata from the request if provided
         uploaded_images = request.data.get('uploaded_images', [])
 
+        # Ensure the metadata is a list of dictionaries
         if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
             return Response(
                 {"error": "uploaded_images must be a list of dictionaries."},
@@ -715,54 +722,91 @@ class CreateDealView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
 
-        # Get the saved deal instance
-        deal = serializer.instance
-        vendor_kyc = deal.vendor_kyc  
-
         # Add uploaded images metadata to the deal
+        deal = serializer.instance
         deal.set_uploaded_images(uploaded_images)
         deal.save()
 
-        # **Vendor Notification**
-        vendor_notification_sent = False
-        vendor_fcm_token = vendor_kyc.user.fcm_token
-        if vendor_fcm_token:
-            send_push_notification(
-                registration_ids=[vendor_fcm_token],
-                title="Deal Created",
-                message=f"Your deal '{deal.deal_title}' has been created successfully."
-            )
-            vendor_notification_sent = True  # Confirm notification sent
-
-        # **Nearby Users Notification**
-        users_to_notify = []
-        if vendor_kyc.latitude and vendor_kyc.longitude:
-            users_within_radius = CustomUser.objects.filter(
-                Q(latitude__isnull=False) & Q(longitude__isnull=False)
-            )
-            for user in users_within_radius:
-                distance = calculate_distance(vendor_kyc.latitude, vendor_kyc.longitude, user.latitude, user.longitude)
-                if distance <= 15 and user.fcm_token:
-                    users_to_notify.append(user.fcm_token)
-
-            if users_to_notify:
-                send_push_notification(
-                    registration_ids=users_to_notify,
-                    title="New Deal Nearby",
-                    message=f"A new deal '{deal.deal_title}' has been created near you."
-                )
-
-        users_notification_sent = len(users_to_notify) > 0  # Confirm users received notification
-
         headers = self.get_success_headers(serializer.data)
-        return Response({
-            "deal": serializer.data,
-            "notifications": {
-                "vendor_notification_sent": vendor_notification_sent,
-                "users_notification_sent": users_notification_sent,
-                "users_notified_count": len(users_to_notify)
-            }
-        }, status=status.HTTP_201_CREATED, headers=headers)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+#################################################################################################
+
+# class CreateDealView(generics.CreateAPIView):
+#     queryset = CreateDeal.objects.all()
+#     serializer_class = CreateDealSerializer
+#     permission_classes = [IsAuthenticated]
+
+#     def perform_create(self, serializer):
+#         vendor_kyc = self.request.user.vendorkyc_set.first()
+#         if not vendor_kyc:
+#             raise ValidationError("Vendor KYC not found for the user.")
+#         if not vendor_kyc.is_approved:
+#             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
+
+#         serializer.save(vendor_kyc=vendor_kyc)
+
+#     def create(self, request, *args, **kwargs):
+#         uploaded_images = request.data.get('uploaded_images', [])
+
+#         if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
+#             return Response(
+#                 {"error": "uploaded_images must be a list of dictionaries."},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         serializer = self.get_serializer(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         self.perform_create(serializer)
+
+#         # Get the saved deal instance
+#         deal = serializer.instance
+#         vendor_kyc = deal.vendor_kyc  
+
+#         # Add uploaded images metadata to the deal
+#         deal.set_uploaded_images(uploaded_images)
+#         deal.save()
+
+#         # **Vendor Notification**
+#         vendor_notification_sent = False
+#         vendor_fcm_token = vendor_kyc.user.fcm_token
+#         if vendor_fcm_token:
+#             send_push_notification(
+#                 device_tokens=vendor_fcm_token,  # Pass the single token directly
+#                 title="Deal Created",
+#                 message=f"Your deal '{deal.deal_title}' has been created successfully."
+#             )
+#             vendor_notification_sent = True  # Confirm notification sent
+
+#         # **Nearby Users Notification**
+#         users_to_notify = []
+#         if vendor_kyc.latitude and vendor_kyc.longitude:
+#             users_within_radius = CustomUser.objects.filter(
+#                 Q(latitude__isnull=False) & Q(longitude__isnull=False)
+#             )
+#             for user in users_within_radius:
+#                 distance = calculate_distance(vendor_kyc.latitude, vendor_kyc.longitude, user.latitude, user.longitude)
+#                 if distance <= 15 and user.fcm_token:
+#                     users_to_notify.append(user.fcm_token)
+
+#             if users_to_notify:
+#                 send_push_notification(
+#                     device_tokens=users_to_notify,  # Pass the list of tokens
+#                     title="New Deal Nearby",
+#                     message=f"A new deal '{deal.deal_title}' has been created near you."
+#                 )
+
+#         users_notification_sent = len(users_to_notify) > 0  # Confirm users received notification
+
+#         headers = self.get_success_headers(serializer.data)
+#         return Response({
+#             "deal": serializer.data,
+#             "notifications": {
+#                 "vendor_notification_sent": vendor_notification_sent,
+#                 "users_notification_sent": users_notification_sent,
+#                 "users_notified_count": len(users_to_notify)
+#             }
+#         }, status=status.HTTP_201_CREATED, headers=headers)
 
 
 
@@ -1691,3 +1735,28 @@ class SuperadminLoginView(APIView):
         
 #####################
 #####################
+
+class SubmitRatingView(generics.CreateAPIView):
+    serializer_class = VendorRatingSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, order_id, *args, **kwargs):
+        try:
+            # Order check kro
+            order = PlaceOrder.objects.get(order_id=order_id, user=request.user)
+
+            # Vendor extract kro
+            vendor = order.vendor
+
+            # Serializer ko request data ke sath initialize kro
+            serializer = self.get_serializer(data=request.data, context={'request': request, 'order': order})
+
+            # Validate aur save kro
+            if serializer.is_valid():
+                serializer.save(user=request.user, vendor=vendor, order=order)
+                return Response({"message": "Rating submitted successfully!", "data": serializer.data}, status=status.HTTP_201_CREATED)
+            
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except PlaceOrder.DoesNotExist:
+            return Response({"message": "Order not found or you are not authorized to rate this order."}, status=status.HTTP_404_NOT_FOUND)

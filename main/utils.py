@@ -121,31 +121,41 @@ def upload_to_s3_profile_image(file, folder, file_type="image"):
 
     return f"{settings.MEDIA_URL}{file_key}"
 
-def send_push_notification(registration_ids, title, message):
-    push_service = FCMNotification(api_key=settings.FCM_API_KEY)
+# def send_push_notification(device_tokens, title, message):
+#     # Initialize the FCMNotification class with the API key
+#     push_service = FCMNotification(api_key=settings.FCM_API_KEY)
     
-    result = push_service.notify_multiple_devices(
-        registration_ids=registration_ids,
-        message_title=title,
-        message_body=message
-    )
-    return result
+#     if isinstance(device_tokens, list):
+#         # Send to multiple devices
+#         result = push_service.notify_multiple_devices(
+#             registration_ids=device_tokens,
+#             message_title=title,
+#             message_body=message
+#         )
+#     else:
+#         # Send to a single device
+#         result = push_service.notify_single_device(
+#             registration_id=device_tokens,
+#             message_title=title,
+#             message_body=message
+#         )
+#     return result
 
-def calculate_distance(lat1, lon1, lat2, lon2):
-    if None in [lat1, lon1, lat2, lon2]:
-        return float('inf')  # Return a very large distance if any coordinate is missing
+# def calculate_distance(lat1, lon1, lat2, lon2):
+#     if None in [lat1, lon1, lat2, lon2]:
+#         return float('inf')  # Return a very large distance if any coordinate is missing
     
-    # Convert decimal to float for calculations
-    lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
+#     # Convert decimal to float for calculations
+#     lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
     
-    # Haversine Formula
-    dlon = radians(lon2 - lon1)
-    dlat = radians(lat2 - lat1)
-    a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
-    c = 2 * asin(sqrt(a))
+#     # Haversine Formula
+#     dlon = radians(lon2 - lon1)
+#     dlat = radians(lat2 - lat1)
+#     a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
+#     c = 2 * asin(sqrt(a))
     
-    r = 6371  # Radius of Earth in kilometers
-    return c * r
+#     r = 6371  # Radius of Earth in kilometers
+#     return c * r
 
 
 

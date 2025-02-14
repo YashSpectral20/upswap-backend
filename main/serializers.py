@@ -8,6 +8,7 @@ import datetime as dt
 from PIL import Image
 from rest_framework import serializers
 from urllib.parse import urlparse
+from decimal import Decimal
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model, authenticate
@@ -15,7 +16,7 @@ from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
     ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory, FavoriteVendor
+    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
@@ -27,6 +28,7 @@ from io import BytesIO
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.contrib.auth import authenticate
+from django.db.models import Avg
 
 User = get_user_model()
 
@@ -198,13 +200,18 @@ class ActivitySerializer(serializers.ModelSerializer):
         # Assign the created_by field
         validated_data['created_by'] = self.context['request'].user
 
-        # Handle special flags
-        if validated_data.pop('set_current_datetime', False):
+        # Preserve user-provided values
+        start_date = validated_data.get('start_date')
+        start_time = validated_data.get('start_time')
+        end_date = validated_data.get('end_date')
+        end_time = validated_data.get('end_time')
+
+        if validated_data.pop('set_current_datetime', False) and not (start_date or start_time):
             current_datetime = timezone.now()
             validated_data['start_date'] = current_datetime.date()
             validated_data['start_time'] = current_datetime.time()
 
-        if validated_data.pop('infinite_time', False):
+        if validated_data.pop('infinite_time', False) and not (end_date or end_time):
             future_date = timezone.now() + timezone.timedelta(days=365 * 999)  # 999 years from now
             validated_data['end_date'] = future_date.date()
             validated_data['end_time'] = future_date.time()
@@ -218,6 +225,7 @@ class ActivitySerializer(serializers.ModelSerializer):
             activity.save()
 
         return activity
+
 
     def update(self, instance, validated_data):
         # Handle updates for datetime and infinite time
@@ -519,10 +527,11 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     addresses = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
     
     class Meta:
         model = VendorKYC
-        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'services', 'addresses', 'is_favorite']
+        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'services', 'addresses', 'is_favorite', 'average_rating']
 
     def get_services(self, obj):
         # Assuming 'services' is a related field in the VendorKYC model
@@ -562,6 +571,10 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
             favorite_vendor = FavoriteVendor.objects.filter(user=user, vendor=obj).exists()
             return favorite_vendor
         return False  # If user is not authenticated, return False
+    
+    def get_average_rating(self, obj):
+        average = VendorRating.objects.filter(vendor=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        return round(average, 1) if average else 0.0
 
 
         
@@ -1444,3 +1457,36 @@ class SuperadminLoginSerializer(serializers.Serializer):
 
         data["user"] = user
         return data
+    
+class VendorRatingSerializer(serializers.ModelSerializer):
+    rating_id = serializers.UUIDField(read_only=True)
+    user_id = serializers.UUIDField(source='user.id', read_only=True)
+    vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
+    order_id = serializers.UUIDField(source='order.order_id', read_only=True)
+
+    class Meta:
+        model = VendorRating
+        fields = ['rating_id', 'user_id', 'vendor_id', 'order_id', 'rating', 'created_at']
+        read_only_fields = ['rating_id', 'user_id', 'vendor_id', 'order_id', 'created_at']
+
+    def validate_rating(self, value):
+        """ Ensure rating is a valid Decimal. """
+        if isinstance(value, float):  
+            value = Decimal(str(value))
+        return value
+
+    def validate(self, data):
+        request = self.context['request']
+        user = request.user
+        order = self.context['order']
+
+        # Check if user is the owner of the order
+        if order.user != user:
+            raise serializers.ValidationError("You are not authorized to rate this order.")
+
+        # Check if rating already exists
+        if VendorRating.objects.filter(user=user, order=order).exists():
+            raise serializers.ValidationError("You have already rated this order.")
+
+        return data
+
