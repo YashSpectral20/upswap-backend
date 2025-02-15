@@ -781,6 +781,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
@@ -791,7 +792,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country',
-            'discount_percentage', 'latitude', 'longitude'
+            'discount_percentage', 'latitude', 'longitude', 'average_rating'
         ]
         read_only_fields = ['deal_uuid', 'discount_percentage']
 
@@ -814,6 +815,15 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         first_image = obj.uploaded_images[0]  # Get the first image
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
+    
+    def get_average_rating(self, obj):
+        """
+        Vendor ki average rating calculate karega jo MyOrders me di gayi hai.
+        """
+        if obj.vendor_kyc:
+            average = VendorRating.objects.filter(vendor=obj.vendor_kyc).aggregate(avg_rating=Avg('rating'))['avg_rating']
+            return round(average, 1) if average else 0.0  # Default 0.0 if no ratings
+        return 0.0
         
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
