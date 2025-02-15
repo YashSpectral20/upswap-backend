@@ -16,7 +16,7 @@ from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
     ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating
+    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
@@ -1499,4 +1499,16 @@ class VendorRatingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You have already rated this order.")
 
         return data
+    
+class RaiseAnIssueSerializerMyOrders(serializers.ModelSerializer):
+    class Meta:
+        model = RaiseAnIssueMyOrders
+        fields = ["issue_id", "user", "place_order", "subject", "describe_your_issue", "choose_files", "created_at"]
+        read_only_fields = ["issue_id", "user", "created_at"]  # Ye fields user edit nahi kar sakta
+
+    def create(self, validated_data):
+        request = self.context.get('request')  # Request object access karein
+        if request and hasattr(request, "user"):
+            validated_data["user"] = request.user  # User ko manually set karein
+        return RaiseAnIssueMyOrders.objects.create(**validated_data)
 

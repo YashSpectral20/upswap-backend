@@ -38,7 +38,7 @@ from .serializers import (
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
-    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer
+    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -835,6 +835,7 @@ class UploadImagesAPI(APIView):
             "Activity": "activity",
             "VendorKYC": "vendor_kyc",
             "CreateDeal": "create_deal",
+            "RaiseAnIssueMyOrders": "raise_an_issue_my_orders",
         }
 
         if model_name not in folder_mapping:
@@ -1760,3 +1761,24 @@ class SubmitRatingView(generics.CreateAPIView):
 
         except PlaceOrder.DoesNotExist:
             return Response({"message": "Order not found or you are not authorized to rate this order."}, status=status.HTTP_404_NOT_FOUND)
+        
+class RaiseAnIssueMyOrdersView(generics.CreateAPIView):
+    serializer_class = RaiseAnIssueSerializerMyOrders
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        place_order_id = kwargs.get("place_order_id")  
+        try:
+            place_order = PlaceOrder.objects.get(order_id=place_order_id)  
+        except PlaceOrder.DoesNotExist:
+            return Response({"error": "Invalid PlaceOrder UUID"}, status=status.HTTP_404_NOT_FOUND)
+
+        data = request.data.copy()
+        data["place_order"] = str(place_order.order_id)  # UUID string me convert karein
+
+        serializer = self.get_serializer(data=data, context={"request": request})  # Context pass karein
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"message": "Issue raised successfully", "data": serializer.data}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+

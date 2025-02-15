@@ -505,4 +505,18 @@ class VendorRating(models.Model):
 
     def __str__(self):
         return f"Rating {self.rating} by {self.user.username} for {self.vendor}"
+    
+class RaiseAnIssueMyOrders(models.Model):
+    issue_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey("CustomUser", on_delete=models.CASCADE)  # User raising the issue
+    place_order = models.ForeignKey("PlaceOrder", on_delete=models.CASCADE, related_name="raised_issues")  # Related order
+    subject = models.CharField(max_length=255)  # Issue title
+    describe_your_issue = models.TextField()  # Issue description
+    choose_files = models.JSONField(default=list, blank=True)  # Image metadata
+    created_at = models.DateTimeField(default=timezone.now)  # Timestamp
+
+    def __str__(self):
+        return f"Issue: {self.subject} - Order: {self.place_order.id}"
+
+
 
