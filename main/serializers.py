@@ -16,7 +16,7 @@ from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
     ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors
+    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
@@ -1517,3 +1517,35 @@ class RaiseAnIssueVendorsSerializer(serializers.ModelSerializer):
         model = RaiseAnIssueVendors
         fields = ['issue_uuid', 'user', 'vendor', 'subject', 'describe_your_issue', 'choose_files', 'created_at']
         read_only_fields = ['issue_uuid', 'user', 'created_at', 'vendor']
+        
+class RaiseAnIssueCustomUserSerializer(serializers.ModelSerializer):
+    against_user_details = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RaiseAnIssueCustomUser
+        fields = [
+            "issue_id",
+            "raised_by",
+            "against_user",
+            "activity",
+            "subject",
+            "describe_your_issue",
+            "choose_files",
+            "created_at",
+            "against_user_details",
+        ]
+        
+        read_only_fields = ['against_user', 'activity']
+        
+        extra_kwargs = {
+            "raised_by": {"read_only": True},
+        }
+
+    def get_against_user_details(self, obj):
+        user = obj.against_user
+        return {
+            "name": user.name,
+            "username": user.username,
+            "gender": user.gender,
+            "bio": user.bio,
+        }

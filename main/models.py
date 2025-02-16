@@ -529,3 +529,16 @@ class RaiseAnIssueVendors(models.Model):
 
     def __str__(self):
         return f"Issue {self.issue_uuid} - {self.subject}"
+    
+class RaiseAnIssueCustomUser(models.Model):
+    issue_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    raised_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="issues_raised")
+    against_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="issues_against")
+    activity = models.ForeignKey("Activity", on_delete=models.CASCADE)
+    subject = models.CharField(max_length=255)
+    describe_your_issue = models.TextField()
+    choose_files = models.JSONField(default=list, blank=True, null=True)  # Multiple images JSON format
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Issue by {self.raised_by.username} against {self.against_user.username}"

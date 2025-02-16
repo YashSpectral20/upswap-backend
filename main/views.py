@@ -29,7 +29,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
 from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, PasswordResetOTP, VendorKYC, CreateDeal, PlaceOrder,
-                    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors)
+                    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser)
 
 from .serializers import (
     CustomUserSerializer, OTPRequestSerializer, OTPResetPasswordSerializer, OTPValidationSerializer, VerifyOTPSerializer, LoginSerializer,
@@ -38,7 +38,7 @@ from .serializers import (
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
-    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer
+    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -837,6 +837,7 @@ class UploadImagesAPI(APIView):
             "CreateDeal": "create_deal",
             "RaiseAnIssueMyOrders": "raise_an_issue_my_orders",
             "RaiseAnIssueVendors": "raise_an_issue_vendors",
+            "RaiseAnIssueCustomUser": "raise_an_issue_customuser",
         }
 
         if model_name not in folder_mapping:
@@ -1796,3 +1797,29 @@ class RaiseAnIssueVendorsCreateView(generics.CreateAPIView):
             raise ValidationError({"error": "Vendor not found."})
 
         serializer.save(user=self.request.user, vendor=vendor)
+        
+
+class RaiseAnIssueCustomUserView(generics.CreateAPIView):
+    queryset = RaiseAnIssueCustomUser.objects.all()
+    serializer_class = RaiseAnIssueCustomUserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        against_user_id = self.kwargs.get("against_user_id")
+        activity_id = self.kwargs.get("activity_id")
+
+        try:
+            against_user = CustomUser.objects.get(id=against_user_id)
+        except CustomUser.DoesNotExist:
+            raise ValidationError("User not found.")
+
+        try:
+            activity = Activity.objects.get(activity_id=activity_id)
+        except Activity.DoesNotExist:
+            raise ValidationError("Activity not found.")
+
+        if activity.created_by != against_user:
+            raise ValidationError("This activity does not belong to the mentioned user.")
+
+        serializer.save(raised_by=user, against_user=against_user, activity=activity)
