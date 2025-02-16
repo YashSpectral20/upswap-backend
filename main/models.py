@@ -518,5 +518,14 @@ class RaiseAnIssueMyOrders(models.Model):
     def __str__(self):
         return f"Issue: {self.subject} - Order: {self.place_order.id}"
 
+class RaiseAnIssueVendors(models.Model):
+    issue_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="vendor_issues")
+    vendor = models.ForeignKey('VendorKYC', on_delete=models.CASCADE, related_name="raised_issues")
+    subject = models.CharField(max_length=255)
+    describe_your_issue = models.TextField()
+    choose_files = models.JSONField(default=list, blank=True, null=True)  # Stores image metadata
+    created_at = models.DateTimeField(default=timezone.now)
 
-
+    def __str__(self):
+        return f"Issue {self.issue_uuid} - {self.subject}"

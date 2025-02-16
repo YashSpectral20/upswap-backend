@@ -16,7 +16,7 @@ from django.utils import timezone
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
     ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders
+    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
@@ -1512,3 +1512,8 @@ class RaiseAnIssueSerializerMyOrders(serializers.ModelSerializer):
             validated_data["user"] = request.user  # User ko manually set karein
         return RaiseAnIssueMyOrders.objects.create(**validated_data)
 
+class RaiseAnIssueVendorsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RaiseAnIssueVendors
+        fields = ['issue_uuid', 'user', 'vendor', 'subject', 'describe_your_issue', 'choose_files', 'created_at']
+        read_only_fields = ['issue_uuid', 'user', 'created_at', 'vendor']

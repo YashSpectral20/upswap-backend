@@ -29,7 +29,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
 from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, PasswordResetOTP, VendorKYC, CreateDeal, PlaceOrder,
-                    ActivityCategory, ServiceCategory, FavoriteVendor)
+                    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors)
 
 from .serializers import (
     CustomUserSerializer, OTPRequestSerializer, OTPResetPasswordSerializer, OTPValidationSerializer, VerifyOTPSerializer, LoginSerializer,
@@ -38,7 +38,7 @@ from .serializers import (
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
-    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders
+    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -836,6 +836,7 @@ class UploadImagesAPI(APIView):
             "VendorKYC": "vendor_kyc",
             "CreateDeal": "create_deal",
             "RaiseAnIssueMyOrders": "raise_an_issue_my_orders",
+            "RaiseAnIssueVendors": "raise_an_issue_vendors",
         }
 
         if model_name not in folder_mapping:
@@ -1782,3 +1783,16 @@ class RaiseAnIssueMyOrdersView(generics.CreateAPIView):
             return Response({"message": "Issue raised successfully", "data": serializer.data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class RaiseAnIssueVendorsCreateView(generics.CreateAPIView):
+    queryset = RaiseAnIssueVendors.objects.all()
+    serializer_class = RaiseAnIssueVendorsSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        vendor_id = self.kwargs.get('vendor_id')
+        try:
+            vendor = VendorKYC.objects.get(vendor_id=vendor_id)
+        except VendorKYC.DoesNotExist:
+            raise ValidationError({"error": "Vendor not found."})
+
+        serializer.save(user=self.request.user, vendor=vendor)
