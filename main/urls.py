@@ -123,7 +123,7 @@ from .views import (
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
-    RaiseAnIssueCustomUserView
+    RaiseAnIssueCustomUserView, DeactivateDealView
 )
 
 # Swagger Schema View
@@ -235,6 +235,8 @@ urlpatterns = [
     path('raise-issue/vendors/<uuid:vendor_id>/', RaiseAnIssueVendorsCreateView.as_view(), name='raise-issue-vendors'),
     
     path("raise-issue/<uuid:against_user_id>/<uuid:activity_id>/", RaiseAnIssueCustomUserView.as_view(), name="raise-issue-custom-user"),
+    
+    path("deals/deactivate/<uuid:deal_uuid>/", DeactivateDealView.as_view(), name='deactivate-deal'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
