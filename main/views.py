@@ -942,7 +942,9 @@ class CreateDeallistView(generics.ListAPIView):
         search_keyword = self.request.query_params.get('address', None)
 
         # Active deals filter
-        queryset = CreateDeal.objects.filter(start_date__lte=now, end_date__gte=now)
+        queryset = CreateDeal.objects.filter(
+            Q(start_date__lte=now) & Q(end_date__gte=now)
+        )
 
         if search_keyword:
             search_terms = [term.strip() for term in search_keyword.split(',')]
@@ -1825,44 +1827,52 @@ class RaiseAnIssueCustomUserView(generics.CreateAPIView):
         serializer.save(raised_by=user, against_user=against_user, activity=activity)
         
 class DeactivateDealView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]  # Ensure the user is authenticated
 
     def post(self, request, deal_uuid):
         try:
-            # Fetch the deal using deal_uuid
+            # Fetch the deal using the UUID
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
 
-            # Get current time for comparison
-            current_time = datetime.now()
+            current_time = timezone.now()
 
-            # Check if the deal is live or scheduled and deactivate accordingly
-            if deal.start_date <= current_time.date() <= deal.end_date:
-                deal_start_datetime = datetime.combine(deal.start_date, deal.start_time)
-                deal_end_datetime = datetime.combine(deal.end_date, deal.end_time)
+            # Deactivate live deals (set end_date and end_time to current time)
+            deal_start_datetime = datetime.combine(deal.start_date, deal.start_time)
+            deal_end_datetime = datetime.combine(deal.end_date, deal.end_time)
 
-                if deal_start_datetime <= current_time <= deal_end_datetime:
-                    # Live Deal - set end_date and end_time to current time
-                    deal.end_date = current_time.date()
-                    deal.end_time = current_time.time()
-                elif current_time < deal_start_datetime:
-                    # Scheduled Deal - set start_date, start_time, end_date, end_time to current time
-                    deal.start_date = current_time.date()
-                    deal.start_time = current_time.time()
-                    deal.end_date = current_time.date()
-                    deal.end_time = current_time.time()
+            # Make deal start and end datetimes timezone-aware
+            deal_start_datetime = timezone.make_aware(deal_start_datetime, timezone.get_current_timezone())
+            deal_end_datetime = timezone.make_aware(deal_end_datetime, timezone.get_current_timezone())
 
-                # Move to history (deactivate the deal)
-                deal.save()
+            if deal_start_datetime <= current_time <= deal_end_datetime:
+                # Live deal: set end_date and end_time to current time
+                deal.end_date = current_time.date()
+                deal.end_time = current_time.time().replace(microsecond=0)
 
-                # Serialize the deactivated deal
-                deal_serializer = MyDealSerializer(deal)
+            # Deactivate scheduled deals (set start_date, start_time, end_date, and end_time to current time)
+            elif current_time < deal_start_datetime:
+                # Scheduled deal: set start and end times to current time
+                deal.start_date = current_time.date()
+                deal.start_time = current_time.time().replace(microsecond=0)
+                deal.end_date = current_time.date()
+                deal.end_time = current_time.time().replace(microsecond=0)
 
-                return Response({
-                    'message': 'Deal successfully deactivated.',
-                    'deal': deal_serializer.data
-                }, status=status.HTTP_200_OK)
+            # Save the updated deal
+            deal.save()
+
+            # Move the deal to history (you can update the status of the deal if needed)
+            # Assuming you have a field like 'status' for history management
+            deal.status = 'history'  # This is just an example, adapt as needed
+            deal.save()
+
+            # Serialize the updated deal and return it in the response
+            serializer = CreateDealSerializer(deal)
+            return Response({
+                'message': 'Deal deactivated successfully.',
+                'deal': serializer.data
+            }, status=status.HTTP_200_OK)
 
         except CreateDeal.DoesNotExist:
             return Response({
-                'error': 'Deal not found.'
+                'message': 'Deal not found.'
             }, status=status.HTTP_404_NOT_FOUND)
