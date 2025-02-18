@@ -1881,55 +1881,36 @@ class RepostDealView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        # Get deal UUID from the URL
         deal_uuid = kwargs.get('deal_uuid')
         try:
-            # Fetch the deal to be reposted
             old_deal = CreateDeal.objects.get(deal_uuid=deal_uuid, vendor_kyc__user=request.user)
         except CreateDeal.DoesNotExist:
             raise ValidationError("Deal not found or not owned by the vendor.")
 
-        # Validate new start and end date/time
-        start_date = request.data.get('start_date')
-        start_time = request.data.get('start_time')
-        end_date = request.data.get('end_date')
-        end_time = request.data.get('end_time')
+        start_date = request.data.get('start_date', old_deal.start_date)
+        start_time = request.data.get('start_time', old_deal.start_time)
+        end_date = request.data.get('end_date', old_deal.end_date)
+        end_time = request.data.get('end_time', old_deal.end_time)
 
-        # Convert string dates to datetime.date objects
-        if start_date:
+        # Convert string dates and times to datetime objects
+        if isinstance(start_date, str):
             start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-        else:
-            start_date = old_deal.start_date
-
-        if end_date:
-            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-        else:
-            end_date = old_deal.end_date
-
-        # Convert string times to datetime.time objects
-        if start_time:
+        if isinstance(start_time, str):
             start_time = datetime.strptime(start_time, "%H:%M:%S").time()
-        else:
-            start_time = old_deal.start_time
-
-        if end_time:
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        if isinstance(end_time, str):
             end_time = datetime.strptime(end_time, "%H:%M:%S").time()
-        else:
-            end_time = old_deal.end_time
 
-        # Ensure end_date is after start_date
-        if start_date and end_date and start_date > end_date:
+        # Ensure valid date-time sequence
+        if start_date > end_date:
             raise ValidationError("End date cannot be before start date.")
+        if datetime.combine(start_date, start_time) > datetime.combine(end_date, end_time):
+            raise ValidationError("End time cannot be before start time.")
 
-        # Ensure end_time is after start_time
-        if start_datetime := datetime.combine(start_date, start_time):
-            if end_datetime := datetime.combine(end_date, end_time):
-                if start_datetime > end_datetime:
-                    raise ValidationError("End time cannot be before start time.")
-
-        # Create new deal based on old deal's data, but update the UUID and dates
+        # Create a new deal with new UUID
         new_deal_data = {
-            'vendor_kyc': old_deal.vendor_kyc.vendor_id,  # Use `.id` instead of object reference
+            'vendor_kyc': old_deal.vendor_kyc.vendor_id,
             'deal_title': old_deal.deal_title,
             'deal_description': old_deal.deal_description,
             'select_service': old_deal.select_service,
@@ -1952,9 +1933,13 @@ class RepostDealView(APIView):
             'longitude': old_deal.longitude
         }
 
-        # Create the new deal instance
         serializer = CreateDealSerializer(data=new_deal_data)
         if serializer.is_valid():
-            new_deal = serializer.save(deal_uuid=uuid.uuid4())  # New deal with new UUID
+            new_deal = serializer.save(deal_uuid=uuid.uuid4())  # Generate new deal UUID
+
+            # Remove the old deal from history
+            old_deal.delete()  # This removes the old deal from database
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
