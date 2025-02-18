@@ -938,60 +938,57 @@ class CreateDeallistView(generics.ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        now = timezone.now()
-        search_keyword = self.request.query_params.get('address', None)
+            now = timezone.now()
+            search_keyword = self.request.query_params.get('address', None)
 
-        # Active deals filter
-        queryset = CreateDeal.objects.filter(
-            Q(start_date__lte=now) & Q(end_date__gte=now)
-        )
+            # Filter only Live Deals (exclude Scheduled & History Deals)
+            queryset = CreateDeal.objects.filter(
+                Q(start_date__lte=now.date(), end_date__gte=now.date()) & 
+                Q(start_time__lte=now.time(), end_time__gte=now.time())
+            )
 
-        if search_keyword:
-            search_terms = [term.strip() for term in search_keyword.split(',')]
-            query = Q()
+            if search_keyword:
+                search_terms = [term.strip() for term in search_keyword.split(',')]
+                query = Q()
 
-            # Single search term ke liye multiple fields me search karenge
-            if len(search_terms) == 1:
-                clean_term = search_terms[0]
-                query |= Q(location_city__icontains=clean_term)
-                query |= Q(location_state__icontains=clean_term)
-                query |= Q(location_country__icontains=clean_term)
-                query |= Q(location_pincode__icontains=clean_term)
-                query |= Q(location_road_name__icontains=clean_term)
+                if len(search_terms) == 1:
+                    clean_term = search_terms[0]
+                    query |= Q(location_city__icontains=clean_term)
+                    query |= Q(location_state__icontains=clean_term)
+                    query |= Q(location_country__icontains=clean_term)
+                    query |= Q(location_pincode__icontains=clean_term)
+                    query |= Q(location_road_name__icontains=clean_term)
 
-            # Do search terms ke liye priority dete hue filter karenge
-            elif len(search_terms) == 2:
-                if queryset.filter(location_city__icontains=search_terms[0]).exists():
-                    query |= Q(location_city__icontains=search_terms[0])
-                elif queryset.filter(location_state__icontains=search_terms[0]).exists():
-                    query |= Q(location_state__icontains=search_terms[0])
-                elif queryset.filter(location_country__icontains=search_terms[0]).exists():
-                    query |= Q(location_country__icontains=search_terms[0])
+                elif len(search_terms) == 2:
+                    if queryset.filter(location_city__icontains=search_terms[0]).exists():
+                        query |= Q(location_city__icontains=search_terms[0])
+                    elif queryset.filter(location_state__icontains=search_terms[0]).exists():
+                        query |= Q(location_state__icontains=search_terms[0])
+                    elif queryset.filter(location_country__icontains=search_terms[0]).exists():
+                        query |= Q(location_country__icontains=search_terms[0])
 
-            # Teen search terms ke liye bhi similarly handle karenge
-            elif len(search_terms) == 3:
-                if queryset.filter(location_city__icontains=search_terms[0]).exists():
-                    query |= Q(location_city__icontains=search_terms[0])
-                elif queryset.filter(location_state__icontains=search_terms[1]).exists():
-                    query |= Q(location_state__icontains=search_terms[1])
-                elif queryset.filter(location_country__icontains=search_terms[2]).exists():
-                    query |= Q(location_country__icontains=search_terms[2])
+                elif len(search_terms) == 3:
+                    if queryset.filter(location_city__icontains=search_terms[0]).exists():
+                        query |= Q(location_city__icontains=search_terms[0])
+                    elif queryset.filter(location_state__icontains=search_terms[1]).exists():
+                        query |= Q(location_state__icontains=search_terms[1])
+                    elif queryset.filter(location_country__icontains=search_terms[2]).exists():
+                        query |= Q(location_country__icontains=search_terms[2])
 
-            # Agar 4 ya usse zyada terms hain to road name ya pincode ko priority denge
-            elif len(search_terms) >= 4:
-                if queryset.filter(location_road_name__icontains=search_terms[0]).exists():
-                    query |= Q(location_road_name__icontains=search_terms[0])
-                else:
-                    return CreateDeal.objects.none()
+                elif len(search_terms) >= 4:
+                    if queryset.filter(location_road_name__icontains=search_terms[0]).exists():
+                        query |= Q(location_road_name__icontains=search_terms[0])
+                    else:
+                        return CreateDeal.objects.none()
 
-            queryset = queryset.filter(query).distinct()
+                queryset = queryset.filter(query).distinct()
 
-        return queryset
+            return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
         response_data = {
-            "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Deals",
+            "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Live Deals",
             "deals": []
         }
 
