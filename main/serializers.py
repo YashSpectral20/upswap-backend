@@ -589,6 +589,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
     uploaded_images = serializers.SerializerMethodField()
     
     business_hours = serializers.JSONField(required=False, allow_null=True)
+    average_rating = serializers.SerializerMethodField()
 
     class Meta:
         model = VendorKYC
@@ -598,7 +599,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
             'uploaded_images', 'same_as_personal_phone_number', 
             'same_as_personal_email_id', 'addresses', 'country_code', 'dial_code', 
             'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
-            'services', 'business_hours', 'is_approved'
+            'services', 'business_hours', 'is_approved', 'average_rating'
         ]
         read_only_fields = ['user', 'is_approved']  # Keep read-only fields to avoid updates during detail fetching
 
@@ -640,7 +641,11 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
             if image.get("compressed") and image.get("thumbnail")
         ]
 
-        return images    
+        return images
+    
+    def get_average_rating(self, obj):
+        average = VendorRating.objects.filter(vendor=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        return round(average, 1) if average else 0.0   
         
 class VendorKYCStatusSerializer(serializers.ModelSerializer):
     class Meta:
@@ -834,6 +839,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
     # uploaded_images = CreateDealImageSerializer(many=True, source='deals_assets')   # , source='deals_assets'
 
     class Meta:
@@ -846,7 +852,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'discount_percentage',
-            'latitude', 'longitude'
+            'latitude', 'longitude', 'average_rating'
         ]
         read_only_fields = ['vendor_uuid', 'deal_uuid', 'discount_percentage']
 
@@ -873,7 +879,14 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             # Return only compressed
             return compressed
 
-           
+    def get_average_rating(self, obj):
+        """
+        Vendor ki average rating calculate karega jo MyOrders me di gayi hai.
+        """
+        if obj.vendor_kyc:
+            average = VendorRating.objects.filter(vendor=obj.vendor_kyc).aggregate(avg_rating=Avg('rating'))['avg_rating']
+            return round(average, 1) if average else 0.0  # Default 0.0 if no ratings
+        return 0.0
         
 class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
