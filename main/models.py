@@ -145,7 +145,7 @@ class Activity(models.Model):
     end_time = models.TimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    infinite_time = models.BooleanField(default=True)
+    infinite_time = models.BooleanField(default=False)  # Updated to False
     set_current_datetime = models.BooleanField(default=False)
     images = models.JSONField(default=list, blank=True, help_text="List of image paths")
     location = models.CharField(max_length=255, blank=True, null=True, help_text="Optional description of the location")
@@ -154,8 +154,6 @@ class Activity(models.Model):
 
     def clean(self):
         now = timezone.now().date()
-
-        # Check date validations
         if self.start_date and self.start_date < now:
             raise ValidationError("Start date cannot be in the past.")
         if self.end_date and self.end_date < now:
@@ -165,14 +163,12 @@ class Activity(models.Model):
         if self.start_time and self.end_time and self.end_time < self.start_time:
             raise ValidationError("End time must be after start time.")
         
-        # Check maximum participants limit
         if self.maximum_participants > 1000:
             raise ValidationError("Maximum participants cannot exceed 1000.")
 
     def save(self, *args, **kwargs):
-        # Apply the special condition logic
         if self.infinite_time and not (self.start_date or self.start_time or self.end_date or self.end_time):
-            future_date = timezone.now() + timezone.timedelta(days=365 * 999)  # 999 years from now
+            future_date = timezone.now() + timezone.timedelta(days=365 * 999)  
             self.end_date = future_date.date()
             self.end_time = future_date.time()
 
@@ -190,11 +186,8 @@ class Activity(models.Model):
         if not self.user_participation:
             self.maximum_participants = 0
 
-        # Perform the clean validation before saving
         self.clean()
-        
         super().save(*args, **kwargs)
-
 
     def __str__(self):
         return self.activity_title

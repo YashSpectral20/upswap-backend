@@ -122,10 +122,10 @@ class ActivityCategorySerializer(serializers.ModelSerializer):
     
 class ActivitySerializer(serializers.ModelSerializer):
     set_current_datetime = serializers.BooleanField(write_only=True, required=False, default=False)
-    infinite_time = serializers.BooleanField(write_only=True, required=False, default=True)
-    location = serializers.CharField(required=False, allow_blank=True)  # Add location field
-    latitude = serializers.FloatField(required=False, allow_null=True)  # Add latitude field
-    longitude = serializers.FloatField(required=False, allow_null=True)  # Add longitude field
+    infinite_time = serializers.BooleanField(write_only=True, required=False, default=False)  # Updated default to False
+    location = serializers.CharField(required=False, allow_blank=True)
+    latitude = serializers.FloatField(required=False, allow_null=True)
+    longitude = serializers.FloatField(required=False, allow_null=True)
     uploaded_images = serializers.ListField(
         child=serializers.DictField(
             child=serializers.URLField(),
@@ -145,35 +145,21 @@ class ActivitySerializer(serializers.ModelSerializer):
             'location', 'latitude', 'longitude'
         ]
         read_only_fields = ['created_by', 'created_at']
-        
-        
+
     def validate_activity_category(self, value):
         try:
             return ActivityCategory.objects.get(actv_category__iexact=value)
         except ActivityCategory.DoesNotExist:
             raise serializers.ValidationError(f"Activity category '{value}' does not exist.")
 
-    def create(self, validated_data):
-        validated_data['activity_category'] = validated_data.pop('activity_category', None)
-        return super().create(validated_data)
-
-    def update(self, instance, validated_data):
-        if 'activity_category' in validated_data:
-            validated_data['activity_category'] = validated_data.pop('activity_category', None)
-        return super().update(instance, validated_data)
-
     def validate(self, data):
         now = timezone.now().date()
-
-        # Ensure user_participation is set to True by default
         data['user_participation'] = data.get('user_participation', True)
 
-        # Skip validation for date and time when flags are set
         set_current_datetime = data.get('set_current_datetime', False)
         infinite_time = data.get('infinite_time', False)
 
         if not set_current_datetime and not infinite_time:
-            # Date and time validations
             if data.get('start_date') and data['start_date'] < now:
                 raise serializers.ValidationError({"start_date": "Start date cannot be in the past."})
             if data.get('end_date') and data['end_date'] < now:
@@ -183,11 +169,9 @@ class ActivitySerializer(serializers.ModelSerializer):
             if data.get('start_time') and data.get('end_time') and data['end_time'] <= data['start_time']:
                 raise serializers.ValidationError({"end_time": "End time must be after start time."})
 
-        # Validate maximum participants
         if data.get('maximum_participants') and data['maximum_participants'] > 1000:
             raise serializers.ValidationError({"maximum_participants": "Maximum participants cannot exceed 1000."})
 
-        # Automatically set maximum participants to 0 if user participation is disabled
         if not data.get('user_participation', True):
             data['maximum_participants'] = 0
 

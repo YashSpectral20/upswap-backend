@@ -215,9 +215,10 @@ class ActivityCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        # Set user_participation to True by default if not provided in the request data
         if 'user_participation' not in serializer.validated_data:
             serializer.validated_data['user_participation'] = True
+        if 'infinite_time' not in serializer.validated_data:
+            serializer.validated_data['infinite_time'] = False  # Ensure default is False
         serializer.save(created_by=self.request.user)
 
 
