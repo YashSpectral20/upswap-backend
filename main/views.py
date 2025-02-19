@@ -58,7 +58,7 @@ from django.contrib.auth import get_user_model
 from rest_framework import generics, serializers
 #from django.contrib.gis.measure import D
 #from django.contrib.gis.geos import Point
-from datetime import datetime
+from datetime import datetime, date, time  
 from django.core.mail import send_mail
 from django.utils.http import urlsafe_base64_encode
 from django.utils.encoding import force_bytes
@@ -1888,7 +1888,7 @@ class RepostDealView(APIView):
         try:
             old_deal = CreateDeal.objects.get(deal_uuid=deal_uuid, vendor_kyc__user=request.user)
         except CreateDeal.DoesNotExist:
-            raise ValidationError("Deal not found or not owned by the vendor.")
+            raise ValidationError({"message": "Deal not found or not owned by the vendor."})
 
         start_date = request.data.get('start_date', old_deal.start_date)
         start_time = request.data.get('start_time', old_deal.start_time)
@@ -1905,11 +1905,20 @@ class RepostDealView(APIView):
         if isinstance(end_time, str):
             end_time = datetime.strptime(end_time, "%H:%M:%S").time()
 
+        # Get current date and time from vendor's device
+        current_datetime = datetime.now()
+        current_date = current_datetime.date()
+        current_time = current_datetime.time()
+
+        # Ensure start_date and start_time are not in the past
+        if start_date < current_date or (start_date == current_date and start_time < current_time):
+            raise ValidationError({"message": "Start date and time cannot be in the past."})
+
         # Ensure valid date-time sequence
         if start_date > end_date:
-            raise ValidationError("End date cannot be before start date.")
+            raise ValidationError({"message": "End date cannot be before start date."})
         if datetime.combine(start_date, start_time) > datetime.combine(end_date, end_time):
-            raise ValidationError("End time cannot be before start time.")
+            raise ValidationError({"message": "End time cannot be before start time."})
 
         # Create a new deal with new UUID
         new_deal_data = {
@@ -1939,10 +1948,7 @@ class RepostDealView(APIView):
         serializer = CreateDealSerializer(data=new_deal_data)
         if serializer.is_valid():
             new_deal = serializer.save(deal_uuid=uuid.uuid4())  # Generate new deal UUID
-
-            # Remove the old deal from history
-            old_deal.delete()  # This removes the old deal from database
-
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
