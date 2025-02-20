@@ -1833,45 +1833,46 @@ class DeactivateDealView(APIView):
     def post(self, request, deal_uuid):
         try:
             # Fetch the deal using the UUID
-            deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
+            data = CreateDeal.objects.get(deal_uuid=deal_uuid)
 
             current_time = timezone.now()
 
             # Deactivate live deals (set end_date and end_time to current time)
-            deal_start_datetime = datetime.combine(deal.start_date, deal.start_time)
-            deal_end_datetime = datetime.combine(deal.end_date, deal.end_time)
+            data_start_datetime = datetime.combine(data.start_date, data.start_time)
+            data_end_datetime = datetime.combine(data.end_date, data.end_time)
 
             # Make deal start and end datetimes timezone-aware
-            deal_start_datetime = timezone.make_aware(deal_start_datetime, timezone.get_current_timezone())
-            deal_end_datetime = timezone.make_aware(deal_end_datetime, timezone.get_current_timezone())
+            data_start_datetime = timezone.make_aware(data_start_datetime, timezone.get_current_timezone())
+            data_end_datetime = timezone.make_aware(data_end_datetime, timezone.get_current_timezone())
 
-            if deal_start_datetime <= current_time <= deal_end_datetime:
+            if data_start_datetime <= current_time <= data_end_datetime:
                 # Live deal: set end_date and end_time to current time
-                deal.end_date = current_time.date()
-                deal.end_time = current_time.time().replace(microsecond=0)
+                data.end_date = current_time.date()
+                data.end_time = current_time.time().replace(microsecond=0)
 
             # Deactivate scheduled deals (set start_date, start_time, end_date, and end_time to current time)
-            elif current_time < deal_start_datetime:
+            elif current_time < data_start_datetime:
                 # Scheduled deal: set start and end times to current time
-                deal.start_date = current_time.date()
-                deal.start_time = current_time.time().replace(microsecond=0)
-                deal.end_date = current_time.date()
-                deal.end_time = current_time.time().replace(microsecond=0)
+                data.start_date = current_time.date()
+                data.start_time = current_time.time().replace(microsecond=0)
+                data.end_date = current_time.date()
+                data.end_time = current_time.time().replace(microsecond=0)
 
             # Save the updated deal
-            deal.save()
+            data.save()
 
             # Move the deal to history (you can update the status of the deal if needed)
             # Assuming you have a field like 'status' for history management
-            deal.status = 'history'  # This is just an example, adapt as needed
-            deal.save()
+            data.status = 'history'  # This is just an example, adapt as needed
+            data.save()
 
             # Serialize the updated deal and return it in the response
-            serializer = CreateDealSerializer(deal)
+            serializer = CreateDealSerializer(data)
             return Response({
-                'message': 'Deal deactivated successfully.',
-                'deal': serializer.data
-            }, status=status.HTTP_200_OK)
+                            "message":
+                                "Deal deactivated successfully",
+                            "data": serializer.data
+                        }, status=status.HTTP_200_OK)
 
         except CreateDeal.DoesNotExist:
             return Response({
@@ -1952,4 +1953,56 @@ class RepostDealView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    
+    
+    
+class DeactivateActivitiesView(APIView):
+    permission_classes = [IsAuthenticated]  # Ensure the user is authenticated
 
+    def post(self, request, activity_id):
+        try:
+            # Fetch the activity using the activity_id
+            activity = Activity.objects.get(activity_id=activity_id, created_by=request.user)
+            current_time = timezone.now()
+
+            # Convert start_date & start_time and end_date & end_time to datetime
+            activity_start_datetime = datetime.combine(activity.start_date, activity.start_time)
+            activity_end_datetime = datetime.combine(activity.end_date, activity.end_time)
+
+            # Make them timezone-aware
+            activity_start_datetime = timezone.make_aware(activity_start_datetime, timezone.get_current_timezone())
+            activity_end_datetime = timezone.make_aware(activity_end_datetime, timezone.get_current_timezone())
+
+            # Check if it's a live or scheduled activity and update accordingly
+            if activity_start_datetime <= current_time <= activity_end_datetime:
+                # Live activity: Set end_date and end_time to current time
+                update_fields = {
+                    "end_date": current_time.date(),
+                    "end_time": current_time.time().replace(microsecond=0),
+                }
+            elif current_time < activity_start_datetime:
+                # Scheduled activity: Set start_date, start_time, end_date, and end_time to current time
+                update_fields = {
+                    "start_date": current_time.date(),
+                    "start_time": current_time.time().replace(microsecond=0),
+                    "end_date": current_time.date(),
+                    "end_time": current_time.time().replace(microsecond=0),
+                }
+            else:
+                return Response({"message": "Activity has already ended."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # ✅ Bypass validation by using `update()` instead of `save()`
+            Activity.objects.filter(activity_id=activity_id).update(**update_fields)
+
+            # Serialize the updated activity and return response
+            activity.refresh_from_db()  # Refresh instance after update
+            serializer = ActivitySerializer(activity)
+            return Response({
+                "message": "Activity deactivated successfully",
+                "data": serializer.data
+            }, status=status.HTTP_200_OK)
+
+        except Activity.DoesNotExist:
+            return Response({
+                "message": "Activity not found."
+            }, status=status.HTTP_404_NOT_FOUND)
