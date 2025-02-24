@@ -361,6 +361,16 @@ class VendorKYCCreateView(generics.CreateAPIView):
 
         # Add uploaded_images to validated data
         serializer.save(user=user, uploaded_images=uploaded_images)
+        
+    def perform_create(self, serializer):
+        user = self.request.user
+        profile_pic = self.request.data.get('profile_pic', '')
+
+        # Ensure profile_pic is stored as a string
+        if isinstance(profile_pic, list) or isinstance(profile_pic, dict):
+            raise ValidationError({"profile_pic": "profile_pic must be a string (image URL or path)."})
+
+        serializer.save(user=user, profile_pic=profile_pic)
 
     def create(self, request, *args, **kwargs):
         try:

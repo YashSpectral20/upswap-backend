@@ -384,7 +384,7 @@ class ServiceSerializer(serializers.ModelSerializer):
         
         
 class VendorKYCSerializer(serializers.ModelSerializer):
-    profile_pic = serializers.JSONField(required=False)
+    profile_pic = serializers.CharField(required=False, allow_blank=True)
     uploaded_business_documents = serializers.ListField(
         child=serializers.URLField(),
         required=False,

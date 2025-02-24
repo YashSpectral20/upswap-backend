@@ -253,7 +253,7 @@ def validate_file_type(file):
 
 class VendorKYC(models.Model):
     vendor_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    profile_pic = models.JSONField(default=list, blank=True)
+    profile_pic = models.CharField(max_length=500, blank=True, default="")
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, blank=True, default='')
     full_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=15, blank=True)
