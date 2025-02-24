@@ -123,7 +123,7 @@ from .views import (
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
-    RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView
+    RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView
 )
 
 # Swagger Schema View
@@ -241,6 +241,8 @@ urlpatterns = [
     path('deals/repost/<uuid:deal_uuid>/', RepostDealView.as_view(), name='repost-deal'),
     
     path('activities/deactivate/<uuid:activity_id>/', DeactivateActivitiesView.as_view(), name='deactivate-activity'),
+    
+    path('activity/repost/<uuid:activity_id>/', ActivityRepostView.as_view(), name='activity-repost'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

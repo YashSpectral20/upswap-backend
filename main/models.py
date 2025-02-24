@@ -458,7 +458,8 @@ class PlaceOrder(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Order {self.order_id} by {self.user.username}"
+        return f"Order {self.order_id} for {self.user.username}" if self.order_id else "Unsaved Order"
+
     
 
 class PasswordResetOTP(models.Model):

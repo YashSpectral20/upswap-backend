@@ -1,4 +1,5 @@
 import random
+import datetime as dt
 from PIL import Image
 from io import BytesIO
 import logging
@@ -38,7 +39,8 @@ from .serializers import (
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
-    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer
+    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, 
+    #ActivityRepostSerializer
 
 )
 from rest_framework.generics import RetrieveAPIView
@@ -1879,80 +1881,79 @@ class DeactivateDealView(APIView):
                 'message': 'Deal not found.'
             }, status=status.HTTP_404_NOT_FOUND)
             
-class RepostDealView(APIView):
-    """
-    API endpoint for vendor to repost a deal from history.
-    """
+
+class RepostDealView(generics.CreateAPIView):
+    serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        deal_uuid = kwargs.get('deal_uuid')
+    def post(self, request, deal_uuid, *args, **kwargs):
         try:
-            old_deal = CreateDeal.objects.get(deal_uuid=deal_uuid, vendor_kyc__user=request.user)
+            # Existing deal fetch karo
+            old_deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
         except CreateDeal.DoesNotExist:
-            raise ValidationError({"message": "Deal not found or not owned by the vendor."})
+            return Response({"error": "Invalid deal UUID"}, status=status.HTTP_404_NOT_FOUND)
 
-        start_date = request.data.get('start_date', old_deal.start_date)
-        start_time = request.data.get('start_time', old_deal.start_time)
-        end_date = request.data.get('end_date', old_deal.end_date)
-        end_time = request.data.get('end_time', old_deal.end_time)
+        # Check karo ki ye deal expire ya history me hai
+        now = timezone.now().date()
+        if old_deal.end_date and old_deal.end_date >= now:
+            return Response({"error": "Only expired or historical deals can be reposted"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Convert string dates and times to datetime objects
-        if isinstance(start_date, str):
-            start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-        if isinstance(start_time, str):
-            start_time = datetime.strptime(start_time, "%H:%M:%S").time()
-        if isinstance(end_date, str):
-            end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
-        if isinstance(end_time, str):
-            end_time = datetime.strptime(end_time, "%H:%M:%S").time()
+        # Naye start and end dates fetch karo
+        start_date = request.data.get('start_date')
+        start_time = request.data.get('start_time')
+        end_date = request.data.get('end_date')
+        end_time = request.data.get('end_time')
 
-        # Get current date and time from vendor's device
-        current_datetime = datetime.now()
-        current_date = current_datetime.date()
-        current_time = current_datetime.time()
+        if not (start_date and start_time and end_date and end_time):
+            return Response({"error": "Start and End date-time fields are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Ensure start_date and start_time are not in the past
-        if start_date < current_date or (start_date == current_date and start_time < current_time):
-            raise ValidationError({"message": "Start date and time cannot be in the past."})
+        # Convert to datetime objects
+        start_date = dt.datetime.strptime(start_date, "%Y-%m-%d").date()
+        start_time = dt.datetime.strptime(start_time, "%H:%M:%S").time()
+        end_date = dt.datetime.strptime(end_date, "%Y-%m-%d").date()
+        end_time = dt.datetime.strptime(end_time, "%H:%M:%S").time()
 
-        # Ensure valid date-time sequence
+        # Validate date & time
         if start_date > end_date:
-            raise ValidationError({"message": "End date cannot be before start date."})
-        if datetime.combine(start_date, start_time) > datetime.combine(end_date, end_time):
-            raise ValidationError({"message": "End time cannot be before start time."})
+            return Response({"error": "End date cannot be before start date"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if start_date == end_date and start_time >= end_time:
+            return Response({"error": "End time cannot be before or same as start time"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Create a new deal with new UUID
-        new_deal_data = {
-            'vendor_kyc': old_deal.vendor_kyc.vendor_id,
-            'deal_title': old_deal.deal_title,
-            'deal_description': old_deal.deal_description,
-            'select_service': old_deal.select_service,
-            'uploaded_images': old_deal.uploaded_images,
-            'start_date': start_date,
-            'end_date': end_date,
-            'start_time': start_time,
-            'end_time': end_time,
-            'start_now': False,
-            'actual_price': old_deal.actual_price,
-            'deal_price': old_deal.deal_price,
-            'available_deals': old_deal.available_deals,
-            'location_house_no': old_deal.location_house_no,
-            'location_road_name': old_deal.location_road_name,
-            'location_country': old_deal.location_country,
-            'location_state': old_deal.location_state,
-            'location_city': old_deal.location_city,
-            'location_pincode': old_deal.location_pincode,
-            'latitude': old_deal.latitude,
-            'longitude': old_deal.longitude
-        }
+        # New deal create karo (repost)
+        new_deal = CreateDeal.objects.create(
+            vendor_kyc=old_deal.vendor_kyc,
+            deal_uuid=uuid.uuid4(),  # New UUID
+            deal_title=old_deal.deal_title,
+            deal_description=old_deal.deal_description,
+            select_service=old_deal.select_service,
+            uploaded_images=old_deal.uploaded_images,
+            start_date=start_date,
+            start_time=start_time,
+            end_date=end_date,
+            end_time=end_time,
+            actual_price=old_deal.actual_price,
+            deal_price=old_deal.deal_price,
+            available_deals=old_deal.available_deals,
+            location_house_no=old_deal.location_house_no,
+            location_road_name=old_deal.location_road_name,
+            location_country=old_deal.location_country,
+            location_state=old_deal.location_state,
+            location_city=old_deal.location_city,
+            location_pincode=old_deal.location_pincode,
+            latitude=old_deal.latitude,
+            longitude=old_deal.longitude
+        )
 
-        serializer = CreateDealSerializer(data=new_deal_data)
-        if serializer.is_valid():
-            new_deal = serializer.save(deal_uuid=uuid.uuid4())  # Generate new deal UUID
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        return Response({"message": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        # Naya deal status check karo
+        if start_date == now and start_time <= timezone.now().time():
+            new_deal.start_now = True  # Live me chali jayegi
+        else:
+            new_deal.start_now = False  # Scheduled me jayegi
+        
+        new_deal.save()
+        
+        return Response(CreateDealSerializer(new_deal).data, status=status.HTTP_201_CREATED)
     
     
     
@@ -2006,3 +2007,37 @@ class DeactivateActivitiesView(APIView):
             return Response({
                 "message": "Activity not found."
             }, status=status.HTTP_404_NOT_FOUND)
+            
+class ActivityRepostView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, activity_id):
+        try:
+            # Existing activity ko fetch karo
+            existing_activity = Activity.objects.get(activity_id=activity_id, created_by=request.user)
+        except Activity.DoesNotExist:
+            return Response({"error": "Activity not found or you do not have permission to repost it."}, status=status.HTTP_404_NOT_FOUND)
+
+        # New activity ka data banayein
+        new_activity_data = {
+            'activity_title': existing_activity.activity_title,
+            'activity_description': existing_activity.activity_description,
+            'activity_category': existing_activity.activity_category,
+            'uploaded_images': existing_activity.uploaded_images,
+            'user_participation': existing_activity.user_participation,
+            'maximum_participants': existing_activity.maximum_participants,
+            'location': existing_activity.location,
+            'latitude': existing_activity.latitude,
+            'longitude': existing_activity.longitude,
+            'start_date': request.data.get('start_date'),
+            'start_time': request.data.get('start_time'),
+            'end_date': request.data.get('end_date'),
+            'end_time': request.data.get('end_time'),
+        }
+
+        # Serializer ko validate aur save karo
+        serializer = ActivityRepostSerializer(data=new_activity_data, context={'request': request})
+        if serializer.is_valid():
+            serializer.save(created_by=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
