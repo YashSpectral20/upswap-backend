@@ -510,7 +510,7 @@ class RaiseAnIssueMyOrders(models.Model):
     created_at = models.DateTimeField(default=timezone.now)  # Timestamp
 
     def __str__(self):
-        return f"Issue: {self.subject} - Order: {self.place_order.id}"
+        return f"Issue: {self.subject} - Order: {self.place_order.order_id}"
 
 class RaiseAnIssueVendors(models.Model):
     issue_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
