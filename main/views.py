@@ -1914,12 +1914,12 @@ class RepostDealView(generics.CreateAPIView):
             # Existing deal fetch karo
             old_deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
         except CreateDeal.DoesNotExist:
-            return Response({"error": "Invalid deal UUID"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Invalid deal UUID"}, status=status.HTTP_404_NOT_FOUND)
 
         # Check karo ki ye deal expire ya history me hai
-        now = timezone.now().date()
+        now = timezone.localdate()
         if old_deal.end_date and old_deal.end_date >= now:
-            return Response({"error": "Only expired or historical deals can be reposted"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Only expired or historical deals can be reposted"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Naye start and end dates fetch karo
         start_date = request.data.get('start_date')
@@ -1927,23 +1927,29 @@ class RepostDealView(generics.CreateAPIView):
         end_date = request.data.get('end_date')
         end_time = request.data.get('end_time')
 
-        if not (start_date and start_time and end_date and end_time):
-            return Response({"error": "Start and End date-time fields are required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not all([start_date, start_time, end_date, end_time]):
+            return Response({"message": "Start and End date-time fields are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Convert to datetime objects
-        start_date = dt.datetime.strptime(start_date, "%Y-%m-%d").date()
-        start_time = dt.datetime.strptime(start_time, "%H:%M:%S").time()
-        end_date = dt.datetime.strptime(end_date, "%Y-%m-%d").date()
-        end_time = dt.datetime.strptime(end_time, "%H:%M:%S").time()
+        try:
+            # Convert to datetime objects
+            start_date = dt.datetime.strptime(start_date, "%Y-%m-%d").date()
+            start_time = dt.datetime.strptime(start_time, "%H:%M:%S").time()
+            end_date = dt.datetime.strptime(end_date, "%Y-%m-%d").date()
+            end_time = dt.datetime.strptime(end_time, "%H:%M:%S").time()
+        except ValueError:
+            return Response({"message": "Invalid date or time format"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validate date & time
+        if start_date < now:
+            return Response({"message": "Start date cannot be in the past"}, status=status.HTTP_400_BAD_REQUEST)
+
         if start_date > end_date:
-            return Response({"error": "End date cannot be before start date"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "End date cannot be before start date"}, status=status.HTTP_400_BAD_REQUEST)
         
         if start_date == end_date and start_time >= end_time:
-            return Response({"error": "End time cannot be before or same as start time"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "End time cannot be before or same as start time"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # New deal create karo (repost)
+        # Naya deal create karo (repost)
         new_deal = CreateDeal.objects.create(
             vendor_kyc=old_deal.vendor_kyc,
             deal_uuid=uuid.uuid4(),  # New UUID
@@ -1969,14 +1975,14 @@ class RepostDealView(generics.CreateAPIView):
         )
 
         # Naya deal status check karo
-        if start_date == now and start_time <= timezone.now().time():
+        if start_date == now and start_time <= timezone.localtime().time():
             new_deal.start_now = True  # Live me chali jayegi
         else:
             new_deal.start_now = False  # Scheduled me jayegi
         
         new_deal.save()
         
-        return Response(CreateDealSerializer(new_deal).data, status=status.HTTP_201_CREATED)
+        return Response({"message": "Deal successfully reposted", "data": CreateDealSerializer(new_deal).data}, status=status.HTTP_201_CREATED)
     
     
     
