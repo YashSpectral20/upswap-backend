@@ -2045,7 +2045,36 @@ class ActivityRepostView(APIView):
             # Existing activity ko fetch karo
             existing_activity = Activity.objects.get(activity_id=activity_id, created_by=request.user)
         except Activity.DoesNotExist:
-            return Response({"error": "Activity not found or you do not have permission to repost it."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Activity not found or you do not have permission to repost it."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Start and end dates fetch karo
+        start_date = request.data.get('start_date')
+        start_time = request.data.get('start_time')
+        end_date = request.data.get('end_date')
+        end_time = request.data.get('end_time')
+
+        if not all([start_date, start_time, end_date, end_time]):
+            return Response({"message": "Start and End date-time fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Convert to datetime objects
+            start_date = dt.datetime.strptime(start_date, "%Y-%m-%d").date()
+            start_time = dt.datetime.strptime(start_time, "%H:%M:%S").time()
+            end_date = dt.datetime.strptime(end_date, "%Y-%m-%d").date()
+            end_time = dt.datetime.strptime(end_time, "%H:%M:%S").time()
+        except ValueError:
+            return Response({"message": "Invalid date or time format."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate date & time
+        now = timezone.localdate()
+        if start_date < now:
+            return Response({"message": "Start date cannot be in the past."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if start_date > end_date:
+            return Response({"message": "End date cannot be before start date."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if start_date == end_date and start_time >= end_time:
+            return Response({"message": "End time cannot be before or same as start time."}, status=status.HTTP_400_BAD_REQUEST)
 
         # New activity ka data banayein
         new_activity_data = {
@@ -2058,15 +2087,16 @@ class ActivityRepostView(APIView):
             'location': existing_activity.location,
             'latitude': existing_activity.latitude,
             'longitude': existing_activity.longitude,
-            'start_date': request.data.get('start_date'),
-            'start_time': request.data.get('start_time'),
-            'end_date': request.data.get('end_date'),
-            'end_time': request.data.get('end_time'),
+            'start_date': start_date,
+            'start_time': start_time,
+            'end_date': end_date,
+            'end_time': end_time,
         }
 
         # Serializer ko validate aur save karo
         serializer = ActivityRepostSerializer(data=new_activity_data, context={'request': request})
         if serializer.is_valid():
             serializer.save(created_by=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "Activity successfully reposted.", "data": serializer.data}, status=status.HTTP_201_CREATED)
+
+        return Response({"message": "Validation error.", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
