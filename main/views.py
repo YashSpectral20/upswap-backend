@@ -714,34 +714,47 @@ class CreateDealView(generics.CreateAPIView):
     def perform_create(self, serializer):
         vendor_kyc = self.request.user.vendorkyc_set.first()
         if not vendor_kyc:
-            raise ValidationError("Vendor KYC not found for the user.")
+            raise ValidationError("VendorKYC for this user does not exist.")
         if not vendor_kyc.is_approved:
             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
         serializer.save(vendor_kyc=vendor_kyc)
 
     def create(self, request, *args, **kwargs):
-        # Extract uploaded images metadata from the request if provided
-        uploaded_images = request.data.get('uploaded_images', [])
+        try:
+            # Extract uploaded images metadata from the request if provided
+            uploaded_images = request.data.get('uploaded_images', [])
 
-        # Ensure the metadata is a list of dictionaries
-        if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
-            return Response(
-                {"error": "uploaded_images must be a list of dictionaries."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            # Ensure the metadata is a list of dictionaries
+            if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
+                return Response(
+                    {"message": "uploaded_images must be a list of dictionaries."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
 
-        # Add uploaded images metadata to the deal
-        deal = serializer.instance
-        deal.set_uploaded_images(uploaded_images)
-        deal.save()
+            # Add uploaded images metadata to the deal
+            deal = serializer.instance
+            deal.set_uploaded_images(uploaded_images)
+            deal.save()
 
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            headers = self.get_success_headers(serializer.data)
+            return Response({"message": "Deal created successfully!", "data": serializer.data}, status=status.HTTP_201_CREATED, headers=headers)
+
+        except ValidationError as e:
+            # Convert all validation errors to a single string message
+            if isinstance(e.detail, dict):
+                message = " ".join([f"{key}: {', '.join(map(str, value))}" for key, value in e.detail.items()])
+            else:
+                message = str(e.detail)
+
+            return Response({"message": message}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 #################################################################################################
 

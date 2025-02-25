@@ -8,6 +8,7 @@ import datetime as dt
 from PIL import Image
 from rest_framework import serializers
 from urllib.parse import urlparse
+from datetime import datetime, timedelta
 from decimal import Decimal
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -701,65 +702,48 @@ class CreateDealSerializer(serializers.ModelSerializer):
         return data
     
     def validate(self, data):
-        """Validate that end_date and end_time are after start_date and start_time."""
+        """Validate date and time fields."""
         start_date = data.get('start_date')
         start_time = data.get('start_time')
         end_date = data.get('end_date')
         end_time = data.get('end_time')
         start_now = data.get('start_now', False)
+        today = timezone.localdate()
+        current_time = timezone.localtime().time()
 
-        # Ensure that end_date and end_time are after start_date and start_time
+        # Ensure start_date and end_date are not in the past
+        if start_date and start_date < today:
+            raise serializers.ValidationError({'start_date': "Start date cannot be in the past."})
+
+        if end_date and end_date < today:
+            raise serializers.ValidationError({'end_date': "End date cannot be in the past."})
+        
+        if start_date and end_date < today:
+            raise serializers.ValidationError({'start_date & end_date': "Start & End date cannot be in the past."})
+
         if start_date and end_date and start_date > end_date:
-            raise serializers.ValidationError({
-                'end_date': "End date cannot be before start date."
-            })
+            raise serializers.ValidationError({'end_date': "End date cannot be before start date."})
+        
+        # Ensure start_time is not before the current time if the deal is for today
+        if start_date == today and start_time == current_time:
+            raise serializers.ValidationError({'start_time': "Start time cannot be in the past."})
+        
+
         if start_date and start_time and end_date and end_time:
-            # Combine dates and times into full datetime objects
             start_datetime = timezone.make_aware(dt.datetime.combine(start_date, start_time))
             end_datetime = timezone.make_aware(dt.datetime.combine(end_date, end_time))
+
             if start_datetime > end_datetime:
-                raise serializers.ValidationError({
-                    'end_time': "End time cannot be before start time."
-                })
+                raise serializers.ValidationError({'end_time': "End time must be after start time."})
+            
 
-        # If start_now is True, automatically set start_date and start_time
-        if start_now:
-            now = timezone.now()
-            data['start_date'] = now.date()
-            data['start_time'] = now.time().replace(microsecond=0)
-
-            # Ensure end_date and end_time are after now
-            if end_date and end_time:
-                end_datetime = timezone.make_aware(dt.datetime.combine(end_date, end_time))
-                if now > end_datetime:
-                    raise serializers.ValidationError({
-                        'end_time': "End date and time cannot be before the current date and time."
-                    })
+            # If start_date and end_date are same, enforce 10 minutes gap
+            if start_date == end_date:
+                min_end_time = (dt.datetime.combine(start_date, start_time) + dt.timedelta(minutes=10)).time()
+                if end_time < min_end_time:
+                    raise serializers.ValidationError({'end_time': "End time must be at least 10 minutes."})
 
         return data
-
-    def create(self, validated_data):
-        images_data = validated_data.pop('images', [])
-        vendor_kyc = validated_data.get('vendor_kyc')
-
-        # If 'start_now' is set, automatically set start time and date to the current time
-        if validated_data.get('start_now'):
-            now = timezone.now()
-            validated_data['start_time'] = now.time().replace(microsecond=0)
-            validated_data['start_date'] = now.date()
-
-        deal = super().create(validated_data)
-
-    def create(self, validated_data):
-        images_metadata = validated_data.pop('uploaded_images', [])
-        deal = super().create(validated_data)
-
-        # Save image metadata into JSONField
-        if images_metadata:
-            deal.set_uploaded_images(images_metadata)
-            deal.save()
-
-        return deal
     
 
     
