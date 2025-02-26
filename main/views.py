@@ -1773,24 +1773,20 @@ class SubmitRatingView(generics.CreateAPIView):
 
     def post(self, request, order_id, *args, **kwargs):
         try:
-            # Order check kro
             order = PlaceOrder.objects.get(order_id=order_id, user=request.user)
-
-            # Vendor extract kro
             vendor = order.vendor
 
-            # Serializer ko request data ke sath initialize kro
-            serializer = self.get_serializer(data=request.data, context={'request': request, 'order': order})
+            serializer = self.get_serializer(data=request.data, context={'request': request, 'order_id': order_id})
 
-            # Validate aur save kro
             if serializer.is_valid():
                 serializer.save(user=request.user, vendor=vendor, order=order)
                 return Response({"message": "Rating submitted successfully!", "data": serializer.data}, status=status.HTTP_201_CREATED)
-            
+
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         except PlaceOrder.DoesNotExist:
             return Response({"message": "Order not found or you are not authorized to rate this order."}, status=status.HTTP_404_NOT_FOUND)
+
         
 class RaiseAnIssueMyOrdersView(generics.CreateAPIView):
     serializer_class = RaiseAnIssueSerializerMyOrders

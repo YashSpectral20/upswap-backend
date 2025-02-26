@@ -1469,10 +1469,16 @@ class VendorRatingSerializer(serializers.ModelSerializer):
     def validate(self, data):
         request = self.context['request']
         user = request.user
-        order = self.context['order']
 
-        # Check if user is the owner of the order
-        if order.user != user:
+        # Ensure order_id is passed in request
+        order_id = request.parser_context['kwargs'].get('order_id')
+        if not order_id:
+            raise serializers.ValidationError("Order ID is required.")
+
+        # Fetch order from DB
+        try:
+            order = PlaceOrder.objects.get(order_id=order_id, user=user)
+        except PlaceOrder.DoesNotExist:
             raise serializers.ValidationError("You are not authorized to rate this order.")
 
         # Check if rating already exists
@@ -1480,6 +1486,7 @@ class VendorRatingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("You have already rated this order.")
 
         return data
+
     
 class RaiseAnIssueSerializerMyOrders(serializers.ModelSerializer):
     class Meta:
