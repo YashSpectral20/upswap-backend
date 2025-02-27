@@ -14,6 +14,7 @@ from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
+from django.utils.timezone import localtime
 from .models import (
     CustomUser, OTP, Activity, ChatRoom, ChatMessage,
     ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
@@ -135,6 +136,7 @@ class ActivitySerializer(serializers.ModelSerializer):
         required=False
     )
     activity_category = serializers.CharField(required=False)
+    created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
 
     class Meta:
         model = Activity
@@ -653,6 +655,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
         ),
         required=False,
     )
+    deal_post_time = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S', read_only=True)
     
 
     class Meta:
@@ -664,7 +667,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
             'vendor_name', 'vendor_uuid', 'vendor_email', 'vendor_number',
-            'discount_percentage', 'latitude', 'longitude'
+            'discount_percentage', 'latitude', 'longitude', 'deal_post_time'
         ]
         read_only_fields = ['deal_uuid', 'discount_percentage', 'actual_price']
 
@@ -896,6 +899,7 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source='user.id', read_only=True)
     vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
     #transaction_id = serializers.UUIDField(read_only=True)
+    created_at = serializers.SerializerMethodField()
 
     class Meta:
         model = PlaceOrder
@@ -907,7 +911,9 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
         read_only_fields = ['order_id', 'user_id', 'vendor_id', 'total_amount']
         
     def get_created_at(self, obj):
-        return obj.created_at.strftime("%Y-%m-%d %H:%M:%S")  # Format datetime as required
+        india_tz = pytz.timezone("Asia/Kolkata")
+        local_time = localtime(obj.created_at).astimezone(india_tz)
+        return local_time.strftime("%Y-%m-%d %H:%M:%S")
 
     def validate_deal_uuid(self, value):
         try:
@@ -1081,6 +1087,11 @@ class PlaceOrderListsSerializer(serializers.ModelSerializer):
         first_image = obj.deal.uploaded_images[0]  # Get the first image
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
+    
+    def get_created_at(self, obj):
+        india_tz = pytz.timezone("Asia/Kolkata")
+        local_time = localtime(obj.created_at).astimezone(india_tz)
+        return local_time.strftime("%Y-%m-%d %H:%M:%S")
     
 class OTPRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()

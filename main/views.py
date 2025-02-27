@@ -43,6 +43,7 @@ from .serializers import (
     ActivityRepostSerializer
 
 )
+from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
 from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid
 from geopy.distance import geodesic
@@ -965,13 +966,24 @@ class CreateDeallistView(generics.ListAPIView):
 
     def get_queryset(self):
         now = timezone.now()
-        search_keyword = self.request.query_params.get('address', None)
+        today = now.date()
+        current_time = now.time()
 
-        # Active deals filter
         queryset = CreateDeal.objects.filter(
-            Q(start_date__lte=now) & Q(end_date__gte=now)
+            start_date__lte=today,  # Jo deals aaj ya pehle start ho chuki hain
+            end_date__gte=today,  # Jo deals aaj ya uske baad tak valid hain
+        ).exclude(
+            end_date=today, end_time__lte=current_time  # Aaj ki but end_time nikal chuka hai
+        ).exclude(
+            start_date__gt=today  # Jo future me start hone wali hain
+        ).exclude(
+            start_date=today, start_time__gt=current_time  # Aaj ki but future me start hone wali hain
+        ).exclude(
+            status='history'  # Jo deals deactivate ho chuki hain
         )
-
+        
+        
+        search_keyword = self.request.query_params.get('address', None)
         if search_keyword:
             search_terms = [term.strip() for term in search_keyword.split(',')]
             query = Q()
@@ -1849,51 +1861,40 @@ class RaiseAnIssueCustomUserView(generics.CreateAPIView):
         serializer.save(raised_by=user, against_user=against_user, activity=activity)
         
 class DeactivateDealView(APIView):
-    permission_classes = [IsAuthenticated]  # Ensure the user is authenticated
+    permission_classes = [IsAuthenticated]  
 
     def post(self, request, deal_uuid):
         try:
-            # Fetch the deal using the UUID
             data = CreateDeal.objects.get(deal_uuid=deal_uuid)
-
             current_time = timezone.now()
 
-            # Deactivate live deals (set end_date and end_time to current time)
             data_start_datetime = datetime.combine(data.start_date, data.start_time)
             data_end_datetime = datetime.combine(data.end_date, data.end_time)
 
-            # Make deal start and end datetimes timezone-aware
             data_start_datetime = timezone.make_aware(data_start_datetime, timezone.get_current_timezone())
             data_end_datetime = timezone.make_aware(data_end_datetime, timezone.get_current_timezone())
 
             if data_start_datetime <= current_time <= data_end_datetime:
-                # Live deal: set end_date and end_time to current time
                 data.end_date = current_time.date()
                 data.end_time = current_time.time().replace(microsecond=0)
+                data.save()  # Saving the end date/time update
 
-            # Deactivate scheduled deals (set start_date, start_time, end_date, and end_time to current time)
             elif current_time < data_start_datetime:
-                # Scheduled deal: set start and end times to current time
                 data.start_date = current_time.date()
                 data.start_time = current_time.time().replace(microsecond=0)
                 data.end_date = current_time.date()
                 data.end_time = current_time.time().replace(microsecond=0)
+                data.save()  # Saving the scheduled deal update
 
-            # Save the updated deal
+            # Update status after saving time changes
+            data.status = 'history'
             data.save()
 
-            # Move the deal to history (you can update the status of the deal if needed)
-            # Assuming you have a field like 'status' for history management
-            data.status = 'history'  # This is just an example, adapt as needed
-            data.save()
-
-            # Serialize the updated deal and return it in the response
             serializer = CreateDealSerializer(data)
             return Response({
-                            "message":
-                                "Deal deactivated successfully",
-                            "data": serializer.data
-                        }, status=status.HTTP_200_OK)
+                "message": "Deal deactivated successfully",
+                "data": serializer.data
+            }, status=status.HTTP_200_OK)
 
         except CreateDeal.DoesNotExist:
             return Response({
@@ -1913,8 +1914,12 @@ class RepostDealView(generics.CreateAPIView):
             return Response({"message": "Invalid deal UUID"}, status=status.HTTP_404_NOT_FOUND)
 
         # Check karo ki ye deal expire ya history me hai
-        now = timezone.localdate()
-        if old_deal.end_date and old_deal.end_date >= now:
+        now = timezone.now()  # Current date aur time dono
+        old_deal_end_datetime = timezone.make_aware(
+            dt.combine(old_deal.end_date, old_deal.end_time)  # Use dt.combine
+        )
+
+        if old_deal_end_datetime >= now:
             return Response({"message": "Only expired or historical deals can be reposted"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Naye start and end dates fetch karo
@@ -1928,15 +1933,15 @@ class RepostDealView(generics.CreateAPIView):
 
         try:
             # Convert to datetime objects
-            start_date = dt.datetime.strptime(start_date, "%Y-%m-%d").date()
-            start_time = dt.datetime.strptime(start_time, "%H:%M:%S").time()
-            end_date = dt.datetime.strptime(end_date, "%Y-%m-%d").date()
-            end_time = dt.datetime.strptime(end_time, "%H:%M:%S").time()
+            start_date = dt.strptime(start_date, "%Y-%m-%d").date()
+            start_time = dt.strptime(start_time, "%H:%M:%S").time()
+            end_date = dt.strptime(end_date, "%Y-%m-%d").date()
+            end_time = dt.strptime(end_time, "%H:%M:%S").time()
         except ValueError:
             return Response({"message": "Invalid date or time format"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validate date & time
-        if start_date < now:
+        if start_date < now.date():
             return Response({"message": "Start date cannot be in the past"}, status=status.HTTP_400_BAD_REQUEST)
 
         if start_date > end_date:
@@ -1971,7 +1976,8 @@ class RepostDealView(generics.CreateAPIView):
         )
 
         # Naya deal status check karo
-        if start_date == now and start_time <= timezone.localtime().time():
+        start_datetime = timezone.make_aware(dt.combine(start_date, start_time))  # Use dt.combine
+        if start_datetime <= now:
             new_deal.start_now = True  # Live me chali jayegi
         else:
             new_deal.start_now = False  # Scheduled me jayegi

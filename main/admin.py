@@ -153,7 +153,7 @@ class CreateDealAdmin(admin.ModelAdmin):
     list_display = [
         'deal_uuid', 'deal_title', 'vendor_kyc', 'actual_price', 'deal_price', 
         'start_date', 'end_date', 'start_time', 'end_time', 'vendor_kyc', 
-        'deal_post_time', 'get_discount_percentage'
+        'deal_post_time', 'get_discount_percentage', 'deal_post_time'
     ]
     search_fields = ['deal_title', 'vendor_kyc__full_name']
     inlines = []
