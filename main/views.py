@@ -1694,6 +1694,10 @@ class FavoriteVendorView(APIView):
         except VendorKYC.DoesNotExist:
             return Response({"error": "Vendor not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        # Prevent user from favoriting themselves
+        if vendor.user == request.user:
+            return Response({"error": "You cannot favorite yourself."}, status=status.HTTP_400_BAD_REQUEST)
+
         # Check if the vendor is already favorited by the user
         try:
             favorite = FavoriteVendor.objects.get(user=request.user, vendor=vendor)
