@@ -978,8 +978,6 @@ class CreateDeallistView(generics.ListAPIView):
             start_date__gt=today  # Jo future me start hone wali hain
         ).exclude(
             start_date=today, start_time__gt=current_time  # Aaj ki but future me start hone wali hain
-        ).exclude(
-            status='history'  # Jo deals deactivate ho chuki hain
         )
         
         
