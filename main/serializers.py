@@ -402,7 +402,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
     )
     business_hours = serializers.JSONField(required=False, allow_null=True)
     addresses = AddressSerializer(many=True, required=False)
-    services = ServiceSerializer(many=True, required=True)  # Updated to include services correctly
+    services = ServiceSerializer(many=True, required=True)
 
     class Meta:
         model = VendorKYC
@@ -411,11 +411,11 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             'business_email_id', 'business_establishment_year', 'business_description', 
             'uploaded_business_documents', 
             'uploaded_images', 'same_as_personal_phone_number', 
-            'same_as_personal_email_id', 'addresses',  # Include addresses field
+            'same_as_personal_email_id', 'addresses',
             'country_code', 'dial_code', 
             'bank_account_number', 
             'retype_bank_account_number', 'bank_name', 'ifsc_code', 
-            'services', 'business_hours', 'is_approved', 'latitude', 'longitude'  # Ensure 'is_approved' is included here
+            'services', 'business_hours', 'is_approved', 'latitude', 'longitude'
         ]
 
     def validate_business_hours(self, value):
@@ -426,29 +426,24 @@ class VendorKYCSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Each business hour entry must be a dictionary with 'day' and 'time'.")
         return value
 
-    def validate_uploaded_images(self, value):
-        """
-        Validate that uploaded_images contains valid metadata.
-        """
-        for image in value:
-            if not all(key in image for key in ('thumbnail', 'compressed')):
-                raise serializers.ValidationError(
-                    "Each image must include 'thumbnail' and 'compressed' URLs."
-                )
-        return value
-
     def create(self, validated_data):
+        user = validated_data.get('user')
+
+        # Check if VendorKYC exists for this user
+        existing_kyc = VendorKYC.objects.filter(user=user).first()
+        if existing_kyc:
+            # If KYC exists, update it instead of creating a new one
+            return self.update(existing_kyc, validated_data)
+
+        # If no existing VendorKYC, create a new one
         addresses_data = validated_data.pop('addresses', [])
         services_data = validated_data.pop('services', [])
         uploaded_documents = validated_data.pop('uploaded_business_documents', [])
 
-        # Create the VendorKYC instance
         vendor_kyc = VendorKYC.objects.create(**validated_data)
 
-        # Handle addresses and services
         self.handle_addresses_and_services(vendor_kyc, addresses_data, services_data)
 
-        # Add uploaded business documents
         if uploaded_documents:
             vendor_kyc.uploaded_business_documents = uploaded_documents
             vendor_kyc.save()
@@ -475,34 +470,20 @@ class VendorKYCSerializer(serializers.ModelSerializer):
         # Handle addresses and services
         self.handle_addresses_and_services(instance, addresses_data, services_data)
 
-        # Update uploaded business documents
-        if uploaded_documents:
-            instance.uploaded_business_documents = uploaded_documents
-
         instance.save()
         return instance
 
-    def handle_addresses_and_services(self, instance, addresses_data, services_data):
+    def handle_addresses_and_services(self, vendor_kyc, addresses_data, services_data):
+        """Helper method to update addresses and services"""
         if addresses_data is not None:
-            # Clear existing addresses
-            instance.addresses.all().delete()
-            # Add new addresses
-            for address_data in addresses_data:
-                Address.objects.create(vendor=instance, **address_data)
+            vendor_kyc.addresses.all().delete()
+            for address in addresses_data:
+                Address.objects.create(vendor=vendor_kyc, **address)
 
         if services_data is not None:
-            # Delete existing services
-            instance.services.all().delete()
-            # Add new services
-            for service_data in services_data:
-                Service.objects.create(vendor_kyc=instance, **service_data)
-
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        representation['services'] = ServiceSerializer(instance.services.all(), many=True).data
-        representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
-        representation['is_approved'] = instance.is_approved
-        return representation
+            vendor_kyc.services.all().delete()
+            for service in services_data:
+                Service.objects.create(vendor_kyc=vendor_kyc, **service)
 
     
     
