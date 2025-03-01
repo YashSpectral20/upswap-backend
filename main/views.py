@@ -1260,8 +1260,22 @@ class CustomUserEditView(APIView):
         serializer = CustomUserEditSerializer(user, data=request.data, partial=True, context={'request': request})  # Pass the request
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "message": "Profile updated successfully.",
+                    "data": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
+        else:
+            # Extract the first error message from serializer.errors
+            error_message = next(iter(serializer.errors.values()))[0]
+            return Response(
+                {
+                    "message": error_message
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
     
 class PlaceOrderListsView(generics.ListAPIView):
