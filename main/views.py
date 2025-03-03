@@ -43,6 +43,7 @@ from .serializers import (
     ActivityRepostSerializer
 
 )
+from datetime import datetime
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
 from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid
@@ -1664,8 +1665,8 @@ class MyDealView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        vendor_kyc = VendorKYC.objects.get(user=request.user)  # vendor_kyc ko fetch kiya
-        current_time = datetime.now()
+        vendor_kyc = VendorKYC.objects.get(user=request.user)  # vendor_kyc fetch kiya
+        current_time = timezone.now()  # Timezone-aware current time
 
         # Fetch all deals created by the logged-in vendor
         deals = CreateDeal.objects.filter(vendor_kyc=vendor_kyc)  # vendor_kyc ko use kiya
@@ -1675,9 +1676,8 @@ class MyDealView(APIView):
         history_deals = []
 
         for deal in deals:
-            # Check if the current time is within the deal's active period
-            deal_start_datetime = datetime.combine(deal.start_date, deal.start_time)
-            deal_end_datetime = datetime.combine(deal.end_date, deal.end_time)
+            deal_start_datetime = timezone.make_aware(datetime.combine(deal.start_date, deal.start_time))
+            deal_end_datetime = timezone.make_aware(datetime.combine(deal.end_date, deal.end_time))
 
             if deal_start_datetime <= current_time <= deal_end_datetime:
                 live_deals.append(deal)
@@ -1691,7 +1691,6 @@ class MyDealView(APIView):
         scheduled_deals_serializer = MyDealSerializer(scheduled_deals, many=True)
         history_deals_serializer = MyDealSerializer(history_deals, many=True)
 
-        # Return the data in the required structure
         return Response({
             'live': live_deals_serializer.data,
             'scheduled': scheduled_deals_serializer.data,
