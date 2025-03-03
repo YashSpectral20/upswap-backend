@@ -1542,7 +1542,7 @@ class ActivityRepostSerializer(serializers.ModelSerializer):
         fields = [
             'activity_id', 'activity_title', 'activity_description', 'activity_category',
             'uploaded_images', 'user_participation', 'maximum_participants', 'start_date',
-            'end_date', 'start_time', 'end_time', 'location', 'latitude', 'longitude'
+            'end_date', 'start_time', 'end_time', 'location', 'latitude', 'longitude', 'infinite_time'
         ]
         read_only_fields = ['activity_id', 'created_by', 'created_at']
 

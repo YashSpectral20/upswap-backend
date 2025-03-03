@@ -2069,29 +2069,7 @@ class ActivityRepostView(APIView):
         start_time = request.data.get('start_time')
         end_date = request.data.get('end_date')
         end_time = request.data.get('end_time')
-
-        if not all([start_date, start_time, end_date, end_time]):
-            return Response({"message": "Start and End date-time fields are required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # Convert to datetime objects
-            start_date = dt.datetime.strptime(start_date, "%Y-%m-%d").date()
-            start_time = dt.datetime.strptime(start_time, "%H:%M:%S").time()
-            end_date = dt.datetime.strptime(end_date, "%Y-%m-%d").date()
-            end_time = dt.datetime.strptime(end_time, "%H:%M:%S").time()
-        except ValueError:
-            return Response({"message": "Invalid date or time format."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Validate date & time
-        now = timezone.localdate()
-        if start_date < now:
-            return Response({"message": "Start date cannot be in the past."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if start_date > end_date:
-            return Response({"message": "End date cannot be before start date."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if start_date == end_date and start_time >= end_time:
-            return Response({"message": "End time cannot be before or same as start time."}, status=status.HTTP_400_BAD_REQUEST)
+        infinite_time = request.data.get('infinite_time', False)  # Default False
 
         # New activity ka data banayein
         new_activity_data = {
@@ -2108,6 +2086,7 @@ class ActivityRepostView(APIView):
             'start_time': start_time,
             'end_date': end_date,
             'end_time': end_time,
+            'infinite_time': infinite_time,  # Frontend se jo value aaye wahi store hogi
         }
 
         # Serializer ko validate aur save karo
