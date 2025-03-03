@@ -2,6 +2,7 @@ import json
 import uuid
 import io
 import os
+import re
 import base64
 import boto3
 import datetime as dt
@@ -1024,17 +1025,32 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
             'username': {'required': True},  # Ensure username is mandatory
         }
 
+    def validate_name(self, value):
+        if not re.match(r'^[A-Za-z ]+$', value):
+            raise serializers.ValidationError("Name can only contain letters and spaces.")
+        return value
+
+    def validate_username(self, value):
+        if not re.match(r'^[A-Za-z0-9]+$', value):
+            raise serializers.ValidationError("Username can only contain letters and numbers.")
+        if len(value) < 6:
+            raise serializers.ValidationError("Username must be at least 6 characters long.")
+        return value
+
+    def validate_phone_number(self, value):
+        if not re.match(r'^\d{10}$', value):
+            raise serializers.ValidationError("Phone number must be exactly 10 digits.")
+        user = self.context['request'].user
+        if CustomUser.objects.exclude(id=user.id).filter(phone_number=value).exists():
+            raise serializers.ValidationError("This phone number is already in use.")
+        return value
+
     def validate_email(self, value):
         user = self.context['request'].user
         if CustomUser.objects.exclude(id=user.id).filter(email=value).exists():
             raise serializers.ValidationError("This email is already in use.")
         return value
 
-    def validate_phone_number(self, value):
-        user = self.context['request'].user
-        if CustomUser.objects.exclude(id=user.id).filter(phone_number=value).exists():
-            raise serializers.ValidationError("This phone number is already in use.")
-        return value
         
         
 class PlaceOrderListsSerializer(serializers.ModelSerializer):
