@@ -1042,33 +1042,40 @@ class CreateDeallistView(generics.ListAPIView):
     
     
 class ActivityListsView(generics.ListAPIView):
-    queryset = Activity.objects.all()
     serializer_class = ActivityListsSerializer
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        # Extract search keyword from query params
+        current_time = make_aware(datetime.now())  # Timezone aware datetime
         search_keyword = self.request.query_params.get('address', None)
 
-        # Base queryset
+        # Base queryset jo sirf live activities ko filter karega
         queryset = Activity.objects.all()
 
+        live_activities = []
+        for activity in queryset:
+            start_date = activity.start_date or current_time.date()
+            start_time = activity.start_time or time(0, 0)
+            end_date = activity.end_date or current_time.date()
+            end_time = activity.end_time or time(23, 59)
+
+            activity_start_datetime = make_aware(datetime.combine(start_date, start_time))
+            activity_end_datetime = make_aware(datetime.combine(end_date, end_time))
+
+            if activity_start_datetime <= current_time <= activity_end_datetime:
+                live_activities.append(activity)
+
+        # Agar search filter diya hai toh location ko bhi filter karein
         if search_keyword:
-            # Split the search keyword into individual terms (e.g., 'Chhaya', 'Porbandar')
             search_terms = search_keyword.split(',')
-
-            # Start with a Q object for the filtering conditions
             query = Q()
-
-            # Loop through each keyword and apply the filter on location
             for term in search_terms:
                 clean_term = term.strip()
                 query &= Q(location__icontains=clean_term)
 
-            # Apply the filter to the queryset
-            queryset = queryset.filter(query).distinct()
+            live_activities = [activity for activity in live_activities if query]
 
-        return queryset
+        return live_activities
 
     
 class ActivityDetailsView(generics.RetrieveAPIView):
