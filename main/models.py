@@ -23,7 +23,7 @@ from datetime import timedelta
 
 # Custom User Models
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email, username, name, phone_number, date_of_birth, gender, country_code='', dial_code='', country='', password=None):
+    def create_user(self, email, username, name, phone_number, date_of_birth, gender, country_code='', dial_code='', country='', password=None, fcm_token=None, latitude=None, longitude=None):
         if not email:
             raise ValueError('The Email field is required')
         if not username:
@@ -39,12 +39,15 @@ class CustomUserManager(BaseUserManager):
             country_code=country_code,
             dial_code=dial_code,
             country=country,
+            fcm_token=fcm_token,
+            latitude=latitude,
+            longitude=longitude
         )
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, username, name, phone_number, date_of_birth, gender, country_code='', dial_code='', country='', password=None):
+    def create_superuser(self, email, username, name, phone_number, date_of_birth, gender, country_code='', dial_code='', country='', password=None, fcm_token=None, latitude=None, longitude=None):
         user = self.create_user(
             email=email,
             username=username,
@@ -56,6 +59,9 @@ class CustomUserManager(BaseUserManager):
             dial_code=dial_code,
             country=country,
             password=password,
+            fcm_token=fcm_token,
+            latitude=latitude,
+            longitude=longitude
         )
         user.is_superuser = True
         user.is_staff = True
