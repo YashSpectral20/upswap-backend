@@ -1571,14 +1571,14 @@ class ActivityRepostSerializer(serializers.ModelSerializer):
 
         # Start date aur time current date-time se pehle nahi hona chahiye
         if start_date < now.date():
-            raise serializers.ValidationError({"start_date": "Start date cannot be in the past."})
+            raise serializers.ValidationError({"message": "Start date cannot be in the past."})
         if start_date == now.date() and start_time < now.time():
-            raise serializers.ValidationError({"start_time": "Start time cannot be in the past."})
+            raise serializers.ValidationError({"message": "Start time cannot be in the past."})
 
         # End date aur time start date aur time se pehle nahi hona chahiye
         if end_date < start_date:
-            raise serializers.ValidationError({"end_date": "End date must be after start date."})
+            raise serializers.ValidationError({"message": "End date cannot be before start date."})
         if end_date == start_date and end_time <= start_time:
-            raise serializers.ValidationError({"end_time": "End time must be after start time."})
+            raise serializers.ValidationError({"message": "End time cannot be before start time."})
 
         return data

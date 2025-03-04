@@ -2095,4 +2095,6 @@ class ActivityRepostView(APIView):
             serializer.save(created_by=request.user)
             return Response({"message": "Activity successfully reposted.", "data": serializer.data}, status=status.HTTP_201_CREATED)
 
-        return Response({"message": "Validation error.", "errors": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        # Errors ko extract karke sirf "message" format me bhejna
+        error_message = next(iter(serializer.errors.values()))[0] if serializer.errors else "Validation error."
+        return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
