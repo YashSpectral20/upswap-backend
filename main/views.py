@@ -2112,7 +2112,7 @@ class ActivityRepostView(APIView):
         new_activity_data = {
             'activity_title': existing_activity.activity_title,
             'activity_description': existing_activity.activity_description,
-            'activity_category': existing_activity.activity_category,
+            'activity_category': {'actv_category': existing_activity.activity_category.actv_category},
             'uploaded_images': existing_activity.uploaded_images,
             'user_participation': existing_activity.user_participation,
             'maximum_participants': existing_activity.maximum_participants,

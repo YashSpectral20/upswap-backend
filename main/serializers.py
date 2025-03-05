@@ -1549,6 +1549,7 @@ class RaiseAnIssueCustomUserSerializer(serializers.ModelSerializer):
         
         
 class ActivityRepostSerializer(serializers.ModelSerializer):
+    activity_category = ActivityCategorySerializer(read_only=True)
     start_date = serializers.DateField(required=True)
     start_time = serializers.TimeField(required=True)
     end_date = serializers.DateField(required=True)
