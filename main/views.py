@@ -218,12 +218,42 @@ class ActivityCreateView(generics.CreateAPIView):
     serializer_class = ActivitySerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
-        if 'user_participation' not in serializer.validated_data:
-            serializer.validated_data['user_participation'] = True
-        if 'infinite_time' not in serializer.validated_data:
-            serializer.validated_data['infinite_time'] = False  # Ensure default is False
-        serializer.save(created_by=self.request.user)
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            if 'user_participation' not in serializer.validated_data:
+                serializer.validated_data['user_participation'] = True
+            if 'infinite_time' not in serializer.validated_data:
+                serializer.validated_data['infinite_time'] = False  # Ensure default is False
+            activity = serializer.save(created_by=self.request.user)
+            return Response(
+                {
+                    "message": "Activity created successfully",
+                    "activity_id": str(activity.activity_id),
+                    "activity_title": activity.activity_title,
+                    "activity_description": activity.activity_description,
+                    "activity_category": activity.activity_category.actv_category if activity.activity_category else None,
+                    "uploaded_images": activity.uploaded_images,
+                    "user_participation": activity.user_participation,
+                    "maximum_participants": activity.maximum_participants,
+                    "start_date": activity.start_date,
+                    "end_date": activity.end_date,
+                    "start_time": activity.start_time,
+                    "end_time": activity.end_time,
+                    "created_at": activity.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    "created_by": str(activity.created_by.id),
+                    "location": activity.location,
+                    "latitude": activity.latitude,
+                    "longitude": activity.longitude,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        else:
+            return Response(
+                {"message": next(iter(serializer.errors.values()))[0]},  # Pehla error message
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
 
 
 class Distance(Func):
