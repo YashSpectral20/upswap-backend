@@ -170,8 +170,9 @@ class ActivitySerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"end_date": "End date cannot be in the past."})
             if data.get('start_date') and data.get('end_date') and data['end_date'] < data['start_date']:
                 raise serializers.ValidationError({"end_date": "End date must be after start date."})
-            if data.get('start_time') and data.get('end_time') and data['end_time'] <= data['start_time']:
-                raise serializers.ValidationError({"end_time": "End time must be after start time."})
+            if data.get('start_date') == data.get('end_date'):  # Sirf jab dono date same ho
+                if data.get('start_time') and data.get('end_time') and data['end_time'] <= data['start_time']:
+                    raise serializers.ValidationError({"end_time": "End time must be after start time when start and end dates are the same."})
 
         if data.get('maximum_participants') and data['maximum_participants'] > 1000:
             raise serializers.ValidationError({"maximum_participants": "Maximum participants cannot exceed 1000."})
