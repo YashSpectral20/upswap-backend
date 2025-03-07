@@ -1,4 +1,5 @@
 import io
+import os
 import math
 import random
 import string
@@ -16,6 +17,44 @@ from botocore.exceptions import BotoCoreError, ClientError
 import traceback
 from math import radians, cos, sin, asin, sqrt 
 from pyfcm import FCMNotification #For push notification
+import sendgrid
+from sendgrid.helpers.mail import Mail, Email, To, Content
+
+# Function to send an email
+def send_email(from_email_address, to_email_address, subject, body, api_key=None):
+    """
+    Sends an email using SendGrid.
+
+    Args:
+        from_email_address (str): The sender's email address.
+        to_email_address (str): The recipient's email address.
+        subject (str): The email subject.
+        body (str): The email content.
+        api_key (str): The SendGrid API key (optional, defaults to environment variable).
+
+    Returns:
+        dict: A dictionary with status code, response body, and headers.
+    """
+    # try:
+    # Use API key from argument or environment variable
+    if not api_key:
+        api_key = os.getenv("SENDGRID_API_KEY_UPSWAP")
+    if not api_key:
+        raise ValueError("SendGrid API key is missing. Please set it in the environment variables or pass it explicitly.")
+
+    sg = sendgrid.SendGridAPIClient(api_key=api_key)
+    from_email = Email(from_email_address)
+    to_email = To(to_email_address)
+    content = Content("text/plain", body)
+    mail = Mail(from_email, to_email, subject, content)
+
+    # Send the email
+    response = sg.client.mail.send.post(request_body=mail.get())
+    return {
+        "status_code": response.status_code,
+        "body": response.body.decode("utf-8") if response.body else None,
+        "headers": dict(response.headers),
+    }
 
 def generate_otp(user):
     otp = ''.join(random.choices(string.digits, k=6))  # Generate a 6-digit OTP
@@ -28,12 +67,16 @@ def generate_otp(user):
     )
 
     # If using email, send OTP to the user
-    send_mail(
-        'Your OTP Code',
-        f'Your OTP code is {otp}. It is valid for 10 minutes.',
-        settings.EMAIL_HOST_USER,
-        [user.email],
-        fail_silently=False,
+    send_email(
+        # 'Your OTP Code',
+        # f'Your OTP code is {otp}. It is valid for 10 minutes.',
+        # settings.EMAIL_HOST_USER,
+        # [user.email],
+        # fail_silently=False,
+    from_email_address = "verify@upswap.app",
+    to_email_address = user.email,
+    subject = "Your UpSwap verification OTP is",
+    body = f"Your upswap verification OTP is {otp} will be valid for 10 minutes"
     )
 
     return otp
@@ -120,6 +163,27 @@ def upload_to_s3_profile_image(file, folder, file_type="image"):
         raise ValueError("Unsupported file type")
 
     return f"{settings.MEDIA_URL}{file_key}"
+
+
+    # except Exception as e:
+    #     return {"error": str(e)}
+
+# Example usage
+# if __name__ == "__main__":
+#     result = send_email(
+#         from_email_address="verify@upswap.app",
+#         to_email_address="<RECEIVER@EXAMPLE.COM>",
+#         subject="Sending with SendGrid is Fun",
+#         body="and easy to do anywhere, even with Python"
+#     )
+#     if "error" in result:
+#         print(f"Error: {result['error']}")
+#     else:
+#         print(f"Status Code: {result['status_code']}")
+#         print(f"Response Body: {result['body']}")
+#         print(f"Headers: {result['headers']}")
+
+####################################################################################
 
 # def send_push_notification(device_tokens, title, message):
 #     # Initialize the FCMNotification class with the API key

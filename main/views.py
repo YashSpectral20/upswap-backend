@@ -46,7 +46,7 @@ from .serializers import (
 from datetime import datetime
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_email
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate

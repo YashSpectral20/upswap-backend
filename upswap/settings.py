@@ -18,6 +18,8 @@ from datetime import date
 import pytz
 from logging import Formatter
 from datetime import datetime
+import sendgrid
+from sendgrid.helpers.mail import Mail, Email, To, Content
 
 load_dotenv()
 
@@ -267,12 +269,13 @@ SIMPLE_JWT = {
 }
 
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'upswapapp@gmail.com'
-EMAIL_HOST_PASSWORD = 'vfxu rhrb yjzq duvk'
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'upswapapp@gmail.com'
+# EMAIL_HOST_PASSWORD = 'vfxu rhrb yjzq duvk'
+
 
 
 
