@@ -387,6 +387,7 @@ class CreateDeal(models.Model):
     start_time = models.TimeField(blank=True, null=True)
     end_time = models.TimeField(blank=True, null=True)
     start_now = models.BooleanField(default=False)
+    buy_now = models.BooleanField(default=True)
 
     actual_price = models.DecimalField(max_digits=10, decimal_places=2)
     deal_price = models.DecimalField(max_digits=10, decimal_places=2)

@@ -646,7 +646,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
         fields = [
             'deal_uuid', 'deal_title', 'deal_description', 'select_service',
             'uploaded_images', 'start_date', 'end_date', 'start_time', 'end_time',
-            'start_now', 'actual_price', 'deal_price', 'available_deals',
+            'start_now', 'buy_now', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
             'vendor_name', 'vendor_uuid', 'vendor_email', 'vendor_number',
