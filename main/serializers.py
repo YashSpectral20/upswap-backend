@@ -802,7 +802,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
             'deal_uuid','uploaded_images', 'deal_post_time', 'deal_title', 'deal_description',
             'select_service', 'start_date', 'end_date', 'start_time',
-            'end_time', 'actual_price', 'deal_price', 'available_deals',
+            'end_time', 'buy_now', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'discount_percentage',
@@ -1335,6 +1335,7 @@ class MyDealSerializer(serializers.ModelSerializer):
     discount_percentage = serializers.SerializerMethodField()
     deal_post_time = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
+    view_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = CreateDeal
@@ -1345,8 +1346,24 @@ class MyDealSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country',
-            'discount_percentage', 'latitude', 'longitude'
+            'discount_percentage', 'latitude', 'longitude', 'view_count'
         ]
+        
+    def to_representation(self, instance):
+        """
+        Custom representation method to remove `view_count` from non-live deals.
+        """
+        data = super().to_representation(instance)
+
+        # Agar deal live nahi hai toh `view_count` remove kar do
+        current_time = timezone.now()
+        deal_start_datetime = timezone.make_aware(datetime.combine(instance.start_date, instance.start_time))
+        deal_end_datetime = timezone.make_aware(datetime.combine(instance.end_date, instance.end_time))
+
+        if not (deal_start_datetime <= current_time <= deal_end_datetime):
+            data.pop('view_count', None)  # Agar available hai toh remove kar do
+
+        return data
 
     def get_discount_percentage(self, obj):
         if obj.actual_price > 0:

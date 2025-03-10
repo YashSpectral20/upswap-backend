@@ -879,6 +879,19 @@ class CreateDealDetailView(generics.RetrieveAPIView):
     serializer_class = CreateDealDetailSerializer
     permission_classes = [AllowAny]
     lookup_field = 'deal_uuid'
+    
+    def get(self, request, *args, **kwargs):
+        deal = self.get_object()  # Get the specific deal
+        user = request.user
+
+        # Agar user authenticated hai aur usi vendor ka deal hai to view count increase nahi hoga
+        if user.is_authenticated and deal.vendor_kyc.user == user:
+            pass  # Vendor apni deal dekh raha hai, toh kuch nahi hoga
+        else:
+            deal.view_count += 1  # View count increase karenge
+            deal.save(update_fields=['view_count'])  # Sirf view_count field ko update karenge
+
+        return super().get(request, *args, **kwargs)  # Normal response return kar do
 
 
 class UploadImagesAPI(APIView):
@@ -1702,11 +1715,10 @@ class MyDealView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        vendor_kyc = VendorKYC.objects.get(user=request.user)  # vendor_kyc fetch kiya
-        current_time = timezone.now()  # Timezone-aware current time
+        vendor_kyc = VendorKYC.objects.get(user=request.user)  
+        current_time = timezone.now()  
 
-        # Fetch all deals created by the logged-in vendor
-        deals = CreateDeal.objects.filter(vendor_kyc=vendor_kyc)  # vendor_kyc ko use kiya
+        deals = CreateDeal.objects.filter(vendor_kyc=vendor_kyc)
 
         live_deals = []
         scheduled_deals = []
@@ -1723,7 +1735,7 @@ class MyDealView(APIView):
             elif current_time > deal_end_datetime:
                 history_deals.append(deal)
 
-        # Serialize the data
+        # Normal serializer call kar do, `to_representation()` handle karega view_count ko
         live_deals_serializer = MyDealSerializer(live_deals, many=True)
         scheduled_deals_serializer = MyDealSerializer(scheduled_deals, many=True)
         history_deals_serializer = MyDealSerializer(history_deals, many=True)
