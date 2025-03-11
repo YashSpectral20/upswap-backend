@@ -71,6 +71,7 @@ from django.urls import reverse
 from geopy.distance import distance
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils.timezone import make_aware
+from rest_framework.permissions import IsAuthenticated
 
 from django.shortcuts import get_object_or_404
 
@@ -1714,37 +1715,54 @@ class MyActivityView(APIView):
 class MyDealView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def permission_denied(self, request, message=None, code=None):
+        """Custom response for authentication errors"""
+        response = Response(
+            {"message": message or "Authentication credentials were not provided."},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+        self.raise_exception = False  # Ensure exception is not raised, but response is returned
+        return response
+
     def get(self, request):
-        vendor_kyc = VendorKYC.objects.get(user=request.user)  
-        current_time = timezone.now()  
+        try:
+            # Vendor KYC check karo
+            vendor_kyc = VendorKYC.objects.get(user=request.user)
+            current_time = timezone.now()
 
-        deals = CreateDeal.objects.filter(vendor_kyc=vendor_kyc)
+            # Vendor ke saare deals lo
+            deals = CreateDeal.objects.filter(vendor_kyc=vendor_kyc)
 
-        live_deals = []
-        scheduled_deals = []
-        history_deals = []
+            live_deals, scheduled_deals, history_deals = [], [], []
 
-        for deal in deals:
-            deal_start_datetime = timezone.make_aware(datetime.combine(deal.start_date, deal.start_time))
-            deal_end_datetime = timezone.make_aware(datetime.combine(deal.end_date, deal.end_time))
+            for deal in deals:
+                deal_start_datetime = timezone.make_aware(datetime.combine(deal.start_date, deal.start_time))
+                deal_end_datetime = timezone.make_aware(datetime.combine(deal.end_date, deal.end_time))
 
-            if deal_start_datetime <= current_time <= deal_end_datetime:
-                live_deals.append(deal)
-            elif current_time < deal_start_datetime:
-                scheduled_deals.append(deal)
-            elif current_time > deal_end_datetime:
-                history_deals.append(deal)
+                if deal_start_datetime <= current_time <= deal_end_datetime:
+                    live_deals.append(deal)
+                elif current_time < deal_start_datetime:
+                    scheduled_deals.append(deal)
+                elif current_time > deal_end_datetime:
+                    history_deals.append(deal)
 
-        # Normal serializer call kar do, `to_representation()` handle karega view_count ko
-        live_deals_serializer = MyDealSerializer(live_deals, many=True)
-        scheduled_deals_serializer = MyDealSerializer(scheduled_deals, many=True)
-        history_deals_serializer = MyDealSerializer(history_deals, many=True)
+            # Serializer ka use karo
+            live_deals_serializer = MyDealSerializer(live_deals, many=True)
+            scheduled_deals_serializer = MyDealSerializer(scheduled_deals, many=True)
+            history_deals_serializer = MyDealSerializer(history_deals, many=True)
 
-        return Response({
-            'live': live_deals_serializer.data,
-            'scheduled': scheduled_deals_serializer.data,
-            'history': history_deals_serializer.data
-        }, status=status.HTTP_200_OK)
+            return Response({
+                "message": "Deals fetched successfully.",
+                "live": live_deals_serializer.data,
+                "scheduled": scheduled_deals_serializer.data,
+                "history": history_deals_serializer.data
+            }, status=status.HTTP_200_OK)
+
+        except VendorKYC.DoesNotExist:
+            return Response({"message": "Vendor KYC not found for this user."}, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({"message": f"An error occurred: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
         
 class FavoriteVendorView(APIView):
     permission_classes = [IsAuthenticated]
