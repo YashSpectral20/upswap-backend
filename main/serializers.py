@@ -1348,21 +1348,14 @@ class MyDealSerializer(serializers.ModelSerializer):
             'vendor_name', 'vendor_uuid', 'country',
             'discount_percentage', 'latitude', 'longitude', 'view_count'
         ]
-        
+
     def to_representation(self, instance):
         """
-        Custom representation method to remove `view_count` from non-live deals.
+        Custom representation method to ensure `view_count` is retained in history.
         """
         data = super().to_representation(instance)
 
-        # Agar deal live nahi hai toh `view_count` remove kar do
-        current_time = timezone.now()
-        deal_start_datetime = timezone.make_aware(datetime.combine(instance.start_date, instance.start_time))
-        deal_end_datetime = timezone.make_aware(datetime.combine(instance.end_date, instance.end_time))
-
-        if not (deal_start_datetime <= current_time <= deal_end_datetime):
-            data.pop('view_count', None)  # Agar available hai toh remove kar do
-
+        # Ensure view_count is always included, whether the deal is live or expired
         return data
 
     def get_discount_percentage(self, obj):
@@ -1381,11 +1374,9 @@ class MyDealSerializer(serializers.ModelSerializer):
         Fetch only the first image thumbnail from uploaded_images.
         This ensures only the first uploaded image's thumbnail is fetched.
         """
-        # Ensure uploaded_images field is valid and has data
         if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
             return []
 
-        # Return only the thumbnail of the first image in the uploaded_images list
         first_image = obj.uploaded_images[0]  # Get the first image
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
