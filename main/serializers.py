@@ -751,7 +751,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country',
-            'discount_percentage', 'latitude', 'longitude', 'average_rating'
+            'discount_percentage', 'latitude', 'longitude', 'average_rating', 'buy_now'
         ]
         read_only_fields = ['deal_uuid', 'discount_percentage']
 
