@@ -1740,7 +1740,9 @@ class MyDealView(APIView):
                 deal_start_datetime = timezone.make_aware(datetime.combine(deal.start_date, deal.start_time))
                 deal_end_datetime = timezone.make_aware(datetime.combine(deal.end_date, deal.end_time))
 
-                if deal_start_datetime <= current_time <= deal_end_datetime:
+                if deal.available_deals == 0:
+                    history_deals.append(deal) # Agar available_deals 0 ho, to directly history me daal do
+                elif deal_start_datetime <= current_time <= deal_end_datetime:
                     live_deals.append(deal)
                 elif current_time < deal_start_datetime:
                     scheduled_deals.append(deal)
