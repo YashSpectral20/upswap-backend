@@ -1017,6 +1017,7 @@ class CreateDeallistView(generics.ListAPIView):
         queryset = CreateDeal.objects.filter(
             start_date__lte=today,  # Jo deals aaj ya pehle start ho chuki hain
             end_date__gte=today,  # Jo deals aaj ya uske baad tak valid hain
+            available_deals__gt=0   # Sirf wo deals jinki available_deals 0 se zyada hai
         ).exclude(
             end_date=today, end_time__lte=current_time  # Aaj ki but end_time nikal chuka hai
         ).exclude(
