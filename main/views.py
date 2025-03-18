@@ -1722,16 +1722,14 @@ class MyDealView(APIView):
             {"message": message or "Authentication credentials were not provided."},
             status=status.HTTP_401_UNAUTHORIZED
         )
-        self.raise_exception = False  # Ensure exception is not raised, but response is returned
+        self.raise_exception = False
         return response
 
     def get(self, request):
         try:
-            # Vendor KYC check karo
             vendor_kyc = VendorKYC.objects.get(user=request.user)
             current_time = timezone.now()
 
-            # Vendor ke saare deals lo
             deals = CreateDeal.objects.filter(vendor_kyc=vendor_kyc)
 
             live_deals, scheduled_deals, history_deals = [], [], []
@@ -1740,16 +1738,24 @@ class MyDealView(APIView):
                 deal_start_datetime = timezone.make_aware(datetime.combine(deal.start_date, deal.start_time))
                 deal_end_datetime = timezone.make_aware(datetime.combine(deal.end_date, deal.end_time))
 
-                if deal.available_deals == 0:
-                    history_deals.append(deal) # Agar available_deals 0 ho, to directly history me daal do
-                elif deal_start_datetime <= current_time <= deal_end_datetime:
-                    live_deals.append(deal)
-                elif current_time < deal_start_datetime:
-                    scheduled_deals.append(deal)
-                elif current_time > deal_end_datetime:
-                    history_deals.append(deal)
+                # ✅ Check for available_deals
+                if deal.available_deals <= 0:
+                    # ✅ Expire the deal by setting start and end to now
+                    deal.start_date = current_time.date()
+                    deal.start_time = current_time.time()
+                    deal.end_date = current_time.date()
+                    deal.end_time = current_time.time()
+                    deal.save()  # ✅ Important: Save the changes
+                    history_deals.append(deal)  # ✅ Move to history
+                else:
+                    # ✅ Check timings to classify deals
+                    if deal_start_datetime <= current_time <= deal_end_datetime:
+                        live_deals.append(deal)
+                    elif current_time < deal_start_datetime:
+                        scheduled_deals.append(deal)
+                    elif current_time > deal_end_datetime:
+                        history_deals.append(deal)
 
-            # Serializer ka use karo
             live_deals_serializer = MyDealSerializer(live_deals, many=True)
             scheduled_deals_serializer = MyDealSerializer(scheduled_deals, many=True)
             history_deals_serializer = MyDealSerializer(history_deals, many=True)
@@ -1987,7 +1993,7 @@ class DeactivateDealView(APIView):
             }, status=status.HTTP_404_NOT_FOUND)
             
 
-class RepostDealView(generics.CreateAPIView):
+class RepostDealView(generics.CreateAPIView): 
     serializer_class = CreateDealSerializer
     permission_classes = [IsAuthenticated]
 
@@ -2001,7 +2007,7 @@ class RepostDealView(generics.CreateAPIView):
         # Check karo ki ye deal expire ya history me hai
         now = timezone.now()  # Current date aur time dono
         old_deal_end_datetime = timezone.make_aware(
-            dt.combine(old_deal.end_date, old_deal.end_time)  # Use dt.combine
+            dt.combine(old_deal.end_date, old_deal.end_time)
         )
 
         if old_deal_end_datetime >= now:
@@ -2012,9 +2018,18 @@ class RepostDealView(generics.CreateAPIView):
         start_time = request.data.get('start_time')
         end_date = request.data.get('end_date')
         end_time = request.data.get('end_time')
+        available_deals = request.data.get('available_deals')  # ✅ New Field
 
-        if not all([start_date, start_time, end_date, end_time]):
-            return Response({"message": "Start and End date-time fields are required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not all([start_date, start_time, end_date, end_time, available_deals]):
+            return Response({"message": "Start/End date-time fields and available_deals are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate available_deals
+        try:
+            available_deals = int(available_deals)
+            if available_deals < 1:
+                return Response({"message": "Available deals must be at least 1"}, status=status.HTTP_400_BAD_REQUEST)
+        except (ValueError, TypeError):
+            return Response({"message": "Available deals must be a valid integer"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             # Convert to datetime objects
@@ -2049,7 +2064,6 @@ class RepostDealView(generics.CreateAPIView):
             end_time=end_time,
             actual_price=old_deal.actual_price,
             deal_price=old_deal.deal_price,
-            available_deals=old_deal.available_deals,
             location_house_no=old_deal.location_house_no,
             location_road_name=old_deal.location_road_name,
             location_country=old_deal.location_country,
@@ -2057,16 +2071,13 @@ class RepostDealView(generics.CreateAPIView):
             location_city=old_deal.location_city,
             location_pincode=old_deal.location_pincode,
             latitude=old_deal.latitude,
-            longitude=old_deal.longitude
+            longitude=old_deal.longitude,
+            available_deals=available_deals  # ✅ Store available_deals
         )
 
         # Naya deal status check karo
-        start_datetime = timezone.make_aware(dt.combine(start_date, start_time))  # Use dt.combine
-        if start_datetime <= now:
-            new_deal.start_now = True  # Live me chali jayegi
-        else:
-            new_deal.start_now = False  # Scheduled me jayegi
-        
+        start_datetime = timezone.make_aware(dt.combine(start_date, start_time))
+        new_deal.start_now = True if start_datetime <= now else False
         new_deal.save()
         
         return Response({"message": "Deal successfully reposted", "data": CreateDealSerializer(new_deal).data}, status=status.HTTP_201_CREATED)
