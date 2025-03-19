@@ -392,7 +392,7 @@ class CreateDeal(models.Model):
 
     actual_price = models.DecimalField(max_digits=10, decimal_places=2)
     deal_price = models.DecimalField(max_digits=10, decimal_places=2)
-    available_deals = models.PositiveIntegerField()
+    available_deals = models.IntegerField(null=True, blank=True)
 
     location_house_no = models.CharField(max_length=255, blank=True)
     location_road_name = models.CharField(max_length=255, blank=True)

@@ -625,6 +625,7 @@ class VendorKYCStatusSerializer(serializers.ModelSerializer):
     
 
 class CreateDealSerializer(serializers.ModelSerializer):
+    # Existing Fields
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
     actual_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
@@ -632,14 +633,10 @@ class CreateDealSerializer(serializers.ModelSerializer):
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
     uploaded_images = serializers.ListField(
-        child=serializers.DictField(
-            child=serializers.CharField(),
-            required=True,
-        ),
+        child=serializers.DictField(child=serializers.CharField(), required=True),
         required=False,
     )
     deal_post_time = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S', read_only=True)
-    
 
     class Meta:
         model = CreateDeal
@@ -661,34 +658,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
         return 0
 
     def validate(self, data):
-        """ Validate select_service and address fields, ensure they are provided manually. """
-        vendor_kyc = data.get('vendor_kyc')
-        select_service = data.get('select_service')
-
-        # Check if the 'select_service' field is provided
-        if not select_service:
-            raise serializers.ValidationError("First provide Select Service.")
-
-        # Fetch the service corresponding to 'select_service' and retrieve the item_price
-        try:
-            service = vendor_kyc.services.get(item_name=select_service)
-            data['actual_price'] = service.item_price  # Fetch the price from the Service model
-        except Service.DoesNotExist:
-            raise serializers.ValidationError("Selected service does not exist for the vendor.")
-
-        # Ensure that all address-related fields are provided manually by the vendor
-        address_fields = [
-            'location_house_no', 'location_road_name', 'location_country',
-            'location_state', 'location_city', 'location_pincode', 'latitude', 'longitude'
-        ]
-        for field in address_fields:
-            if not data.get(field):
-                raise serializers.ValidationError(f"{field.replace('_', ' ').capitalize()} is required.")
-
-        return data
-    
-    def validate(self, data):
-        """Validate date and time fields."""
+        # -------- Date & Time Validation (Your Original Logic) -------- #
         start_date = data.get('start_date')
         start_time = data.get('start_time')
         end_date = data.get('end_date')
@@ -697,39 +667,60 @@ class CreateDealSerializer(serializers.ModelSerializer):
         today = timezone.localdate()
         current_time = timezone.localtime().time()
 
-        # Ensure start_date and end_date are not in the past
         if start_date and start_date < today:
             raise serializers.ValidationError({'start_date': "Start date cannot be in the past."})
-
         if end_date and end_date < today:
             raise serializers.ValidationError({'end_date': "End date cannot be in the past."})
-        
-        if start_date and end_date < today:
-            raise serializers.ValidationError({'start_date & end_date': "Start & End date cannot be in the past."})
-
         if start_date and end_date and start_date > end_date:
             raise serializers.ValidationError({'end_date': "End date cannot be before start date."})
-        
-        # Ensure start_time is not before the current time if the deal is for today
-        if start_date == today and start_time == current_time:
+        if start_date == today and start_time and start_time < current_time:
             raise serializers.ValidationError({'start_time': "Start time cannot be in the past."})
-        
-
         if start_date and start_time and end_date and end_time:
-            start_datetime = timezone.make_aware(dt.datetime.combine(start_date, start_time))
-            end_datetime = timezone.make_aware(dt.datetime.combine(end_date, end_time))
-
-            if start_datetime > end_datetime:
+            start_dt = timezone.make_aware(dt.datetime.combine(start_date, start_time))
+            end_dt = timezone.make_aware(dt.datetime.combine(end_date, end_time))
+            if start_dt > end_dt:
                 raise serializers.ValidationError({'end_time': "End time must be after start time."})
-            
-
-            # If start_date and end_date are same, enforce 10 minutes gap
             if start_date == end_date:
                 min_end_time = (dt.datetime.combine(start_date, start_time) + dt.timedelta(minutes=10)).time()
                 if end_time < min_end_time:
-                    raise serializers.ValidationError({'end_time': "End time must be at least 10 minutes."})
+                    raise serializers.ValidationError({'end_time': "End time must be at least 10 minutes after start time."})
+
+        # -------- Service Price Validation -------- #
+        vendor_kyc = data.get('vendor_kyc')
+        select_service = data.get('select_service')
+        if not select_service:
+            raise serializers.ValidationError("First provide Select Service.")
+        try:
+            service = vendor_kyc.services.get(item_name=select_service)
+            data['actual_price'] = service.item_price
+        except Service.DoesNotExist:
+            raise serializers.ValidationError("Selected service does not exist for the vendor.")
+
+        # -------- Address Validation -------- #
+        address_fields = [
+            'location_house_no', 'location_road_name', 'location_country',
+            'location_state', 'location_city', 'location_pincode', 'latitude', 'longitude'
+        ]
+        for field in address_fields:
+            if not data.get(field):
+                raise serializers.ValidationError(f"{field.replace('_', ' ').capitalize()} is required.")
+
+        # -------- BUY NOW & AVAILABLE DEALS LOGIC (Your Required Condition) -------- #
+        buy_now = data.get('buy_now')
+        available_deals = data.get('available_deals', None)
+
+        if buy_now:
+            # If buy_now is True, available_deals can be None or 0
+            data['available_deals'] = None
+        else:
+            # If buy_now is False, available_deals is mandatory and >= 1
+            if available_deals is None:
+                raise serializers.ValidationError({'available_deals': "available_deals is required when buy_now is False."})
+            if not isinstance(available_deals, int) or available_deals < 1:
+                raise serializers.ValidationError({'available_deals': "available_deals must be at least 1 when buy_now is False."})
 
         return data
+
     
 
     
