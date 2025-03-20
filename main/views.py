@@ -1730,7 +1730,6 @@ class MyDealView(APIView):
     permission_classes = [IsAuthenticated]
 
     def permission_denied(self, request, message=None, code=None):
-        """Custom response for authentication errors"""
         response = Response(
             {"message": message or "Authentication credentials were not provided."},
             status=status.HTTP_401_UNAUTHORIZED
@@ -1748,20 +1747,30 @@ class MyDealView(APIView):
             live_deals, scheduled_deals, history_deals = [], [], []
 
             for deal in deals:
-                deal_start_datetime = timezone.make_aware(datetime.combine(deal.start_date, deal.start_time))
-                deal_end_datetime = timezone.make_aware(datetime.combine(deal.end_date, deal.end_time))
+                # ⚠️ Skip if date or time is missing
+                if not all([deal.start_date, deal.start_time, deal.end_date, deal.end_time]):
+                    # Optional: You can move such deals to history or skip
+                    history_deals.append(deal)
+                    continue
+
+                deal_start_datetime = timezone.make_aware(
+                    datetime.combine(deal.start_date, deal.start_time)
+                )
+                deal_end_datetime = timezone.make_aware(
+                    datetime.combine(deal.end_date, deal.end_time)
+                )
 
                 # ✅ Check for available_deals
-                if deal.available_deals <= 0:
-                    # ✅ Expire the deal by setting start and end to now
+                if deal.available_deals is not None and deal.available_deals <= 0:
+                    # ✅ Expire the deal
                     deal.start_date = current_time.date()
                     deal.start_time = current_time.time()
                     deal.end_date = current_time.date()
                     deal.end_time = current_time.time()
-                    deal.save()  # ✅ Important: Save the changes
-                    history_deals.append(deal)  # ✅ Move to history
+                    deal.save()
+                    history_deals.append(deal)
                 else:
-                    # ✅ Check timings to classify deals
+                    # ✅ Classify deals based on time
                     if deal_start_datetime <= current_time <= deal_end_datetime:
                         live_deals.append(deal)
                     elif current_time < deal_start_datetime:
