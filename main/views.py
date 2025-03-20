@@ -20,6 +20,8 @@ from django.db.models import Q
 from django.db.models import F, Func, FloatField
 from math import radians, sin, cos, sqrt, atan2
 from math import radians, sin, cos, sqrt, asin
+from django.db.models import Sum
+from django.db import models
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken, TokenError
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
@@ -2222,3 +2224,39 @@ class MySalesAPIView(generics.ListAPIView):
 
         serializer = self.get_serializer(queryset, many=True)
         return Response({"message": "Sales fetched successfully", "sales_data": serializer.data}, status=status.HTTP_200_OK)
+    
+class ViewTotalSales(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        sales_type = request.query_params.get('sales_type')
+
+        if sales_type not in ['daily', 'weekly', 'monthly']:
+            return Response({"message": "Invalid sales_type. Choose from 'daily', 'weekly', 'monthly'."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            vendor = VendorKYC.objects.get(user=request.user)
+        except VendorKYC.DoesNotExist:
+            return Response({"message": "Vendor profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        now = timezone.now()
+
+        if sales_type == 'daily':
+            time_threshold = now - timedelta(days=1)
+        elif sales_type == 'weekly':
+            time_threshold = now - timedelta(days=7)
+        else:
+            time_threshold = now - timedelta(days=30)
+
+        orders = PlaceOrder.objects.filter(
+            vendor=vendor,
+            created_at__gte=time_threshold
+        )
+
+        total_sales = orders.aggregate(total=Sum('total_amount'))['total'] or 0
+
+        return Response({
+            "sales_type": sales_type,
+            "total_sales": float(total_sales)
+        }, status=status.HTTP_200_OK)
