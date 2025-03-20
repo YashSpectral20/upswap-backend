@@ -392,7 +392,7 @@ class CreateDeal(models.Model):
 
     actual_price = models.DecimalField(max_digits=10, decimal_places=2)
     deal_price = models.DecimalField(max_digits=10, decimal_places=2)
-    available_deals = models.IntegerField(null=True, blank=True)
+    available_deals = models.PositiveIntegerField(default=0)
 
     location_house_no = models.CharField(max_length=255, blank=True)
     location_road_name = models.CharField(max_length=255, blank=True)
@@ -418,6 +418,9 @@ class CreateDeal(models.Model):
             now = timezone.now()
             self.start_date = now.date()
             self.start_time = now.time().replace(microsecond=0)
+            
+        if self.available_deals < 1:
+            raise ValidationError("You must provide at least 1 deal.")
 
         super().save(*args, **kwargs)
 
