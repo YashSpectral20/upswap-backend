@@ -19,6 +19,7 @@ from math import radians, cos, sin, asin, sqrt
 from pyfcm import FCMNotification #For push notification
 import sendgrid
 from sendgrid.helpers.mail import Mail, Email, To, Content
+from rest_framework.views import exception_handler
 
 # Function to send an email
 def send_email(from_email_address, to_email_address, subject, body, api_key=None):
@@ -163,6 +164,19 @@ def upload_to_s3_profile_image(file, folder, file_type="image"):
         raise ValueError("Unsupported file type")
 
     return f"{settings.MEDIA_URL}{file_key}"
+
+def custom_exception_handler(exc, context):
+    response = exception_handler(exc, context)
+
+    if response is not None:
+        # Agar 'detail' key ho to usko 'message' bana do
+        if 'detail' in response.data:
+            response.data = {'message': response.data['detail']}
+    else:
+        # Agar koi unknown error ho
+        return Response({'message': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    return response
 
 
     # except Exception as e:

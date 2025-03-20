@@ -2210,19 +2210,29 @@ class MySalesAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Filter PlaceOrders where vendor is the logged-in vendor
         vendor = VendorKYC.objects.filter(user=self.request.user).first()
         if vendor:
             return PlaceOrder.objects.filter(vendor=vendor).select_related('user', 'vendor')
         return PlaceOrder.objects.none()
 
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
+        try:
+            queryset = self.get_queryset()
 
-        if not queryset.exists():
-            return Response({"message": "No sales found."}, status=status.HTTP_404_NOT_FOUND)
+            if not queryset.exists():
+                return Response({"message": "No sales found."}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = self.get_serializer(queryset, many=True)
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({"message": "Sales fetched successfully", "sales_data": serializer.data}, status=status.HTTP_200_OK)
+
+        except (AuthenticationFailed, NotAuthenticated, PermissionDenied) as auth_error:
+            return Response({"message": str(auth_error)}, status=status.HTTP_401_UNAUTHORIZED)
+
+        except ValidationError as validation_error:
+            return Response({"message": str(validation_error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"message": "Something went wrong. " + str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({"message": "Sales fetched successfully", "sales_data": serializer.data}, status=status.HTTP_200_OK)
     
 class ViewTotalSales(APIView):
