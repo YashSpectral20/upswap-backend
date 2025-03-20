@@ -15,6 +15,7 @@ from botocore.exceptions import ClientError
 from django.http import HttpResponse, JsonResponse
 from django.core.files.base import ContentFile
 from django.utils import timezone
+from datetime import timedelta
 from django.db.models import Q
 from django.db.models import F, Func, FloatField
 from math import radians, sin, cos, sqrt, atan2
@@ -40,7 +41,7 @@ from .serializers import (
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
     MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, 
-    ActivityRepostSerializer
+    ActivityRepostSerializer, MySalesSerializer
 
 )
 from datetime import datetime
@@ -2201,3 +2202,23 @@ class ActivityRepostView(APIView):
         # Errors ko extract karke sirf "message" format me bhejna
         error_message = next(iter(serializer.errors.values()))[0] if serializer.errors else "Validation error."
         return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
+    
+class MySalesAPIView(generics.ListAPIView):
+    serializer_class = MySalesSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Filter PlaceOrders where vendor is the logged-in vendor
+        vendor = VendorKYC.objects.filter(user=self.request.user).first()
+        if vendor:
+            return PlaceOrder.objects.filter(vendor=vendor).select_related('user', 'vendor')
+        return PlaceOrder.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+
+        if not queryset.exists():
+            return Response({"message": "No sales found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({"message": "Sales fetched successfully", "sales_data": serializer.data}, status=status.HTTP_200_OK)

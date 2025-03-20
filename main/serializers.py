@@ -1,4 +1,5 @@
 import json
+import pytz
 import uuid
 import io
 import os
@@ -1599,3 +1600,32 @@ class ActivityRepostSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"message": "End time cannot be before start time."})
 
         return data
+    
+class MySalesSerializer(serializers.ModelSerializer):
+    user_name = serializers.CharField(source='user.username', read_only=True)
+    user_id = serializers.UUIDField(source='user.id', read_only=True)
+    created_at = serializers.SerializerMethodField()
+    uploaded_images = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PlaceOrder
+        fields = [
+            'user_name', 'uploaded_images', 'user_id', 'quantity', 'total_amount', 'created_at',
+            'payment_mode', 'transaction_id', 'country', 'latitude', 'longitude'
+        ]
+        
+    def get_uploaded_images(self, obj):
+        """
+        Fetch only the first image thumbnail from the uploaded_images of the deal.
+        """
+        if not obj.deal.uploaded_images or not isinstance(obj.deal.uploaded_images, list):
+            return []
+        
+        first_image = obj.deal.uploaded_images[0]  # Get the first image
+        thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
+        return [thumbnail] if thumbnail else []
+
+    def get_created_at(self, obj):
+        india_tz = pytz.timezone("Asia/Kolkata")
+        local_time = localtime(obj.created_at).astimezone(india_tz)
+        return local_time.strftime("%Y-%m-%d %H:%M:%S")
