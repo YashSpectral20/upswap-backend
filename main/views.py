@@ -1388,13 +1388,12 @@ class SocialLogin(generics.GenericAPIView):
             user.longitude = longitude or user.longitude
             user.save()
         else:
-            placeholder_phone = f"phone_{uuid.uuid4().hex[:8]}"
             user = CustomUser.objects.create(
                 social_id=social_id,
                 email=email,
                 name=name,
                 username=email.split('@')[0],
-                phone_number=placeholder_phone,
+                phone_number=None,
                 date_of_birth=None,
                 gender=None,
                 type=login_type,
