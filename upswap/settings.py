@@ -248,7 +248,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',
     ),
-    'EXCEPTION_HANDLER': 'main.utils.custom_exception_handler',
+    # 'EXCEPTION_HANDLER': 'main.utils.custom_exception_handler',
 }
 
 SIMPLE_JWT = {

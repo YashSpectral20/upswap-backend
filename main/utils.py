@@ -20,6 +20,9 @@ from pyfcm import FCMNotification #For push notification
 import sendgrid
 from sendgrid.helpers.mail import Mail, Email, To, Content
 from rest_framework.views import exception_handler
+# from rest_framework.response import Response
+# from rest_framework import status
+from twilio.rest import Client
 
 # Function to send an email
 def send_email(from_email_address, to_email_address, subject, body, api_key=None):
@@ -57,28 +60,36 @@ def send_email(from_email_address, to_email_address, subject, body, api_key=None
         "headers": dict(response.headers),
     }
 
-def generate_otp(user):
-    otp = ''.join(random.choices(string.digits, k=6))  # Generate a 6-digit OTP
-    expires_at = timezone.now() + timedelta(minutes=10)  # OTP valid for 10 minutes
+def send_otp_via_sms(phone_number, otp):
+    """
+    Sends OTP to the user's phone number using Twilio.
+    """
+    try:
+        account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+        auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        client = Client(account_sid, auth_token)
 
-    # Save OTP to the database, create if not exists
+        message = client.messages.create(
+            body=f"Your UpSwap OTP is {otp}. It is valid for 10 minutes.",
+            from_="+18582935331",   # Your Twilio verified phone number
+            to=f"+91{phone_number}"  # Assuming Indian numbers, adapt as needed
+        )
+        print(f"OTP sent: {message.sid}")
+    except Exception as e:
+        print(f"Failed to send OTP: {str(e)}")
+
+def generate_otp(user):
+    otp = ''.join(random.choices(string.digits, k=6))  # 6-digit OTP
+    expires_at = timezone.now() + timedelta(minutes=10)
+
+    # Store OTP
     OTP.objects.update_or_create(
         user=user,
         defaults={'otp': otp, 'expires_at': expires_at}
     )
 
-    # If using email, send OTP to the user
-    send_email(
-        # 'Your OTP Code',
-        # f'Your OTP code is {otp}. It is valid for 10 minutes.',
-        # settings.EMAIL_HOST_USER,
-        # [user.email],
-        # fail_silently=False,
-    from_email_address = "verify@upswap.app",
-    to_email_address = user.email,
-    subject = "Your UpSwap verification OTP is",
-    body = f"Your upswap verification OTP is {otp} will be valid for 10 minutes"
-    )
+    # Send OTP via SMS instead of email
+    send_otp_via_sms(user.phone_number, otp)
 
     return otp
 
@@ -165,97 +176,15 @@ def upload_to_s3_profile_image(file, folder, file_type="image"):
 
     return f"{settings.MEDIA_URL}{file_key}"
 
-def custom_exception_handler(exc, context):
-    response = exception_handler(exc, context)
+# def custom_exception_handler(exc, context):
+#     response = exception_handler(exc, context)
 
-    if response is not None:
-        # Agar 'detail' key ho to usko 'message' bana do
-        if 'detail' in response.data:
-            response.data = {'message': response.data['detail']}
-    else:
-        # Agar koi unknown error ho
-        return Response({'message': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    return response
-
-
-    # except Exception as e:
-    #     return {"error": str(e)}
-
-# Example usage
-# if __name__ == "__main__":
-#     result = send_email(
-#         from_email_address="verify@upswap.app",
-#         to_email_address="<RECEIVER@EXAMPLE.COM>",
-#         subject="Sending with SendGrid is Fun",
-#         body="and easy to do anywhere, even with Python"
-#     )
-#     if "error" in result:
-#         print(f"Error: {result['error']}")
+#     if response is not None:
+#         # Agar 'detail' key ho to usko 'message' bana do
+#         if 'detail' in response.data:
+#             response.data = {'message': response.data['detail']}
 #     else:
-#         print(f"Status Code: {result['status_code']}")
-#         print(f"Response Body: {result['body']}")
-#         print(f"Headers: {result['headers']}")
+#         # Agar koi unknown error ho
+#         return Response({'message': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-####################################################################################
-
-# def send_push_notification(device_tokens, title, message):
-#     # Initialize the FCMNotification class with the API key
-#     push_service = FCMNotification(api_key=settings.FCM_API_KEY)
-    
-#     if isinstance(device_tokens, list):
-#         # Send to multiple devices
-#         result = push_service.notify_multiple_devices(
-#             registration_ids=device_tokens,
-#             message_title=title,
-#             message_body=message
-#         )
-#     else:
-#         # Send to a single device
-#         result = push_service.notify_single_device(
-#             registration_id=device_tokens,
-#             message_title=title,
-#             message_body=message
-#         )
-#     return result
-
-# def calculate_distance(lat1, lon1, lat2, lon2):
-#     if None in [lat1, lon1, lat2, lon2]:
-#         return float('inf')  # Return a very large distance if any coordinate is missing
-    
-#     # Convert decimal to float for calculations
-#     lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
-    
-#     # Haversine Formula
-#     dlon = radians(lon2 - lon1)
-#     dlat = radians(lat2 - lat1)
-#     a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
-#     c = 2 * asin(sqrt(a))
-    
-#     r = 6371  # Radius of Earth in kilometers
-#     return c * r
-
-
-
-# def send_fcm_notification(device_token, title, message):
-#     FCM_SERVER_KEY = settings.FCM_SERVER_KEY  # .env se load karein
-#     headers = {
-#         "Authorization": f"key={FCM_SERVER_KEY}",
-#         "Content-Type": "application/json"
-#     }
-
-#     payload = {
-#         "to": device_token,
-#         "notification": {
-#             "title": title,
-#             "body": message
-#         },
-#         "data": {
-#             "click_action": "FLUTTER_NOTIFICATION_CLICK",
-#             "title": title,
-#             "body": message
-#         }
-#     }
-
-#     response = requests.post("https://fcm.googleapis.com/fcm/send", json=payload, headers=headers)
-#     return response.json()
+#     return response
