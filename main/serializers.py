@@ -1100,7 +1100,12 @@ class PlaceOrderListsSerializer(serializers.ModelSerializer):
         return local_time.strftime("%Y-%m-%d %H:%M:%S")
     
 class OTPRequestSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    phone_number = serializers.CharField(max_length=15)
+
+    def validate_phone_number(self, value):
+        if not CustomUser.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("No user found with this phone number.")
+        return value
     
 # class OTPResetPasswordSerializer(serializers.Serializer):
 #     email = serializers.EmailField()
@@ -1185,36 +1190,33 @@ class OTPRequestSerializer(serializers.Serializer):
 #         return {"message": "Password has been reset successfully."}
 
 class OTPResetPasswordSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    phone_number = serializers.CharField(max_length=15)
     otp = serializers.CharField(max_length=6)
     new_password = serializers.CharField(write_only=True, validators=[validate_password_strength])
     confirm_password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        # Check if passwords match
         if data['new_password'] != data['confirm_password']:
             raise serializers.ValidationError("Passwords do not match.")
 
-        # Validate email and OTP
-        email = data.get('email')
+        phone_number = data.get('phone_number')
         otp = data.get('otp')
 
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
-            raise serializers.ValidationError("User with this email does not exist.")
+            raise serializers.ValidationError("User with this phone number does not exist.")
 
         try:
             otp_entry = PasswordResetOTP.objects.get(user=user, otp=otp)
         except PasswordResetOTP.DoesNotExist:
             raise serializers.ValidationError("Invalid OTP.")
 
-        # Check if OTP has expired
         if otp_entry.is_expired():
             raise serializers.ValidationError("OTP has expired.")
 
-        data['user'] = user  # Pass user object for saving
-        data['otp_entry'] = otp_entry  # Pass OTP entry for saving
+        data['user'] = user
+        data['otp_entry'] = otp_entry
         return data
 
     def save(self):
@@ -1222,11 +1224,9 @@ class OTPResetPasswordSerializer(serializers.Serializer):
         otp_entry = self.validated_data['otp_entry']
         new_password = self.validated_data['new_password']
 
-        # Save the new password
         user.set_password(new_password)
         user.save()
 
-        # Mark OTP as used
         otp_entry.delete()
 
            
@@ -1271,23 +1271,17 @@ class OTPResetPasswordSerializer(serializers.Serializer):
 #         return data
 
 class OTPValidationSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    phone_number = serializers.CharField(max_length=15)
     otp = serializers.CharField(max_length=6)
 
     def validate(self, data):
-        email = data.get('email')
+        phone_number = data.get('phone_number')
         otp = data.get('otp')
 
-        # Validate email format explicitly
         try:
-            validate_email(email)
-        except DjangoValidationError:
-            raise serializers.ValidationError("Invalid email address format.")
-
-        try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
-            raise serializers.ValidationError("User with this email does not exist.")
+            raise serializers.ValidationError("User with this phone number does not exist.")
 
         try:
             otp_entry = PasswordResetOTP.objects.get(user=user, otp=otp)
@@ -1295,12 +1289,11 @@ class OTPValidationSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid OTP.")
 
         if otp_entry.is_expired() or otp_entry.used:
-            raise serializers.ValidationError("OTP has expired.")
+            raise serializers.ValidationError("OTP has expired or already used.")
 
         otp_entry.used = True
         otp_entry.save()
 
-        # OTP is valid
         data['message'] = "OTP is valid. Proceed to reset your password."
         return data
     

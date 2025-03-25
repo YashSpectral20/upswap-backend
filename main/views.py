@@ -49,7 +49,7 @@ from .serializers import (
 from datetime import datetime
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
@@ -1561,17 +1561,15 @@ class SendOTPView(APIView):
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
-
         if not serializer.is_valid():
-            # Collect the first error message and return it in the "message" key
             first_error_message = next(iter(serializer.errors.values()))[0]
             return Response({"message": first_error_message}, status=status.HTTP_400_BAD_REQUEST)
 
-        email = serializer.validated_data['email']
+        phone_number = serializer.validated_data['phone_number']
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
-            return Response({"message": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "User with this phone number does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
         # Delete any existing OTP for the user
         PasswordResetOTP.objects.filter(user=user).delete()
@@ -1586,22 +1584,16 @@ class SendOTPView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # Send the OTP via email
+        # Send the OTP via SMS using Twilio
         try:
-            send_mail(
-                'Password Reset OTP',
-                f'Your OTP for password reset is: {otp}',
-                'admin@example.com',
-                [email],
-                fail_silently=False,
-            )
-        except Exception:
+            send_otp_via_sms(user.phone_number, otp)
+        except Exception as e:
             return Response(
-                {"message": "Failed to send OTP email. Please try again later."},
+                {"message": f"Failed to send OTP SMS. Error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        return Response({"message": "OTP sent to your email."}, status=status.HTTP_200_OK)
+        return Response({"message": "OTP sent successfully to your phone number."}, status=status.HTTP_200_OK)
 
 
    
