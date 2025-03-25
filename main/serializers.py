@@ -785,12 +785,14 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     
     def get_average_rating(self, obj):
         """
-        Vendor ki average rating calculate karega jo MyOrders me di gayi hai.
+        Sirf is particular deal ki rating ka average nikalega.
         """
-        if obj.vendor_kyc:
-            average = VendorRating.objects.filter(vendor=obj.vendor_kyc).aggregate(avg_rating=Avg('rating'))['avg_rating']
-            return round(average, 1) if average else 0.0  # Default 0.0 if no ratings
-        return 0.0
+        average = VendorRating.objects.filter(
+            order__deal=obj,
+            vendor=obj.vendor_kyc
+        ).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        
+        return round(average, 1) if average else 0.0
         
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
