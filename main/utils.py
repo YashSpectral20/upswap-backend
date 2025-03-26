@@ -23,6 +23,9 @@ from rest_framework.views import exception_handler
 # from rest_framework.response import Response
 # from rest_framework import status
 from twilio.rest import Client
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Function to send an email
 def send_email(from_email_address, to_email_address, subject, body, api_key=None):
@@ -61,18 +64,20 @@ def send_email(from_email_address, to_email_address, subject, body, api_key=None
     }
 
 def send_otp_via_sms(phone_number, otp):
-    """
-    Sends OTP to the user's phone number using Twilio.
-    """
     try:
         account_sid = os.getenv("TWILIO_ACCOUNT_SID")
         auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        from_phone = os.getenv("FROM_PHONE_NUMBER")
+        app_hash = os.getenv("APP_HASH")
+
         client = Client(account_sid, auth_token)
 
+        message_body = f"Your UpSwap OTP is {otp}. It is valid for 10 minutes.\n{app_hash}"
+
         message = client.messages.create(
-            body=f"Your UpSwap OTP is {otp}. It is valid for 10 minutes.",
-            from_="+18582935331",   # Your Twilio verified phone number
-            to=f"+91{phone_number}"  # Assuming Indian numbers, adapt as needed
+            body=message_body,
+            from_=from_phone,
+            to=f"+91{phone_number}"
         )
         print(f"OTP sent: {message.sid}")
     except Exception as e:
