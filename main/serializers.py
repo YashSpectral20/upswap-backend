@@ -897,12 +897,12 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlaceOrder
         fields = [
-            'order_id', 'deal_uuid', 'user_id', 'vendor_id', 'quantity', 'country',
-            'latitude', 'longitude', 'total_amount', 'transaction_id', 'payment_status',
-            'payment_mode', 'created_at'
+            'order_id', 'placeorder_id', 'deal_uuid', 'user_id', 'vendor_id', 'quantity',
+            'country', 'latitude', 'longitude', 'total_amount', 'transaction_id',
+            'payment_status', 'payment_mode', 'created_at'
         ]
-        read_only_fields = ['order_id', 'user_id', 'vendor_id', 'total_amount']
-        
+        read_only_fields = ['order_id', 'user_id', 'vendor_id', 'total_amount', 'placeorder_id']
+
     def get_created_at(self, obj):
         india_tz = pytz.timezone("Asia/Kolkata")
         local_time = localtime(obj.created_at).astimezone(india_tz)
@@ -910,37 +910,30 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
 
     def validate_deal_uuid(self, value):
         try:
-            uuid.UUID(str(value))  # Attempt to parse the UUID
+            uuid.UUID(str(value))
         except ValueError:
-            raise serializers.ValidationError("Must be a valid UUID.")  # Simple string message
-        
+            raise serializers.ValidationError("Must be a valid UUID.")
         return value
 
     def create(self, validated_data):
-        user = self.context['request'].user  # Get the logged-in user
-
-        # Retrieve the deal based on the provided deal_uuid
+        user = self.context['request'].user
         deal_uuid = validated_data.pop('deal_uuid')
+
         try:
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
         except CreateDeal.DoesNotExist:
-            raise serializers.ValidationError({"message":"Deal not found"})
+            raise serializers.ValidationError({"message": "Deal not found"})
 
-        vendor = deal.vendor_kyc  # Assuming the relationship field for vendor in the deal
-
+        vendor = deal.vendor_kyc
         quantity = validated_data.get('quantity', 1)
 
-        # Check if the quantity exceeds available quantity in the deal
         if quantity > deal.available_deals:
-            raise serializers.ValidationError({"message":"The ordered quantity exceeds the available deals."})
+            raise serializers.ValidationError({"message": "The ordered quantity exceeds the available deals."})
 
         total_amount = deal.deal_price * quantity
-
         payment_status = validated_data.get('payment_status', 'pending')
-        
         transaction_id = validated_data.get('transaction_id') or "default-transaction-id"
 
-        # Create the PlaceOrder entry
         place_order = PlaceOrder.objects.create(
             user=user,
             deal=deal,
@@ -955,7 +948,6 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
             payment_status=payment_status,
         )
 
-        # Optionally update available quantity after the order is placed
         deal.available_deals -= quantity
         deal.save()
 
@@ -963,7 +955,7 @@ class PlaceOrderSerializer(serializers.ModelSerializer):
 
 
 class PlaceOrderDetailsSerializer(serializers.ModelSerializer):
-    order_id = serializers.UUIDField(format='hex_verbose', read_only=True)
+    placeorder_id = serializers.CharField(read_only=True)
     deal_uuid = serializers.UUIDField(source='deal.deal_uuid', format='hex_verbose', read_only=True)
     user_id = serializers.UUIDField(source='user.id', read_only=True)
     vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
@@ -975,7 +967,7 @@ class PlaceOrderDetailsSerializer(serializers.ModelSerializer):
     class Meta:
         model = PlaceOrder
         fields = [
-            'order_id', 'deal_uuid', 'uploaded_images', 'user_id', 'vendor_id', 'vendor_name', 'quantity', 'country',
+            'placeorder_id', 'deal_uuid', 'uploaded_images', 'user_id', 'vendor_id', 'vendor_name', 'quantity', 'country',
             'latitude', 'longitude', 'total_amount', 'transaction_id', 'payment_status',
             'payment_mode', 'created_at'
         ]
@@ -1065,7 +1057,7 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
         
         
 class PlaceOrderListsSerializer(serializers.ModelSerializer):
-    order_id = serializers.UUIDField(format='hex_verbose', read_only=True)
+    placeorder_id = serializers.CharField(read_only=True)
     deal_uuid = serializers.UUIDField(source='deal.deal_uuid', format='hex_verbose', read_only=True)
     user_id = serializers.UUIDField(source='user.id', read_only=True)
     vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
@@ -1074,17 +1066,17 @@ class PlaceOrderListsSerializer(serializers.ModelSerializer):
     deal_price = serializers.CharField(source='deal.deal_price', read_only=True)
     deal_description = serializers.CharField(source='deal.deal_description', read_only=True)
     uploaded_images = serializers.SerializerMethodField()
-    created_at = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S', read_only=True)
+    created_at = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S', read_only=True) 
 
     class Meta:
         model = PlaceOrder
         fields = [
-            'order_id', 'deal_uuid', 'uploaded_images', 'deal_title', 'deal_price', 'deal_description', 'user_id', 'vendor_id', 'vendor_name', 'quantity', 'country',
+            'placeorder_id', 'deal_uuid', 'uploaded_images', 'deal_title', 'deal_price', 'deal_description', 'user_id', 'vendor_id', 'vendor_name', 'quantity', 'country',
             'latitude', 'longitude', 'total_amount', 'transaction_id', 'payment_status',
             'payment_mode', 'created_at'
         ]
         read_only_fields = fields
-        
+
     def get_uploaded_images(self, obj):
         """
         Fetch only the first image thumbnail from the uploaded_images of the deal.

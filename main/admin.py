@@ -168,10 +168,10 @@ class CreateDealAdmin(admin.ModelAdmin):
 @admin.register(PlaceOrder)
 class PlaceOrderAdmin(admin.ModelAdmin):
     # Fields to be displayed in the list view
-    list_display = ('order_id', 'user', 'vendor', 'deal', 'quantity', 'total_amount', 'payment_status', 'payment_mode', 'created_at')
+    list_display = ('order_id', 'placeorder_id', 'user', 'vendor', 'deal', 'quantity', 'total_amount', 'payment_status', 'payment_mode', 'created_at')
 
     # Fields to search in the admin
-    search_fields = ('order_id', 'user__username', 'deal__deal_uuid', 'vendor__vendor_id', 'payment_status')
+    search_fields = ('order_id', 'placeorder_id', 'user__username', 'deal__deal_uuid', 'vendor__vendor_id', 'payment_status')
 
     # Filters to use in the admin list view
     list_filter = ('payment_status', 'payment_mode', 'created_at')
@@ -181,7 +181,7 @@ class PlaceOrderAdmin(admin.ModelAdmin):
 
     # Fields to display in the form in the detail view
     fields = (
-        'order_id', 'user', 'deal', 'vendor', 'quantity', 'country', 'latitude', 'longitude',
+        'order_id', 'placeorder_id', 'user', 'deal', 'vendor', 'quantity', 'country', 'latitude', 'longitude',
         'total_amount', 'transaction_id', 'payment_status', 'payment_mode', 'created_at'
     )
 
