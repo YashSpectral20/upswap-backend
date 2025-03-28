@@ -1384,7 +1384,7 @@ class SocialLogin(generics.GenericAPIView):
                 email=email,
                 name=name,
                 username=email.split('@')[0],
-                phone_number=None,
+                phone_number="",
                 date_of_birth=None,
                 gender=None,
                 type=login_type,
