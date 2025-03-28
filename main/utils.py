@@ -72,7 +72,7 @@ def send_otp_via_sms(phone_number, otp):
 
         client = Client(account_sid, auth_token)
 
-        message_body = f"Your UpSwap OTP is {otp}. It is valid for 10 minutes.\n{app_hash}"
+        message_body = f"Your code is {otp}\n{app_hash}"
 
         message = client.messages.create(
             body=message_body,
