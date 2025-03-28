@@ -1255,7 +1255,7 @@ class PlaceOrderDetailsView(generics.RetrieveAPIView):
     serializer_class = PlaceOrderDetailsSerializer
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, order_id, *args, **kwargs):
+    def get(self, request, placeorder_id, *args, **kwargs):
         try:
             # Fetch the order by ID
             place_order = PlaceOrder.objects.get(placeorder_id=placeorder_id)

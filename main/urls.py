@@ -202,7 +202,7 @@ urlpatterns = [
     
     # PlaceOrder
     path('place-order/', PlaceOrderView.as_view(), name='place-order'),
-    path('place-order/details/<uuid:placeorder_id>/', PlaceOrderDetailsView.as_view(), name='place-order-details'),
+    path('place-order/details/<str:placeorder_id>/', PlaceOrderDetailsView.as_view(), name='place-order-details'),
     path('place-order/lists/', PlaceOrderListsView.as_view(), name='place-order-lists'),
     
     path('categories/', CategoriesView.as_view(), name='categories'),
