@@ -420,8 +420,8 @@ class CreateDeal(models.Model):
             self.start_date = now.date()
             self.start_time = now.time().replace(microsecond=0)
             
-        if self.available_deals < 1:
-            raise ValidationError("You must provide at least 1 deal.")
+        if self.pk is None and self.available_deals < 1:
+            raise ValidationError("You must provide at least 1 deal while creating a deal.")
 
         super().save(*args, **kwargs)
 
