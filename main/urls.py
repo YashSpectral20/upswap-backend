@@ -230,7 +230,7 @@ urlpatterns = [
     
     path('submit-rating/<uuid:order_id>/', SubmitRatingView.as_view(), name='submit-rating'),
     
-    path("place-order/<uuid:place_order_id>/raise-issue/", RaiseAnIssueMyOrdersView.as_view(), name="raise-issue"),
+    path("place-order/<uuid:placeorder_id>/raise-issue/", RaiseAnIssueMyOrdersView.as_view(), name="raise-issue"),
     
     path('raise-issue/vendors/<uuid:vendor_id>/', RaiseAnIssueVendorsCreateView.as_view(), name='raise-issue-vendors'),
     

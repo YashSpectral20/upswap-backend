@@ -1258,7 +1258,7 @@ class PlaceOrderDetailsView(generics.RetrieveAPIView):
     def get(self, request, order_id, *args, **kwargs):
         try:
             # Fetch the order by ID
-            place_order = PlaceOrder.objects.get(order_id=order_id)
+            place_order = PlaceOrder.objects.get(placeorder_id=placeorder_id)
             
             # Check if the order belongs to the requesting user
             if place_order.user != request.user:
