@@ -1881,12 +1881,12 @@ class SubmitRatingView(generics.CreateAPIView):
     serializer_class = VendorRatingSerializer
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, order_id, *args, **kwargs):
+    def post(self, request, placeorder_id, *args, **kwargs):
         try:
-            order = PlaceOrder.objects.get(order_id=order_id, user=request.user)
+            order = PlaceOrder.objects.get(placeorder_id=placeorder_id, user=request.user)
             vendor = order.vendor
 
-            serializer = self.get_serializer(data=request.data, context={'request': request, 'order_id': order_id})
+            serializer = self.get_serializer(data=request.data, context={'request': request, 'placeorder_id': placeorder_id})
 
             if serializer.is_valid():
                 serializer.save(user=request.user, vendor=vendor, order=order)
@@ -1905,14 +1905,14 @@ class RaiseAnIssueMyOrdersView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         place_order_id = kwargs.get("place_order_id")  
         try:
-            place_order = PlaceOrder.objects.get(order_id=place_order_id)  
+            place_order = PlaceOrder.objects.get(placeorder_id=place_order_id)  
         except PlaceOrder.DoesNotExist:
-            return Response({"error": "Invalid PlaceOrder UUID"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Invalid PlaceOrder ID"}, status=status.HTTP_404_NOT_FOUND)
 
         data = request.data.copy()
-        data["place_order"] = str(place_order.order_id)  # UUID string me convert karein
+        data["place_order"] = place_order.placeorder_id  # Directly use placeorder_id
 
-        serializer = self.get_serializer(data=data, context={"request": request})  # Context pass karein
+        serializer = self.get_serializer(data=data, context={"request": request})  
         if serializer.is_valid():
             serializer.save()
             return Response({"message": "Issue raised successfully", "data": serializer.data}, status=status.HTTP_201_CREATED)

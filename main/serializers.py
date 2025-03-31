@@ -1462,14 +1462,15 @@ class SuperadminLoginSerializer(serializers.Serializer):
         return data
     
 class VendorRatingSerializer(serializers.ModelSerializer):
+    placeorder_id = serializers.CharField(source='order.placeorder_id', read_only=True)
     rating_id = serializers.UUIDField(read_only=True)
     user_id = serializers.UUIDField(source='user.id', read_only=True)
     vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
-    order_id = serializers.UUIDField(source='order.order_id', read_only=True)
+    #order_id = serializers.UUIDField(source='order.order_id', read_only=True)
 
     class Meta:
         model = VendorRating
-        fields = ['rating_id', 'user_id', 'vendor_id', 'order_id', 'rating', 'created_at']
+        fields = ['placeorder_id', 'rating_id', 'user_id', 'vendor_id', 'rating', 'created_at']
         read_only_fields = ['rating_id', 'user_id', 'vendor_id', 'order_id', 'created_at']
 
     def validate_rating(self, value):
@@ -1483,13 +1484,13 @@ class VendorRatingSerializer(serializers.ModelSerializer):
         user = request.user
 
         # Ensure order_id is passed in request
-        order_id = request.parser_context['kwargs'].get('order_id')
-        if not order_id:
-            raise serializers.ValidationError("Order ID is required.")
+        placeorder_id = request.parser_context['kwargs'].get('placeorder_id')
+        if not placeorder_id:
+            raise serializers.ValidationError("PlaceOrder ID is required.")
 
         # Fetch order from DB
         try:
-            order = PlaceOrder.objects.get(order_id=order_id, user=user)
+            order = PlaceOrder.objects.get(placeorder_id=placeorder_id, user=user)
         except PlaceOrder.DoesNotExist:
             raise serializers.ValidationError("You are not authorized to rate this order.")
 
@@ -1501,6 +1502,11 @@ class VendorRatingSerializer(serializers.ModelSerializer):
 
     
 class RaiseAnIssueSerializerMyOrders(serializers.ModelSerializer):
+    place_order = serializers.SlugRelatedField(
+        queryset=PlaceOrder.objects.all(), 
+        slug_field="placeorder_id"  # placeorder_id ko map karega
+    )
+    
     class Meta:
         model = RaiseAnIssueMyOrders
         fields = ["issue_id", "user", "place_order", "subject", "describe_your_issue", "choose_files", "created_at"]
