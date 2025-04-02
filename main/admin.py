@@ -1,7 +1,6 @@
 from django.contrib import admin
 from .models import (
-    CustomUser, Activity, ChatRoom, ChatMessage,
-    ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser, FavoriteVendor
+    CustomUser, Activity, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser, FavoriteVendor
 )
 
 # Custom User Admin
@@ -55,51 +54,51 @@ class ActivityAdmin(admin.ModelAdmin):
 
 
 # ChatRoom Admin
-@admin.register(ChatRoom)
-class ChatRoomAdmin(admin.ModelAdmin):
-    list_display = ('id', 'created_at', 'activity_display', 'participants_display')
-    readonly_fields = ('id', 'created_at')
+# @admin.register(ChatRoom)
+# class ChatRoomAdmin(admin.ModelAdmin):
+#     list_display = ('id', 'created_at', 'activity_display', 'participants_display')
+#     readonly_fields = ('id', 'created_at')
 
-    def activity_display(self, obj):
-        return obj.activity.activity_title if obj.activity else 'N/A'
-    activity_display.short_description = 'Activity'
+#     def activity_display(self, obj):
+#         return obj.activity.activity_title if obj.activity else 'N/A'
+#     activity_display.short_description = 'Activity'
 
-    def participants_display(self, obj):
-        return ', '.join(user.username for user in obj.participants.all()) if obj.participants.exists() else 'No Participants'
-    participants_display.short_description = 'Participants'
+#     def participants_display(self, obj):
+#         return ', '.join(user.username for user in obj.participants.all()) if obj.participants.exists() else 'No Participants'
+#     participants_display.short_description = 'Participants'
 
-# ChatMessage Admin
-@admin.register(ChatMessage)
-class ChatMessageAdmin(admin.ModelAdmin):
-    list_display = ('chat_room', 'sender', 'message_display', 'created_at')
-    readonly_fields = ('created_at',)
+# # ChatMessage Admin
+# @admin.register(ChatMessage)
+# class ChatMessageAdmin(admin.ModelAdmin):
+#     list_display = ('chat_room', 'sender', 'message_display', 'created_at')
+#     readonly_fields = ('created_at',)
 
-    def message_display(self, obj):
-        return obj.content
-    message_display.short_description = 'Message'
+#     def message_display(self, obj):
+#         return obj.content
+#     message_display.short_description = 'Message'
 
-# ChatRequest Admin
-@admin.register(ChatRequest)
-class ChatRequestAdmin(admin.ModelAdmin):
-    list_display = (
-        'activity_display', 'from_user_display', 'to_user_display',
-        'is_accepted', 'is_rejected', 'interested'
-    )
-    readonly_fields = ('activity_display', 'from_user_display', 'to_user_display')
-    list_filter = ('is_accepted', 'is_rejected', 'interested')
-    search_fields = ('from_user__username', 'to_user__username', 'activity__activity_title')
+# # ChatRequest Admin
+# @admin.register(ChatRequest)
+# class ChatRequestAdmin(admin.ModelAdmin):
+#     list_display = (
+#         'activity_display', 'from_user_display', 'to_user_display',
+#         'is_accepted', 'is_rejected', 'interested'
+#     )
+#     readonly_fields = ('activity_display', 'from_user_display', 'to_user_display')
+#     list_filter = ('is_accepted', 'is_rejected', 'interested')
+#     search_fields = ('from_user__username', 'to_user__username', 'activity__activity_title')
 
-    def activity_display(self, obj):
-        return obj.activity.activity_title if obj.activity else 'N/A'
-    activity_display.short_description = 'Activity'
+#     def activity_display(self, obj):
+#         return obj.activity.activity_title if obj.activity else 'N/A'
+#     activity_display.short_description = 'Activity'
 
-    def from_user_display(self, obj):
-        return obj.from_user.username if obj.from_user else 'N/A'
-    from_user_display.short_description = 'From User'
+#     def from_user_display(self, obj):
+#         return obj.from_user.username if obj.from_user else 'N/A'
+#     from_user_display.short_description = 'From User'
 
-    def to_user_display(self, obj):
-        return obj.to_user.username if obj.to_user else 'N/A'
-    to_user_display.short_description = 'To User'
+#     def to_user_display(self, obj):
+#         return obj.to_user.username if obj.to_user else 'N/A'
+#     to_user_display.short_description = 'To User'
 
 
 class AddressInline(admin.TabularInline):

@@ -18,8 +18,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from django.utils.timezone import localtime
 from .models import (
-    CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
+    CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
     ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
@@ -314,44 +313,44 @@ class ActivityDetailsSerializer(serializers.ModelSerializer):
             # Return only compressed
             return compressed
 
-class ChatRoomSerializer(serializers.ModelSerializer):
-    participants = serializers.SlugRelatedField(
-        many=True,
-        slug_field='email',
-        queryset=CustomUser.objects.all()
-    )
+# class ChatRoomSerializer(serializers.ModelSerializer):
+#     participants = serializers.SlugRelatedField(
+#         many=True,
+#         slug_field='email',
+#         queryset=CustomUser.objects.all()
+#     )
 
-    class Meta:
-        model = ChatRoom
-        fields = ['id', 'activity', 'participants', 'created_at']
-        read_only_fields = ['id', 'created_at']
+#     class Meta:
+#         model = ChatRoom
+#         fields = ['id', 'activity', 'participants', 'created_at']
+#         read_only_fields = ['id', 'created_at']
 
-    def create(self, validated_data):
-        participants_data = validated_data.pop('participants', [])
+#     def create(self, validated_data):
+#         participants_data = validated_data.pop('participants', [])
         
-        chat_room = ChatRoom.objects.create(**validated_data)
-        chat_room.participants.set(participants_data)
+#         chat_room = ChatRoom.objects.create(**validated_data)
+#         chat_room.participants.set(participants_data)
         
-        return chat_room
+#         return chat_room
 
-class ChatMessageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ChatMessage
-        fields = ['id', 'chat_room', 'sender', 'content', 'created_at']
+# class ChatMessageSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = ChatMessage
+#         fields = ['id', 'chat_room', 'sender', 'content', 'created_at']
 
-class ChatRequestSerializer(serializers.ModelSerializer):
-    activity = serializers.PrimaryKeyRelatedField(queryset=Activity.objects.all())
-    from_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
-    to_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+# class ChatRequestSerializer(serializers.ModelSerializer):
+#     activity = serializers.PrimaryKeyRelatedField(queryset=Activity.objects.all())
+#     from_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+#     to_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
 
-    class Meta:
-        model = ChatRequest
-        fields = ['id', 'activity', 'from_user', 'to_user', 'is_accepted', 'is_rejected', 'interested']
+#     class Meta:
+#         model = ChatRequest
+#         fields = ['id', 'activity', 'from_user', 'to_user', 'is_accepted', 'is_rejected', 'interested']
 
-    def validate(self, attrs):
-        if attrs.get('is_accepted') and attrs.get('is_rejected'):
-            raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
-        return attrs
+#     def validate(self, attrs):
+#         if attrs.get('is_accepted') and attrs.get('is_rejected'):
+#             raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
+#         return attrs
 
 
 
