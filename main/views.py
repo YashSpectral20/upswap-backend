@@ -1560,6 +1560,13 @@ class SendOTPView(APIView):
             user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
             return Response({"message": "User with this phone number does not exist."}, status=status.HTTP_404_NOT_FOUND)
+        
+        # 🛑 Google Login Users ka Password Reset Allow Mat Karo
+        if user.type == "google":
+            return Response(
+                {"message": "You haven't set a password yet. Log in with Google or Signup with a password."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Delete any existing OTP for the user
         PasswordResetOTP.objects.filter(user=user).delete()
