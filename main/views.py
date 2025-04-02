@@ -32,20 +32,19 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, PasswordResetOTP, VendorKYC, CreateDeal, PlaceOrder,
-                    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser)
+from .models import (CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, CreateDeal, PlaceOrder,
+                    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser)   # ChatRoom, ChatMessage, ChatRequest,
 
 from .serializers import (
     CustomUserSerializer, OTPRequestSerializer, OTPResetPasswordSerializer, OTPValidationSerializer, VerifyOTPSerializer, LoginSerializer,
-    ActivitySerializer, ChatRoomSerializer, ChatMessageSerializer,
-    ChatRequestSerializer, VendorKYCSerializer,
+    ActivitySerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
     MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, 
     ActivityRepostSerializer, MySalesSerializer
 
-)
+)    # ChatRoomSerializer, ChatMessageSerializer, ChatRequestSerializer,
 from datetime import datetime
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView

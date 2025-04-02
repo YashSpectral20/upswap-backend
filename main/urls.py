@@ -163,18 +163,18 @@ urlpatterns = [
     # Activities (Requires Authentication)
     path('activities/create/', ActivityCreateView.as_view(), name='activity-create'),
 
-    # Chat Rooms (Requires Authentication)
-    path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),
-    path('chat-rooms/<uuid:pk>/', ChatRoomRetrieveView.as_view(), name='chat-room-detail'),
+    # # Chat Rooms (Requires Authentication)
+    # path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),
+    # path('chat-rooms/<uuid:pk>/', ChatRoomRetrieveView.as_view(), name='chat-room-detail'),
 
-    # Chat Messages (Requires Authentication)
-    path('chat-messages/', ChatMessageCreateView.as_view(), name='chat-message-create'),
-    path('chat-messages/<uuid:chat_room_id>/', ChatMessageListView.as_view(), name='chat-message-list'),
+    # # Chat Messages (Requires Authentication)
+    # path('chat-messages/', ChatMessageCreateView.as_view(), name='chat-message-create'),
+    # path('chat-messages/<uuid:chat_room_id>/', ChatMessageListView.as_view(), name='chat-message-list'),
 
-    # Chat Requests (Requires Authentication)
-    path('chat-requests/', ChatRequestCreateView.as_view(), name='chat-request-create'),
-    path('chat-requests/<uuid:pk>/', ChatRequestRetrieveView.as_view(), name='chat-request-detail'),
-    path('chat-requests/<uuid:pk>/accept/', AcceptChatRequestView.as_view(), name='accept-chat-request'),
+    # # Chat Requests (Requires Authentication)
+    # path('chat-requests/', ChatRequestCreateView.as_view(), name='chat-request-create'),
+    # path('chat-requests/<uuid:pk>/', ChatRequestRetrieveView.as_view(), name='chat-request-detail'),
+    # path('chat-requests/<uuid:pk>/accept/', AcceptChatRequestView.as_view(), name='accept-chat-request'),
 
     # Vendor KYC (Requires Authentication)
     path('vendor-kyc/create/', VendorKYCCreateView.as_view(), name='vendor-kyc-list-create'),
