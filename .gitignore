@@ -26,6 +26,7 @@ Thumbs.db
 Desktop.ini
 
 # Virtual environment
+env/
 venv/
 .env/
 
