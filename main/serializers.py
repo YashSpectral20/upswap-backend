@@ -1622,3 +1622,18 @@ class MySalesSerializer(serializers.ModelSerializer):
         india_tz = pytz.timezone("Asia/Kolkata")
         local_time = localtime(obj.created_at).astimezone(india_tz)
         return local_time.strftime("%Y-%m-%d %H:%M:%S")
+    
+# class ResendOTPSerializer(serializers.Serializer):
+#     phone_number = serializers.CharField()
+
+#     def validate(self, data):
+#         phone_number = data.get('phone_number')
+
+#         # Check if user with this phone number exists
+#         try:
+#             user = CustomUser.objects.get(phone_number=phone_number)
+#         except CustomUser.DoesNotExist:
+#             raise serializers.ValidationError("User with this phone number does not exist.")
+
+#         data['user'] = user
+#         return data

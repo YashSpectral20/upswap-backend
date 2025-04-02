@@ -2252,3 +2252,16 @@ class ViewTotalSales(APIView):
             "sales_type": sales_type,
             "total_sales": float(total_sales)
         }, status=status.HTTP_200_OK)
+        
+class ResendOTPView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+
+        # Generate and send a new OTP
+        generate_otp(user)
+
+        return Response({
+            "message": "A new OTP has been sent to your registered phone number."
+        }, status=status.HTTP_200_OK)
