@@ -183,7 +183,7 @@ class LoginView(generics.GenericAPIView):
             if not otp_instance.is_verified:
                 return Response({"message": "OTP not verified. Please verify your OTP first."}, status=status.HTTP_403_FORBIDDEN)
         except OTP.DoesNotExist:
-            return Response({"message": "OTP not found for this user. Please register and verify OTP."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "You have not set a  password yet. Log in with Google or Signup with a new account."}, status=status.HTTP_400_BAD_REQUEST)
 
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
@@ -1560,13 +1560,6 @@ class SendOTPView(APIView):
             user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
             return Response({"message": "User with this phone number does not exist."}, status=status.HTTP_404_NOT_FOUND)
-        
-        # 🛑 Google Login Users ka Password Reset Allow Mat Karo
-        if user.type == "google":
-            return Response(
-                {"message": "You haven't set a password yet. Log in with Google or Signup with a password."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
         # Delete any existing OTP for the user
         PasswordResetOTP.objects.filter(user=user).delete()
