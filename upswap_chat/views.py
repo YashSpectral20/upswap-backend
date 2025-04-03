@@ -1,5 +1,5 @@
-from .models import ChatRoom, ChatRequest
-from .serializers import ChatRequestSerializer
+from .models import ChatRoom, ChatRequest, ChatMessage
+from .serializers import ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -60,12 +60,32 @@ class ChatRequestAPIView(APIView):
             if chat_request:
                 if data['is_accepted']:
                     chat_room = chat_request.accept()
+                    serializer = ChatRoomSerializer(chat_room)
                     return Response({
                         'message': 'Chat request accepted & chat room has been created.',
-                        'data': chat_room
+                        'data': serializer.data
                     }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
                 'error': str(e),
                 'message': 'Chat request could not be accepted, please try again later.'
             }, status=status.HTTP_400_BAD_REQUEST)  
+
+
+class ChatMessageSerializer(APIView):
+    '''
+    get messages from a ChatRoom.
+    '''
+    def get(self, request, chat_room_id):
+        try:
+            messages = ChatMessage.objects.filter(chat_room=chat_room_id)
+            if messages.exists():
+                serializer = ChatMessageSerializer(messages, many=True)
+                return Response({
+                    'message': 'Chat messages retrieved successfully.',
+                    'data': serializer.data
+                }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'error': str(e),
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

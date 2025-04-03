@@ -115,16 +115,16 @@ from rest_framework import permissions
 from .views import (
     OTPResetPasswordView, RegisterView, SendOTPView, ValidateOTPView, VerifyOTPView, LoginView, CustomUserCreateView,
     ActivityCreateView,
-    ChatRoomCreateView, ChatRoomRetrieveView,
-    ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
-    ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
     CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
     RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales
-)
+)     
+# ChatRoomCreateView, ChatRoomRetrieveView,
+# ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
+# ChatRequestRetrieveView, AcceptChatRequestView,
 
 # Swagger Schema View
 schema_view = get_schema_view(
