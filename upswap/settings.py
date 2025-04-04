@@ -20,6 +20,8 @@ from logging import Formatter
 from datetime import datetime
 import sendgrid
 from sendgrid.helpers.mail import Mail, Email, To, Content
+import firebase_admin
+from firebase_admin import credentials
 
 load_dotenv()
 
@@ -332,5 +334,9 @@ FCM_API_KEY = 'AAAAd_w70I0:APA91bG9l53D7NMaURfpgLEN-wEYUygZ-WmHtcHtjjjFfl-MYWETc
 
 YOUR_PROJECT_ID = 'ittdealsapp'
 
+
+
+FIREBASE_CREDENTIALS = "../firebase_credentials.json"
+firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
 #
 #

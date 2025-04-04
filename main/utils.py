@@ -12,7 +12,7 @@ from datetime import timedelta
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
-from .models import OTP
+from .models import OTP, Notification, Device
 from botocore.exceptions import BotoCoreError, ClientError
 import traceback
 from math import radians, cos, sin, asin, sqrt 
@@ -24,6 +24,8 @@ from rest_framework.views import exception_handler
 # from rest_framework import status
 from twilio.rest import Client
 from dotenv import load_dotenv
+from .firebase_utils import send_notification_to_user
+from firebase_admin import messaging
 
 load_dotenv()
 
@@ -180,6 +182,30 @@ def upload_to_s3_profile_image(file, folder, file_type="image"):
         raise ValueError("Unsupported file type")
 
     return f"{settings.MEDIA_URL}{file_key}"
+
+def create_notification(user, notification_type, title, body, reference_instance=None, data=None):
+    reference_id = None
+
+    if reference_instance:
+        reference_id = getattr(reference_instance, 'id', None) or \
+                       getattr(reference_instance, 'pk', None) or \
+                       getattr(reference_instance, 'activity_id', None) or \
+                       getattr(reference_instance, 'deal_id', None)
+
+    notification = Notification.objects.create(
+        user=user,
+        notification_type=notification_type,
+        title=title,
+        body=body,
+        reference_id=reference_id,
+        reference_type=notification_type,
+        data=data or {}
+    )
+
+    # Firebase notification bhejna
+    send_notification_to_user(user, title, body, data)
+
+    return notification
 
 # def custom_exception_handler(exc, context):
 #     response = exception_handler(exc, context)

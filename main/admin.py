@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import (
-    CustomUser, Activity, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser, FavoriteVendor
+    CustomUser, Activity, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser, FavoriteVendor,
+    Notification, Device
 )
 
 # Custom User Admin
@@ -251,3 +252,19 @@ class FavoriteVendorAdmin(admin.ModelAdmin):
     search_fields = ('user__email', 'vendor__full_name')
     list_filter = ('added_at',)
     ordering = ('-added_at',)
+    
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'notification_type', 'title', 'is_read', 'created_at')
+    list_filter = ('notification_type', 'is_read', 'created_at')
+    search_fields = ('title', 'body', 'user__email')
+    ordering = ('-created_at',)
+    readonly_fields = ('id', 'created_at')
+
+@admin.register(Device)
+class DeviceAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'device_type', 'device_token', 'created_at')
+    list_filter = ('device_type', 'created_at')
+    search_fields = ('user__email', 'device_token')
+    ordering = ('-created_at',)
+    readonly_fields = ('id', 'created_at')

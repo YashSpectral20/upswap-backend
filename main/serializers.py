@@ -19,7 +19,8 @@ from django.utils import timezone
 from django.utils.timezone import localtime
 from .models import (
     CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser
+    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser,
+    Notification, Device
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
@@ -1621,6 +1622,16 @@ class MySalesSerializer(serializers.ModelSerializer):
         india_tz = pytz.timezone("Asia/Kolkata")
         local_time = localtime(obj.created_at).astimezone(india_tz)
         return local_time.strftime("%Y-%m-%d %H:%M:%S")
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = '__all__'
+
+class DeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Device
+        fields = '__all__'
     
 # class ResendOTPSerializer(serializers.Serializer):
 #     phone_number = serializers.CharField()

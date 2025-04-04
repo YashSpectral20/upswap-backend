@@ -561,3 +561,41 @@ class RaiseAnIssueCustomUser(models.Model):
 
     def __str__(self):
         return f"Issue by {self.raised_by.username} against {self.against_user.username}"
+    
+    
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('deal', 'CreateDeal'),
+        ('order_update', 'Order Update'),
+        ('activity', 'Activity'),
+        ('general', 'General'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='notifications')
+    notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPES)
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+    reference_id = models.UUIDField(null=True, blank=True)
+    reference_type = models.CharField(max_length=50, null=True, blank=True)
+    data = models.JSONField(default=dict)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.notification_type} - {self.title}"
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'is_read', 'created_at']),
+            models.Index(fields=['notification_type', 'reference_id', 'reference_type']),
+        ]
+
+class Device(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='devices')
+    device_token = models.CharField(max_length=255)
+    device_type = models.CharField(max_length=50, choices=[('android', 'Android'), ('ios', 'iOS'), ('web', 'Web')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.email} - {self.device_type}"
