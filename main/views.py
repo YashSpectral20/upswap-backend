@@ -1357,6 +1357,7 @@ class SocialLogin(generics.GenericAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
+        from django.contrib.auth import login
         social_id = request.data.get("social_id")
         email = request.data.get("email")
         name = request.data.get("name")
@@ -1385,7 +1386,7 @@ class SocialLogin(generics.GenericAPIView):
                 email=email,
                 name=name,
                 username=email.split('@')[0],
-                phone_number=None,
+                phone_number="",
                 date_of_birth=None,
                 gender=None,
                 type=login_type,
@@ -1400,7 +1401,7 @@ class SocialLogin(generics.GenericAPIView):
 
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
-
+        login(request, user)
         return Response({
             "user": CustomUserSerializer(user).data,
             "refresh": str(refresh),

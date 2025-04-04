@@ -1,6 +1,8 @@
 from .models import ChatRoom, ChatRequest, ChatMessage
 from .serializers import ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer
 
+from main.paginations import CustomPagination
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -72,19 +74,25 @@ class ChatRequestAPIView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)  
 
 
-class ChatMessageSerializer(APIView):
+class ChatMessageAPIView(APIView, CustomPagination):
     '''
     get messages from a ChatRoom.
     '''
+    pagination_class = CustomPagination
+    serializer_class = ChatMessageSerializer
+
     def get(self, request, chat_room_id):
         try:
             messages = ChatMessage.objects.filter(chat_room=chat_room_id)
-            if messages.exists():
-                serializer = ChatMessageSerializer(messages, many=True)
-                return Response({
-                    'message': 'Chat messages retrieved successfully.',
-                    'data': serializer.data
-                }, status=status.HTTP_200_OK)
+            page = self.paginate_queryset(messages, request, view=self)
+            if page is not None:
+                serializer = self.serializer_class(page, many=True)
+                return self.get_paginated_response(serializer.data)
+
+            return Response({
+                'message': 'No chat messages were found.',
+                'data': {}
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
                 'error': str(e),
