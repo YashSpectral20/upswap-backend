@@ -336,7 +336,7 @@ YOUR_PROJECT_ID = 'ittdealsapp'
 
 
 
-FIREBASE_CREDENTIALS = "../firebase_credentials.json"
+FIREBASE_CREDENTIALS = "/usr/src/app/creds.json"
 firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
 #
 #

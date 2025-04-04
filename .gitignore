@@ -49,3 +49,5 @@ datas
 logs/*.log*
 
 firebase_credentials.json
+
+creds.json
