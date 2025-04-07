@@ -232,18 +232,6 @@ class ActivityCreateView(generics.CreateAPIView):
                 
                 activity = serializer.save(created_by=self.request.user)
                 
-                #Notification Send Logic Yahan Hai
-                all_users = CustomUser.objects.exclude(id=request.user.id)
-                for user in all_users:
-                    create_notification(
-                        user=user,
-                        notification_type='activity',
-                        title="New Activity Posted!",
-                        body=f"{request.user.name} just posted: {activity.activity_title}",
-                        reference_instance=activity,
-                        data={"activity_id": str(activity.activity_id)}
-                    )
-                
                 return Response(
                     {
                         "message": "Activity created successfully",
