@@ -85,7 +85,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=150, unique=True)
     email = models.EmailField(max_length=255, unique=True)
     name = models.CharField(max_length=255)
-    phone_number = models.CharField(max_length=15, unique=True)
+    phone_number = models.CharField(max_length=15)
     country_code = models.CharField(max_length=10, blank=True, default='')
     dial_code = models.CharField(max_length=10, blank=True, default='')
     country = models.CharField(max_length=100, blank=True, default='')
@@ -204,49 +204,49 @@ class Activity(models.Model):
 
 
     
-class ChatRequest(models.Model):
-    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
-    from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
-    to_user = models.ForeignKey(CustomUser, related_name='received_requests', on_delete=models.CASCADE)
-    is_accepted = models.BooleanField(default=False)
-    is_rejected = models.BooleanField(default=False)
-    interested = models.BooleanField(default=False)
-    created_at = models.DateTimeField(default=timezone.now)
+# class ChatRequest(models.Model):
+#     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
+#     from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
+#     to_user = models.ForeignKey(CustomUser, related_name='received_requests', on_delete=models.CASCADE)
+#     is_accepted = models.BooleanField(default=False)
+#     is_rejected = models.BooleanField(default=False)
+#     interested = models.BooleanField(default=False)
+#     created_at = models.DateTimeField(default=timezone.now)
     
-    def accept(self):
-        if not self.is_rejected:
-            self.is_accepted = True
-            self.interested = True
-            chat_room, created = ChatRoom.objects.get_or_create(activity=self.activity)
-            chat_room.participants.add(self.from_user, self.to_user)
-            chat_room.save()
-            self.save()
+#     def accept(self):
+#         if not self.is_rejected:
+#             self.is_accepted = True
+#             self.interested = True
+#             chat_room, created = ChatRoom.objects.get_or_create(activity=self.activity)
+#             chat_room.participants.add(self.from_user, self.to_user)
+#             chat_room.save()
+#             self.save()
 
-    def reject(self):
-        if not self.is_accepted:
-            self.is_rejected = True
-            self.save()
+#     def reject(self):
+#         if not self.is_accepted:
+#             self.is_rejected = True
+#             self.save()
 
-    def __str__(self):
-        return f"Request from {self.from_user} to {self.to_user} for {self.activity}"
+#     def __str__(self):
+#         return f"Request from {self.from_user} to {self.to_user} for {self.activity}"
 
-class ChatRoom(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
-    participants = models.ManyToManyField(CustomUser)
-    created_at = models.DateTimeField(auto_now_add=True)
+# class ChatRoom(models.Model):
+#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+#     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
+#     participants = models.ManyToManyField(CustomUser)
+#     created_at = models.DateTimeField(auto_now_add=True)
     
-    def __str__(self):
-        return f"ChatRoom {self.id} for Activity {self.activity.activity_title}"
+#     def __str__(self):
+#         return f"ChatRoom {self.id} for Activity {self.activity.activity_title}"
 
-class ChatMessage(models.Model):
-    chat_room = models.ForeignKey(ChatRoom, related_name='messages', on_delete=models.CASCADE)
-    sender = models.ForeignKey(CustomUser, related_name='sent_messages', on_delete=models.CASCADE)
-    content = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
+# class ChatMessage(models.Model):
+#     chat_room = models.ForeignKey(ChatRoom, related_name='messages', on_delete=models.CASCADE)
+#     sender = models.ForeignKey(CustomUser, related_name='sent_messages', on_delete=models.CASCADE)
+#     content = models.TextField()
+#     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"Message {self.id} from {self.sender.email}"
+#     def __str__(self):
+#         return f"Message {self.id} from {self.sender.email}"
 
 
 def validate_file_type(file):
@@ -420,8 +420,8 @@ class CreateDeal(models.Model):
             self.start_date = now.date()
             self.start_time = now.time().replace(microsecond=0)
             
-        if self.available_deals < 1:
-            raise ValidationError("You must provide at least 1 deal.")
+        if self.pk is None and self.available_deals < 1:
+            raise ValidationError("You must provide at least 1 deal while creating a deal.")
 
         super().save(*args, **kwargs)
 
@@ -561,3 +561,41 @@ class RaiseAnIssueCustomUser(models.Model):
 
     def __str__(self):
         return f"Issue by {self.raised_by.username} against {self.against_user.username}"
+    
+    
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('deal', 'CreateDeal'),
+        ('order_update', 'Order Update'),
+        ('activity', 'Activity'),
+        ('general', 'General'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='notifications')
+    notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPES)
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+    reference_id = models.UUIDField(null=True, blank=True)
+    reference_type = models.CharField(max_length=50, null=True, blank=True)
+    data = models.JSONField(default=dict)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.notification_type} - {self.title}"
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'is_read', 'created_at']),
+            models.Index(fields=['notification_type', 'reference_id', 'reference_type']),
+        ]
+
+class Device(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='devices')
+    device_token = models.CharField(max_length=255)
+    device_type = models.CharField(max_length=50, choices=[('android', 'Android'), ('ios', 'iOS'), ('web', 'Web')])
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user.email} - {self.device_type}"

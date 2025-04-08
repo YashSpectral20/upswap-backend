@@ -32,28 +32,27 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import (CustomUser, OTP, Activity, ChatRoom, ChatMessage, ChatRequest, PasswordResetOTP, VendorKYC, CreateDeal, PlaceOrder,
-                    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser)
+from .models import (CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, CreateDeal, PlaceOrder,
+                    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device)
 
 from .serializers import (
     CustomUserSerializer, OTPRequestSerializer, OTPResetPasswordSerializer, OTPValidationSerializer, VerifyOTPSerializer, LoginSerializer,
-    ActivitySerializer, ChatRoomSerializer, ChatMessageSerializer,
-    ChatRequestSerializer, VendorKYCSerializer,
+    ActivitySerializer, VendorKYCSerializer,
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
     MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, 
-    ActivityRepostSerializer, MySalesSerializer
+    ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer
 
 )
 from datetime import datetime
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification  
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, NotAuthenticated, PermissionDenied
 from django.contrib.auth import get_user_model
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
@@ -184,7 +183,7 @@ class LoginView(generics.GenericAPIView):
             if not otp_instance.is_verified:
                 return Response({"message": "OTP not verified. Please verify your OTP first."}, status=status.HTTP_403_FORBIDDEN)
         except OTP.DoesNotExist:
-            return Response({"message": "OTP not found for this user. Please register and verify OTP."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"message": "You have not set a  password yet. Log in with Google or Signup with a new account."}, status=status.HTTP_400_BAD_REQUEST)
 
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
@@ -232,6 +231,7 @@ class ActivityCreateView(generics.CreateAPIView):
                     serializer.validated_data['infinite_time'] = False  # Ensure default is False
                 
                 activity = serializer.save(created_by=self.request.user)
+                
                 return Response(
                     {
                         "message": "Activity created successfully",
@@ -289,102 +289,102 @@ class Distance(Func):
 
 
 
-class ChatRoomCreateView(APIView):
-    """
-    API view for creating chat rooms (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
+# class ChatRoomCreateView(APIView):
+#     """
+#     API view for creating chat rooms (requires authentication).
+#     """
+#     authentication_classes = [JWTAuthentication] 
+#     permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        serializer = ChatRoomSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Chat room created successfully'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class ChatRoomRetrieveView(APIView):
-    """
-    API view for retrieving a specific chat room (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, pk, *args, **kwargs):
-        chat_room = ChatRoom.objects.get(pk=pk)
-        serializer = ChatRoomSerializer(chat_room)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+#     def post(self, request, *args, **kwargs):
+#         serializer = ChatRoomSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response({'message': 'Chat room created successfully'}, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ChatMessageCreateView(APIView):
-    """
-    API view for creating chat messages (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
+# class ChatRoomRetrieveView(APIView):
+#     """
+#     API view for retrieving a specific chat room (requires authentication).
+#     """
+#     authentication_classes = [JWTAuthentication] 
+#     permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        serializer = ChatMessageSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Chat message created successfully'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#     def get(self, request, pk, *args, **kwargs):
+#         chat_room = ChatRoom.objects.get(pk=pk)
+#         serializer = ChatRoomSerializer(chat_room)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class ChatMessageListView(APIView):
-    """
-    API view for listing chat messages in a specific chat room (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
+# class ChatMessageCreateView(APIView):
+#     """
+#     API view for creating chat messages (requires authentication).
+#     """
+#     authentication_classes = [JWTAuthentication] 
+#     permission_classes = [IsAuthenticated]
 
-    def get(self, request, chat_room_id, *args, **kwargs):
-        chat_messages = ChatMessage.objects.filter(chat_room_id=chat_room_id)
-        serializer = ChatMessageSerializer(chat_messages, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class ChatRequestCreateView(APIView):
-    """
-    API view for creating chat requests (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        serializer = ChatRequestSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Chat request created successfully'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#     def post(self, request, *args, **kwargs):
+#         serializer = ChatMessageSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response({'message': 'Chat message created successfully'}, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ChatRequestRetrieveView(APIView):
-    """
-    API view for retrieving a specific chat request (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
+# class ChatMessageListView(APIView):
+#     """
+#     API view for listing chat messages in a specific chat room (requires authentication).
+#     """
+#     authentication_classes = [JWTAuthentication] 
+#     permission_classes = [IsAuthenticated]
 
-    def get(self, request, pk, *args, **kwargs):
-        chat_request = ChatRequest.objects.get(pk=pk)
-        serializer = ChatRequestSerializer(chat_request)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+#     def get(self, request, chat_room_id, *args, **kwargs):
+#         chat_messages = ChatMessage.objects.filter(chat_room_id=chat_room_id)
+#         serializer = ChatMessageSerializer(chat_messages, many=True)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class AcceptChatRequestView(APIView):
-    """
-    API view for accepting a chat request (requires authentication).
-    """
-    authentication_classes = [JWTAuthentication] 
-    permission_classes = [IsAuthenticated]
+# class ChatRequestCreateView(APIView):
+#     """
+#     API view for creating chat requests (requires authentication).
+#     """
+#     authentication_classes = [JWTAuthentication] 
+#     permission_classes = [IsAuthenticated]
 
-    def post(self, request, pk, *args, **kwargs):
-        chat_request = ChatRequest.objects.get(pk=pk)
-        chat_request.status = 'accepted'
-        chat_request.save()
-        return Response({'message': 'Chat request accepted'}, status=status.HTTP_200_OK)
+#     def post(self, request, *args, **kwargs):
+#         serializer = ChatRequestSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response({'message': 'Chat request created successfully'}, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# class ChatRequestRetrieveView(APIView):
+#     """
+#     API view for retrieving a specific chat request (requires authentication).
+#     """
+#     authentication_classes = [JWTAuthentication] 
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request, pk, *args, **kwargs):
+#         chat_request = ChatRequest.objects.get(pk=pk)
+#         serializer = ChatRequestSerializer(chat_request)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# class AcceptChatRequestView(APIView):
+#     """
+#     API view for accepting a chat request (requires authentication).
+#     """
+#     authentication_classes = [JWTAuthentication] 
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request, pk, *args, **kwargs):
+#         chat_request = ChatRequest.objects.get(pk=pk)
+#         chat_request.status = 'accepted'
+#         chat_request.save()
+#         return Response({'message': 'Chat request accepted'}, status=status.HTTP_200_OK)
 
 
 class VendorKYCCreateView(generics.CreateAPIView):
@@ -1255,10 +1255,10 @@ class PlaceOrderDetailsView(generics.RetrieveAPIView):
     serializer_class = PlaceOrderDetailsSerializer
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, order_id, *args, **kwargs):
+    def get(self, request, placeorder_id, *args, **kwargs):
         try:
             # Fetch the order by ID
-            place_order = PlaceOrder.objects.get(order_id=order_id)
+            place_order = PlaceOrder.objects.get(placeorder_id=placeorder_id)
             
             # Check if the order belongs to the requesting user
             if place_order.user != request.user:
@@ -1384,7 +1384,7 @@ class SocialLogin(generics.GenericAPIView):
                 email=email,
                 name=name,
                 username=email.split('@')[0],
-                phone_number=None,
+                phone_number="",
                 date_of_birth=None,
                 gender=None,
                 type=login_type,
@@ -1881,12 +1881,12 @@ class SubmitRatingView(generics.CreateAPIView):
     serializer_class = VendorRatingSerializer
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, order_id, *args, **kwargs):
+    def post(self, request, placeorder_id, *args, **kwargs):
         try:
-            order = PlaceOrder.objects.get(order_id=order_id, user=request.user)
+            order = PlaceOrder.objects.get(placeorder_id=placeorder_id, user=request.user)
             vendor = order.vendor
 
-            serializer = self.get_serializer(data=request.data, context={'request': request, 'order_id': order_id})
+            serializer = self.get_serializer(data=request.data, context={'request': request, 'placeorder_id': placeorder_id})
 
             if serializer.is_valid():
                 serializer.save(user=request.user, vendor=vendor, order=order)
@@ -1905,14 +1905,14 @@ class RaiseAnIssueMyOrdersView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         place_order_id = kwargs.get("place_order_id")  
         try:
-            place_order = PlaceOrder.objects.get(order_id=place_order_id)  
+            place_order = PlaceOrder.objects.get(placeorder_id=place_order_id)  
         except PlaceOrder.DoesNotExist:
-            return Response({"error": "Invalid PlaceOrder UUID"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Invalid PlaceOrder ID"}, status=status.HTTP_404_NOT_FOUND)
 
         data = request.data.copy()
-        data["place_order"] = str(place_order.order_id)  # UUID string me convert karein
+        data["place_order"] = place_order.placeorder_id  # Directly use placeorder_id
 
-        serializer = self.get_serializer(data=data, context={"request": request})  # Context pass karein
+        serializer = self.get_serializer(data=data, context={"request": request})  
         if serializer.is_valid():
             serializer.save()
             return Response({"message": "Issue raised successfully", "data": serializer.data}, status=status.HTTP_201_CREATED)
@@ -2252,3 +2252,40 @@ class ViewTotalSales(APIView):
             "sales_type": sales_type,
             "total_sales": float(total_sales)
         }, status=status.HTTP_200_OK)
+        
+class ResendOTPView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+
+        # Generate and send a new OTP
+        generate_otp(user)
+
+        return Response({
+            "message": "A new OTP has been sent to your registered phone number."
+        }, status=status.HTTP_200_OK)
+        
+class NotificationListView(generics.ListAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+
+class MarkNotificationAsReadView(generics.UpdateAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.save(is_read=True)
+
+class RegisterDeviceView(generics.CreateAPIView):
+    serializer_class = DeviceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)

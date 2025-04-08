@@ -115,15 +115,13 @@ from rest_framework import permissions
 from .views import (
     OTPResetPasswordView, RegisterView, SendOTPView, ValidateOTPView, VerifyOTPView, LoginView, CustomUserCreateView,
     ActivityCreateView,
-    ChatRoomCreateView, ChatRoomRetrieveView,
-    ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
-    ChatRequestRetrieveView, AcceptChatRequestView,
     VendorKYCCreateView, VendorKYCDetailView, 
     CreateDealView, CreateDealDetailView, CreateDeallistView, 
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
-    RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales
+    RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales,
+    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView
 )
 
 # Swagger Schema View
@@ -164,17 +162,17 @@ urlpatterns = [
     path('activities/create/', ActivityCreateView.as_view(), name='activity-create'),
 
     # Chat Rooms (Requires Authentication)
-    path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),
-    path('chat-rooms/<uuid:pk>/', ChatRoomRetrieveView.as_view(), name='chat-room-detail'),
+    # path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),
+    # path('chat-rooms/<uuid:pk>/', ChatRoomRetrieveView.as_view(), name='chat-room-detail'),
 
-    # Chat Messages (Requires Authentication)
-    path('chat-messages/', ChatMessageCreateView.as_view(), name='chat-message-create'),
-    path('chat-messages/<uuid:chat_room_id>/', ChatMessageListView.as_view(), name='chat-message-list'),
+    # # Chat Messages (Requires Authentication)
+    # path('chat-messages/', ChatMessageCreateView.as_view(), name='chat-message-create'),
+    # path('chat-messages/<uuid:chat_room_id>/', ChatMessageListView.as_view(), name='chat-message-list'),
 
-    # Chat Requests (Requires Authentication)
-    path('chat-requests/', ChatRequestCreateView.as_view(), name='chat-request-create'),
-    path('chat-requests/<uuid:pk>/', ChatRequestRetrieveView.as_view(), name='chat-request-detail'),
-    path('chat-requests/<uuid:pk>/accept/', AcceptChatRequestView.as_view(), name='accept-chat-request'),
+    # # Chat Requests (Requires Authentication)
+    # path('chat-requests/', ChatRequestCreateView.as_view(), name='chat-request-create'),
+    # path('chat-requests/<uuid:pk>/', ChatRequestRetrieveView.as_view(), name='chat-request-detail'),
+    # path('chat-requests/<uuid:pk>/accept/', AcceptChatRequestView.as_view(), name='accept-chat-request'),
 
     # Vendor KYC (Requires Authentication)
     path('vendor-kyc/create/', VendorKYCCreateView.as_view(), name='vendor-kyc-list-create'),
@@ -202,7 +200,7 @@ urlpatterns = [
     
     # PlaceOrder
     path('place-order/', PlaceOrderView.as_view(), name='place-order'),
-    path('place-order/details/<uuid:order_id>/', PlaceOrderDetailsView.as_view(), name='place-order-details'),
+    path('place-order/details/<str:placeorder_id>/', PlaceOrderDetailsView.as_view(), name='place-order-details'),
     path('place-order/lists/', PlaceOrderListsView.as_view(), name='place-order-lists'),
     
     path('categories/', CategoriesView.as_view(), name='categories'),
@@ -228,9 +226,9 @@ urlpatterns = [
     
     path('my-activities/', MyActivityView.as_view(), name='my_activities'),
     
-    path('submit-rating/<uuid:order_id>/', SubmitRatingView.as_view(), name='submit-rating'),
+    path('submit-rating/<str:placeorder_id>/', SubmitRatingView.as_view(), name='submit-rating'),
     
-    path("place-order/<uuid:place_order_id>/raise-issue/", RaiseAnIssueMyOrdersView.as_view(), name="raise-issue"),
+    path("place-order/<str:place_order_id>/raise-issue/", RaiseAnIssueMyOrdersView.as_view(), name="raise-issue"),
     
     path('raise-issue/vendors/<uuid:vendor_id>/', RaiseAnIssueVendorsCreateView.as_view(), name='raise-issue-vendors'),
     
@@ -247,6 +245,12 @@ urlpatterns = [
     path('mysales/', MySalesAPIView.as_view(), name='my-sales'),
     
     path('view-total-sales/', ViewTotalSales.as_view(), name='view-total-sales'),
+    
+    path('resend-otp/', ResendOTPView.as_view(), name='resend-otp'),
+    
+    path('notifications/', NotificationListView.as_view(), name='notifications-list'),
+    path('notifications/mark-as-read/<uuid:pk>/', MarkNotificationAsReadView.as_view(), name='mark-as-read'),
+    path('register-device/', RegisterDeviceView.as_view(), name='register-device'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

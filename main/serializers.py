@@ -18,9 +18,9 @@ from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from django.utils.timezone import localtime
 from .models import (
-    CustomUser, OTP, Activity, ChatRoom, ChatMessage,
-    ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser
+    CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
+    ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser,
+    Notification, Device
 )
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
@@ -314,44 +314,44 @@ class ActivityDetailsSerializer(serializers.ModelSerializer):
             # Return only compressed
             return compressed
 
-class ChatRoomSerializer(serializers.ModelSerializer):
-    participants = serializers.SlugRelatedField(
-        many=True,
-        slug_field='email',
-        queryset=CustomUser.objects.all()
-    )
+# class ChatRoomSerializer(serializers.ModelSerializer):
+#     participants = serializers.SlugRelatedField(
+#         many=True,
+#         slug_field='email',
+#         queryset=CustomUser.objects.all()
+#     )
 
-    class Meta:
-        model = ChatRoom
-        fields = ['id', 'activity', 'participants', 'created_at']
-        read_only_fields = ['id', 'created_at']
+#     class Meta:
+#         model = ChatRoom
+#         fields = ['id', 'activity', 'participants', 'created_at']
+#         read_only_fields = ['id', 'created_at']
 
-    def create(self, validated_data):
-        participants_data = validated_data.pop('participants', [])
+#     def create(self, validated_data):
+#         participants_data = validated_data.pop('participants', [])
         
-        chat_room = ChatRoom.objects.create(**validated_data)
-        chat_room.participants.set(participants_data)
+#         chat_room = ChatRoom.objects.create(**validated_data)
+#         chat_room.participants.set(participants_data)
         
-        return chat_room
+#         return chat_room
 
-class ChatMessageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ChatMessage
-        fields = ['id', 'chat_room', 'sender', 'content', 'created_at']
+# class ChatMessageSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = ChatMessage
+#         fields = ['id', 'chat_room', 'sender', 'content', 'created_at']
 
-class ChatRequestSerializer(serializers.ModelSerializer):
-    activity = serializers.PrimaryKeyRelatedField(queryset=Activity.objects.all())
-    from_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
-    to_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+# class ChatRequestSerializer(serializers.ModelSerializer):
+#     activity = serializers.PrimaryKeyRelatedField(queryset=Activity.objects.all())
+#     from_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+#     to_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
 
-    class Meta:
-        model = ChatRequest
-        fields = ['id', 'activity', 'from_user', 'to_user', 'is_accepted', 'is_rejected', 'interested']
+#     class Meta:
+#         model = ChatRequest
+#         fields = ['id', 'activity', 'from_user', 'to_user', 'is_accepted', 'is_rejected', 'interested']
 
-    def validate(self, attrs):
-        if attrs.get('is_accepted') and attrs.get('is_rejected'):
-            raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
-        return attrs
+#     def validate(self, attrs):
+#         if attrs.get('is_accepted') and attrs.get('is_rejected'):
+#             raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
+#         return attrs
 
 
 
@@ -1462,14 +1462,15 @@ class SuperadminLoginSerializer(serializers.Serializer):
         return data
     
 class VendorRatingSerializer(serializers.ModelSerializer):
+    placeorder_id = serializers.CharField(source='order.placeorder_id', read_only=True)
     rating_id = serializers.UUIDField(read_only=True)
     user_id = serializers.UUIDField(source='user.id', read_only=True)
     vendor_id = serializers.UUIDField(source='vendor.vendor_id', read_only=True)
-    order_id = serializers.UUIDField(source='order.order_id', read_only=True)
+    #order_id = serializers.UUIDField(source='order.order_id', read_only=True)
 
     class Meta:
         model = VendorRating
-        fields = ['rating_id', 'user_id', 'vendor_id', 'order_id', 'rating', 'created_at']
+        fields = ['placeorder_id', 'rating_id', 'user_id', 'vendor_id', 'rating', 'created_at']
         read_only_fields = ['rating_id', 'user_id', 'vendor_id', 'order_id', 'created_at']
 
     def validate_rating(self, value):
@@ -1483,13 +1484,13 @@ class VendorRatingSerializer(serializers.ModelSerializer):
         user = request.user
 
         # Ensure order_id is passed in request
-        order_id = request.parser_context['kwargs'].get('order_id')
-        if not order_id:
-            raise serializers.ValidationError("Order ID is required.")
+        placeorder_id = request.parser_context['kwargs'].get('placeorder_id')
+        if not placeorder_id:
+            raise serializers.ValidationError("PlaceOrder ID is required.")
 
         # Fetch order from DB
         try:
-            order = PlaceOrder.objects.get(order_id=order_id, user=user)
+            order = PlaceOrder.objects.get(placeorder_id=placeorder_id, user=user)
         except PlaceOrder.DoesNotExist:
             raise serializers.ValidationError("You are not authorized to rate this order.")
 
@@ -1501,6 +1502,11 @@ class VendorRatingSerializer(serializers.ModelSerializer):
 
     
 class RaiseAnIssueSerializerMyOrders(serializers.ModelSerializer):
+    place_order = serializers.SlugRelatedField(
+        queryset=PlaceOrder.objects.all(), 
+        slug_field="placeorder_id"  # placeorder_id ko map karega
+    )
+    
     class Meta:
         model = RaiseAnIssueMyOrders
         fields = ["issue_id", "user", "place_order", "subject", "describe_your_issue", "choose_files", "created_at"]
@@ -1616,3 +1622,28 @@ class MySalesSerializer(serializers.ModelSerializer):
         india_tz = pytz.timezone("Asia/Kolkata")
         local_time = localtime(obj.created_at).astimezone(india_tz)
         return local_time.strftime("%Y-%m-%d %H:%M:%S")
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = '__all__'
+
+class DeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Device
+        fields = '__all__'
+    
+# class ResendOTPSerializer(serializers.Serializer):
+#     phone_number = serializers.CharField()
+
+#     def validate(self, data):
+#         phone_number = data.get('phone_number')
+
+#         # Check if user with this phone number exists
+#         try:
+#             user = CustomUser.objects.get(phone_number=phone_number)
+#         except CustomUser.DoesNotExist:
+#             raise serializers.ValidationError("User with this phone number does not exist.")
+
+#         data['user'] = user
+#         return data

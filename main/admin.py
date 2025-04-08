@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
-    CustomUser, Activity, ChatRoom, ChatMessage,
-    ChatRequest, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder, VendorRating
+    CustomUser, Activity, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser, FavoriteVendor,
+    Notification, Device
 )
 
 # Custom User Admin
@@ -55,51 +55,51 @@ class ActivityAdmin(admin.ModelAdmin):
 
 
 # ChatRoom Admin
-@admin.register(ChatRoom)
-class ChatRoomAdmin(admin.ModelAdmin):
-    list_display = ('id', 'created_at', 'activity_display', 'participants_display')
-    readonly_fields = ('id', 'created_at')
+# @admin.register(ChatRoom)
+# class ChatRoomAdmin(admin.ModelAdmin):
+#     list_display = ('id', 'created_at', 'activity_display', 'participants_display')
+#     readonly_fields = ('id', 'created_at')
 
-    def activity_display(self, obj):
-        return obj.activity.activity_title if obj.activity else 'N/A'
-    activity_display.short_description = 'Activity'
+#     def activity_display(self, obj):
+#         return obj.activity.activity_title if obj.activity else 'N/A'
+#     activity_display.short_description = 'Activity'
 
-    def participants_display(self, obj):
-        return ', '.join(user.username for user in obj.participants.all()) if obj.participants.exists() else 'No Participants'
-    participants_display.short_description = 'Participants'
+#     def participants_display(self, obj):
+#         return ', '.join(user.username for user in obj.participants.all()) if obj.participants.exists() else 'No Participants'
+#     participants_display.short_description = 'Participants'
 
-# ChatMessage Admin
-@admin.register(ChatMessage)
-class ChatMessageAdmin(admin.ModelAdmin):
-    list_display = ('chat_room', 'sender', 'message_display', 'created_at')
-    readonly_fields = ('created_at',)
+# # ChatMessage Admin
+# @admin.register(ChatMessage)
+# class ChatMessageAdmin(admin.ModelAdmin):
+#     list_display = ('chat_room', 'sender', 'message_display', 'created_at')
+#     readonly_fields = ('created_at',)
 
-    def message_display(self, obj):
-        return obj.content
-    message_display.short_description = 'Message'
+#     def message_display(self, obj):
+#         return obj.content
+#     message_display.short_description = 'Message'
 
-# ChatRequest Admin
-@admin.register(ChatRequest)
-class ChatRequestAdmin(admin.ModelAdmin):
-    list_display = (
-        'activity_display', 'from_user_display', 'to_user_display',
-        'is_accepted', 'is_rejected', 'interested'
-    )
-    readonly_fields = ('activity_display', 'from_user_display', 'to_user_display')
-    list_filter = ('is_accepted', 'is_rejected', 'interested')
-    search_fields = ('from_user__username', 'to_user__username', 'activity__activity_title')
+# # ChatRequest Admin
+# @admin.register(ChatRequest)
+# class ChatRequestAdmin(admin.ModelAdmin):
+#     list_display = (
+#         'activity_display', 'from_user_display', 'to_user_display',
+#         'is_accepted', 'is_rejected', 'interested'
+#     )
+#     readonly_fields = ('activity_display', 'from_user_display', 'to_user_display')
+#     list_filter = ('is_accepted', 'is_rejected', 'interested')
+#     search_fields = ('from_user__username', 'to_user__username', 'activity__activity_title')
 
-    def activity_display(self, obj):
-        return obj.activity.activity_title if obj.activity else 'N/A'
-    activity_display.short_description = 'Activity'
+#     def activity_display(self, obj):
+#         return obj.activity.activity_title if obj.activity else 'N/A'
+#     activity_display.short_description = 'Activity'
 
-    def from_user_display(self, obj):
-        return obj.from_user.username if obj.from_user else 'N/A'
-    from_user_display.short_description = 'From User'
+#     def from_user_display(self, obj):
+#         return obj.from_user.username if obj.from_user else 'N/A'
+#     from_user_display.short_description = 'From User'
 
-    def to_user_display(self, obj):
-        return obj.to_user.username if obj.to_user else 'N/A'
-    to_user_display.short_description = 'To User'
+#     def to_user_display(self, obj):
+#         return obj.to_user.username if obj.to_user else 'N/A'
+#     to_user_display.short_description = 'To User'
 
 
 class AddressInline(admin.TabularInline):
@@ -224,3 +224,47 @@ class VendorRatingAdmin(admin.ModelAdmin):
     def user_email(self, obj):
         return obj.user.email  # ✅ User ka email show karega
     user_email.short_description = "User Email"
+    
+@admin.register(RaiseAnIssueMyOrders)
+class RaiseAnIssueMyOrdersAdmin(admin.ModelAdmin):
+    list_display = ('issue_id', 'user', 'place_order', 'subject', 'created_at')
+    search_fields = ('subject', 'user__username', 'place_order__order_id')
+    list_filter = ('created_at',)
+    ordering = ('-created_at',)
+
+@admin.register(RaiseAnIssueVendors)
+class RaiseAnIssueVendorsAdmin(admin.ModelAdmin):
+    list_display = ('issue_uuid', 'user', 'vendor', 'subject', 'created_at')
+    search_fields = ('subject', 'user__username', 'vendor__business_name')
+    list_filter = ('created_at',)
+    ordering = ('-created_at',)
+
+@admin.register(RaiseAnIssueCustomUser)
+class RaiseAnIssueCustomUserAdmin(admin.ModelAdmin):
+    list_display = ('issue_id', 'raised_by', 'against_user', 'activity', 'subject', 'created_at')
+    search_fields = ('subject', 'raised_by__username', 'against_user__username', 'activity__title')
+    list_filter = ('created_at',)
+    ordering = ('-created_at',)
+    
+@admin.register(FavoriteVendor)
+class FavoriteVendorAdmin(admin.ModelAdmin):
+    list_display = ('user', 'vendor', 'added_at')
+    search_fields = ('user__email', 'vendor__full_name')
+    list_filter = ('added_at',)
+    ordering = ('-added_at',)
+    
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'notification_type', 'title', 'is_read', 'created_at')
+    list_filter = ('notification_type', 'is_read', 'created_at')
+    search_fields = ('title', 'body', 'user__email')
+    ordering = ('-created_at',)
+    readonly_fields = ('id', 'created_at')
+
+@admin.register(Device)
+class DeviceAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'device_type', 'device_token', 'created_at')
+    list_filter = ('device_type', 'created_at')
+    search_fields = ('user__email', 'device_token')
+    ordering = ('-created_at',)
+    readonly_fields = ('id', 'created_at')

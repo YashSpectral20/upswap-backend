@@ -25,3 +25,4 @@ requests
 geopy
 sendgrid
 twilio
+firebase-admin

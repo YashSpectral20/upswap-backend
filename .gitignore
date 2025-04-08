@@ -48,3 +48,7 @@ postgres-db/data
 datas
 
 logs/*.log*
+
+firebase_credentials.json
+
+creds.json
