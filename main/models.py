@@ -2,6 +2,7 @@ from PIL import Image
 from io import BytesIO
 from django.core.files.base import ContentFile
 import os
+import random
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 import json
@@ -456,18 +457,30 @@ def deal_image_upload_path(instance, filename):
 #PlacingOrders
 class PlaceOrder(models.Model):
     order_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    deal = models.ForeignKey('CreateDeal', on_delete=models.CASCADE)  # Replace 'CreateDeal' with the actual model name for deals
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # Fetches user from CustomUser table
-    vendor = models.ForeignKey('VendorKYC', on_delete=models.CASCADE)  # Fetches vendor details from VendorKYC table
+    placeorder_id = models.CharField(max_length=12, unique=True, blank=True, null=True)  # 12 digit ka random ID
+    deal = models.ForeignKey('CreateDeal', on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    vendor = models.ForeignKey('VendorKYC', on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     country = models.CharField(max_length=100, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True)
     total_amount = models.DecimalField(max_digits=20, decimal_places=2, blank=True, null=True)
-    transaction_id = models.CharField(max_length=50, blank=True, null=True)  # Generates a unique UUID for each transaction
+    transaction_id = models.CharField(max_length=50, blank=True, null=True)
     payment_status = models.CharField(max_length=50, blank=True, null=True)
-    payment_mode = models.CharField(max_length=50, blank=True, null=True)  # Store payment mode like 'Credit Card', 'PayPal', etc.
+    payment_mode = models.CharField(max_length=50, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.placeorder_id:
+            self.placeorder_id = self.generate_placeorder_id()
+        super().save(*args, **kwargs)
+
+    def generate_placeorder_id(self):
+        while True:
+            random_number = str(random.randint(10**11, (10**12)-1))  # 12 digit ka random number
+            if not PlaceOrder.objects.filter(placeorder_id=random_number).exists():
+                return random_number
 
     def __str__(self):
         return f"Order {self.order_id} for {self.user.username}" if self.order_id else "Unsaved Order"

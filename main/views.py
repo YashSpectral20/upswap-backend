@@ -1212,51 +1212,42 @@ class PlaceOrderView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
-        # Expecting deal_uuid in the request data
         deal_uuid = request.data.get('deal_uuid')
         if not deal_uuid:
             return Response({"message": "Deal UUID is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch the deal using the deal_uuid
         try:
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
         except CreateDeal.DoesNotExist:
             return Response({"message": "Deal not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if the user is attempting to purchase their own deal
         if VendorKYC.objects.filter(user=request.user, vendor_id=deal.vendor_kyc.vendor_id).exists():
             return Response({"message": "You cannot purchase your own deal."}, status=status.HTTP_403_FORBIDDEN)
 
-        # Create the order using the deal and request data
         serializer = self.get_serializer(data=request.data, context={'request': request})
-
-        # Validate the serializer and check for errors
         if not serializer.is_valid():
-            # Flatten the error response
-            error_message = list(serializer.errors.values())[0][0]  # Get the first error message
+            error_message = list(serializer.errors.values())[0][0]
             return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Save the order if everything is valid
-        place_order = serializer.save(user=request.user, deal=deal)  # Pass the deal to the save method
+        place_order = serializer.save(user=request.user, deal=deal)
 
-        # Custom response for successful order creation
         response_data = {
-            "order_id": str(place_order.order_id),  # Ensure UUID is string
-            "deal_uuid": str(place_order.deal.deal_uuid),  # Ensure UUID is string
-            "user_id": str(place_order.user.id),  # Ensure UUID is string
-            "vendor_id": str(deal.vendor_kyc.vendor_id),  # Ensure UUID is string
+            "order_id": str(place_order.order_id),
+            "placeorder_id": place_order.placeorder_id,
+            "deal_uuid": str(place_order.deal.deal_uuid),
+            "user_id": str(place_order.user.id),
+            "vendor_id": str(deal.vendor_kyc.vendor_id),
             "quantity": place_order.quantity,
             "country": place_order.country,
             "latitude": place_order.latitude,
             "longitude": place_order.longitude,
-            "total_amount": str(place_order.total_amount),  # Convert Decimal to string
+            "total_amount": str(place_order.total_amount),
             "transaction_id": place_order.transaction_id,
             "payment_status": place_order.payment_status,
             "payment_mode": place_order.payment_mode,
-            "created_at": place_order.created_at.strftime("%Y-%m-%d %H:%M:%S")  # Format datetime
+            "created_at": place_order.created_at.strftime("%Y-%m-%d %H:%M:%S")
         }
 
-        # Return the response with the message and data
         return Response({"message": "Order placed successfully", **response_data}, status=status.HTTP_201_CREATED)
 
 class PlaceOrderDetailsView(generics.RetrieveAPIView):
