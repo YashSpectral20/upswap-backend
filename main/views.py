@@ -77,6 +77,9 @@ from rest_framework.permissions import IsAuthenticated
 
 from django.shortcuts import get_object_or_404
 
+from activity_log.models import ActivityLog
+from activity_log.serializers import ActivityLogSerializer
+
 User = get_user_model()
 token_generator = PasswordResetTokenGenerator()
 
@@ -132,6 +135,16 @@ class RegisterView(generics.CreateAPIView):
             # Generate JWT tokens for the user
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
+
+            # activity log
+            ActivityLog.objects.create(
+                user=user,
+                event=ActivityLog.SIGN_UP,
+                metadata={
+                    "longitude": user.longitude,
+                    "latitude": user.latitude
+                },
+            )
 
             return Response({
                 'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
@@ -190,6 +203,13 @@ class LoginView(generics.GenericAPIView):
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
+        # activity log
+        ActivityLog.objects.create(
+            user=user,
+            event=ActivityLog.LOGIN,
+            metadata={}
+        )
+
         vendor_kyc = VendorKYC.objects.filter(user=user).first()
         is_approved = vendor_kyc.is_approved if vendor_kyc else False
         vendor_id = str(vendor_kyc.vendor_id) if vendor_kyc else ""
@@ -233,6 +253,14 @@ class ActivityCreateView(generics.CreateAPIView):
                     serializer.validated_data['infinite_time'] = False  # Ensure default is False
                 
                 activity = serializer.save(created_by=self.request.user)
+
+                # activity log
+                ActivityLog.objects.create(
+                    user=activity.created_by,
+                    event=ActivityLog.CREATE_ACTIVITY,
+                    metadata={}
+                )
+
                 return Response(
                     {
                         "message": "Activity created successfully",
@@ -427,6 +455,14 @@ class VendorKYCCreateView(generics.CreateAPIView):
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
+
+            # activity log
+            ActivityLog.objects.create(
+                user=user,
+                event=ActivityLog.APPLY_KYC,
+                metadata={}
+            )
+
             return Response({
                 'message': 'Vendor KYC created successfully.',
                 'vendor_kyc': serializer.data
@@ -791,6 +827,13 @@ class CreateDealView(generics.CreateAPIView):
             deal.set_uploaded_images(uploaded_images)
             deal.save()
 
+            # activity log
+            ActivityLog.objects.create(
+                user=deal.vendor_kyc.user,
+                event=ActivityLog.CREATE_DEAL,
+                metadata={}
+            )
+
             headers = self.get_success_headers(serializer.data)
             return Response({"message": "Deal created successfully!", "data": serializer.data}, status=status.HTTP_201_CREATED, headers=headers)
 
@@ -1151,9 +1194,10 @@ class LogoutAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from django.contrib.auth import logout
         # Extract refresh token from request data
         refresh_token = request.data.get('refresh_token')
-
+        
         if not refresh_token:
             return Response({"message": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1164,6 +1208,14 @@ class LogoutAPI(APIView):
         except TokenError:
             return Response({"message": "Invalid or expired refresh token."}, status=status.HTTP_400_BAD_REQUEST)
 
+        logout(request)
+
+        # activity log
+        ActivityLog.objects.create(
+            user=request.user,
+            event=ActivityLog.LOGOUT,
+            metadata={}
+        )
         return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
 
     
@@ -1248,6 +1300,12 @@ class PlaceOrderView(generics.CreateAPIView):
             "payment_mode": place_order.payment_mode,
             "created_at": place_order.created_at.strftime("%Y-%m-%d %H:%M:%S")
         }
+        # activity log
+        ActivityLog.objects.create(
+            user=request.user,
+            event=ActivityLog.PLACE_ORDER,
+            metadata={}
+        )
 
         return Response({"message": "Order placed successfully", **response_data}, status=status.HTTP_201_CREATED)
 
@@ -1321,6 +1379,12 @@ class CustomUserEditView(APIView):
         serializer = CustomUserEditSerializer(user, data=request.data, partial=True, context={'request': request})  # Pass the request
         if serializer.is_valid():
             serializer.save()
+            # activity log
+            ActivityLog.objects.create(
+                user=user,
+                event=ActivityLog.EDIT_PROFILE,
+                metadata={}
+            )
             return Response(
                 {
                     "message": "Profile updated successfully.",
@@ -1402,6 +1466,16 @@ class SocialLogin(generics.GenericAPIView):
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
         login(request, user)
+
+        # activity log
+        ActivityLog.objects.create(
+            user=user,
+            event=ActivityLog.LOGIN,
+            metadata={
+                'type': login_type
+            }
+        )
+
         return Response({
             "user": CustomUserSerializer(user).data,
             "refresh": str(refresh),
@@ -1664,6 +1738,12 @@ class OTPResetPasswordView(APIView):
 
         # Handle successful validation and save logic
         serializer.save()
+        # activity log
+        ActivityLog.objects.create(
+            user=request.user,
+            event=ActivityLog.RESET_PASSWORD,
+            metadata={}
+        )
         return Response(
             {"message": "Password has been reset successfully."},
             status=status.HTTP_200_OK
@@ -1801,10 +1881,26 @@ class FavoriteVendorView(APIView):
             favorite = FavoriteVendor.objects.get(user=request.user, vendor=vendor)
             # If the vendor is already in favorites, delete it (unfavorite)
             favorite.delete()
+            # activity log
+            ActivityLog.objects.create(
+                user=request.user,
+                event=ActivityLog.UNFAVORITE_VENDOR,
+                metadata={
+                    'vendor': vendor.vendor_id
+                }
+            )
             return Response({"message": f"{vendor.full_name} removed from favorites."}, status=status.HTTP_200_OK)
         except FavoriteVendor.DoesNotExist:
             # If the vendor is not in favorites, create a new entry (favorite)
             FavoriteVendor.objects.create(user=request.user, vendor=vendor)
+            # activity log
+            ActivityLog.objects.create(
+                user=request.user,
+                event=ActivityLog.FAVORITE_VENDOR,
+                metadata={
+                    'vendor': vendor.vendor_id
+                }
+            )
             return Response({"message": f"{vendor.full_name} added to favorites."}, status=status.HTTP_201_CREATED)
         
 class FavoriteVendorsListView(generics.ListAPIView):
@@ -1892,6 +1988,15 @@ class SubmitRatingView(generics.CreateAPIView):
 
             if serializer.is_valid():
                 serializer.save(user=request.user, vendor=vendor, order=order)
+                # activity log
+                ActivityLog.objects.create(
+                    user=request.user,
+                    event=ActivityLog.RATE_VENDOR,
+                    metadata={
+                        'vendor': vendor.vendor_id,
+                        'rating': serializer.validated_data['rating']
+                    }
+                )
                 return Response({"message": "Rating submitted successfully!", "data": serializer.data}, status=status.HTTP_201_CREATED)
 
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -1917,6 +2022,17 @@ class RaiseAnIssueMyOrdersView(generics.CreateAPIView):
         serializer = self.get_serializer(data=data, context={"request": request})  # Context pass karein
         if serializer.is_valid():
             serializer.save()
+            # activity log
+            ActivityLog.objects.create(
+                user=request.user,
+                event=ActivityLog.RAISE_ISSUE,
+                metadata={
+                    'issue_type': 'user_orders',
+                    'vendor': place_order.vendor.vendor_id,
+                    'order': place_order.order_id,
+                    'subject': serializer.validated_data['subject']
+                }
+            )
             return Response({"message": "Issue raised successfully", "data": serializer.data}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1989,6 +2105,15 @@ class DeactivateDealView(APIView):
             # Update status after saving time changes
             data.status = 'history'
             data.save()
+
+            # activity log
+            ActivityLog.objects.create(
+                user=request.user,
+                event=ActivityLog.DISABLE_DEAL,
+                metadata={
+                    'deal': deal_uuid
+                }
+            )
 
             serializer = CreateDealSerializer(data)
             return Response({
@@ -2088,7 +2213,15 @@ class RepostDealView(generics.CreateAPIView):
         start_datetime = timezone.make_aware(dt.combine(start_date, start_time))
         new_deal.start_now = True if start_datetime <= now else False
         new_deal.save()
-        
+        # activity log
+        ActivityLog.objects.create(
+            user=request.user,
+            event=ActivityLog.REPOST_DEAL,
+            metadata={
+                'old_deal': deal_uuid,    # old deal id from the request parameter
+                'new_deal': new_deal.deal_uuid
+            }
+        )
         return Response({"message": "Deal successfully reposted", "data": CreateDealSerializer(new_deal).data}, status=status.HTTP_201_CREATED)
     
     
@@ -2134,6 +2267,15 @@ class DeactivateActivitiesView(APIView):
             # Serialize the updated activity and return response
             activity.refresh_from_db()  # Refresh instance after update
             serializer = ActivitySerializer(activity)
+            # activity log
+            ActivityLog.objects.create(
+                user=request.user,
+                event=ActivityLog.DEACTIVATE_ACTIVITY,
+                metadata={
+                    'activity': activity.activity_id,
+                    'activity_title': activity.activity_title
+                }
+            )
             return Response({
                 "message": "Activity deactivated successfully",
                 "data": serializer.data
@@ -2183,6 +2325,15 @@ class ActivityRepostView(APIView):
         serializer = ActivityRepostSerializer(data=new_activity_data, context={'request': request})
         if serializer.is_valid():
             serializer.save(created_by=request.user)
+            # activity log
+            ActivityLog.objects.create(
+                user=request.user,
+                event=ActivityLog.REPOST_ACTIVITY,
+                metadata={
+                    'old_activity': activity_id,  # Old activity ID from the request parameter
+                    'new_activity': serializer.data['activity_id']  # New activity ID from the serializer data
+                }
+            )
             return Response({"message": "Activity successfully reposted.", "data": serializer.data}, status=status.HTTP_201_CREATED)
 
         # Errors ko extract karke sirf "message" format me bhejna
@@ -2217,7 +2368,6 @@ class MySalesAPIView(generics.ListAPIView):
 
         except Exception as e:
             return Response({"message": "Something went wrong. " + str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response({"message": "Sales fetched successfully", "sales_data": serializer.data}, status=status.HTTP_200_OK)
     
 class ViewTotalSales(APIView):
     permission_classes = [IsAuthenticated]

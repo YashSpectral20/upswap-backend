@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'main',
     'upswap_chat',
+    'activity_log',
     'storages',
     'rest_framework',
     'rest_framework_simplejwt',

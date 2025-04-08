@@ -33,6 +33,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.contrib.auth import authenticate
 from django.db.models import Avg
 
+from activity_log.models import ActivityLog
+
 User = get_user_model()
 
 class CustomUserSerializer(serializers.ModelSerializer):
@@ -87,6 +89,13 @@ class VerifyOTPSerializer(serializers.Serializer):
         # Generate new JWT tokens
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
+        
+        # activity log
+        ActivityLog.objects.create(
+            user=user,
+            event=ActivityLog.VERIFY_OTP,
+            metadata={}
+        )
 
         # Return the tokens and a success message
         return {
