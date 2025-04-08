@@ -456,7 +456,7 @@ class VendorKYCCreateView(generics.CreateAPIView):
 
             # activity log
             ActivityLog.objects.create(
-                user=user,
+                user=request.user,
                 event=ActivityLog.APPLY_KYC,
                 metadata={}
             )

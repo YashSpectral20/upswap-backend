@@ -26,10 +26,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         text_data_json = json.loads(text_data)
         message = text_data_json.get('message', '')
+        user = self.scope['user']
 
         await self.create_message(
             chat_room=self.chat_room,
-            sender=self.scope['user'],
+            sender=user,
             content=message
         )
 
@@ -38,7 +39,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'chat_message',
                 'message': message,
-                'sender': self.scope['user'],
+                'sender': user.username,
                 'sent_at': timezone.now().strftime('%Y-%m-%d %H:%M:%S')
             }
         )
