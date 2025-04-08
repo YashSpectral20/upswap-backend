@@ -25,7 +25,6 @@ static/
 Thumbs.db
 Desktop.ini
 
-# Virtual environment
 env/
 venv/
 .env/
@@ -48,3 +47,7 @@ postgres-db/data
 datas
 
 logs/*.log*
+
+firebase_credentials.json
+
+creds.json

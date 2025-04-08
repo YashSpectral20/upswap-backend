@@ -20,6 +20,8 @@ from logging import Formatter
 from datetime import datetime
 import sendgrid
 from sendgrid.helpers.mail import Mail, Email, To, Content
+import firebase_admin
+from firebase_admin import credentials
 
 load_dotenv()
 
@@ -334,3 +336,5 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 30
 FCM_API_KEY = 'AAAAd_w70I0:APA91bG9l53D7NMaURfpgLEN-wEYUygZ-WmHtcHtjjjFfl-MYWETco3qiRtQTPXRQbe6fQar3YtDguW4Ejz-tqesftyEOzdm6Ce_hgRO7zFffIyvuJPBmPWcs1wZS_bfCgorVFKw6co3'
 
 YOUR_PROJECT_ID = 'ittdealsapp'
+FIREBASE_CREDENTIALS = "/usr/src/app/creds.json"
+firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))

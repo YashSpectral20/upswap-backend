@@ -120,11 +120,9 @@ from .views import (
     VendorKYCListView, ActivityListsView, ActivityDetailsView, LogoutAPI, ForgotPasswordView, ResetPasswordView, PlaceOrderView, PlaceOrderDetailsView, CategoriesView,
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
-    RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales
-)     
-# ChatRoomCreateView, ChatRoomRetrieveView,
-# ChatMessageCreateView, ChatMessageListView, ChatRequestCreateView,
-# ChatRequestRetrieveView, AcceptChatRequestView,
+    RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales,
+    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView
+)
 
 # Swagger Schema View
 schema_view = get_schema_view(
@@ -163,7 +161,7 @@ urlpatterns = [
     # Activities (Requires Authentication)
     path('activities/create/', ActivityCreateView.as_view(), name='activity-create'),
 
-    # # Chat Rooms (Requires Authentication)
+    # Chat Rooms (Requires Authentication)
     # path('chat-rooms/', ChatRoomCreateView.as_view(), name='chat-room-create'),
     # path('chat-rooms/<uuid:pk>/', ChatRoomRetrieveView.as_view(), name='chat-room-detail'),
 
@@ -202,7 +200,7 @@ urlpatterns = [
     
     # PlaceOrder
     path('place-order/', PlaceOrderView.as_view(), name='place-order'),
-    path('place-order/details/<uuid:order_id>/', PlaceOrderDetailsView.as_view(), name='place-order-details'),
+    path('place-order/details/<str:placeorder_id>/', PlaceOrderDetailsView.as_view(), name='place-order-details'),
     path('place-order/lists/', PlaceOrderListsView.as_view(), name='place-order-lists'),
     
     path('categories/', CategoriesView.as_view(), name='categories'),
@@ -228,9 +226,9 @@ urlpatterns = [
     
     path('my-activities/', MyActivityView.as_view(), name='my_activities'),
     
-    path('submit-rating/<uuid:order_id>/', SubmitRatingView.as_view(), name='submit-rating'),
+    path('submit-rating/<str:placeorder_id>/', SubmitRatingView.as_view(), name='submit-rating'),
     
-    path("place-order/<uuid:place_order_id>/raise-issue/", RaiseAnIssueMyOrdersView.as_view(), name="raise-issue"),
+    path("place-order/<str:place_order_id>/raise-issue/", RaiseAnIssueMyOrdersView.as_view(), name="raise-issue"),
     
     path('raise-issue/vendors/<uuid:vendor_id>/', RaiseAnIssueVendorsCreateView.as_view(), name='raise-issue-vendors'),
     
@@ -247,6 +245,12 @@ urlpatterns = [
     path('mysales/', MySalesAPIView.as_view(), name='my-sales'),
     
     path('view-total-sales/', ViewTotalSales.as_view(), name='view-total-sales'),
+    
+    path('resend-otp/', ResendOTPView.as_view(), name='resend-otp'),
+    
+    path('notifications/', NotificationListView.as_view(), name='notifications-list'),
+    path('notifications/mark-as-read/<uuid:pk>/', MarkNotificationAsReadView.as_view(), name='mark-as-read'),
+    path('register-device/', RegisterDeviceView.as_view(), name='register-device'),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
-    CustomUser, Activity, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder, VendorRating
-)        # ChatRoom, ChatMessage, ChatRequest, 
+    CustomUser, Activity, PasswordResetOTP, VendorKYC, Address, Service, OTP, CreateDeal, PlaceOrder, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser, FavoriteVendor,
+    Notification, Device
+)
 
 # Custom User Admin
 class CustomUserAdmin(admin.ModelAdmin):
@@ -67,7 +68,7 @@ class ActivityAdmin(admin.ModelAdmin):
 #         return ', '.join(user.username for user in obj.participants.all()) if obj.participants.exists() else 'No Participants'
 #     participants_display.short_description = 'Participants'
 
-# ChatMessage Admin
+# # ChatMessage Admin
 # @admin.register(ChatMessage)
 # class ChatMessageAdmin(admin.ModelAdmin):
 #     list_display = ('chat_room', 'sender', 'message_display', 'created_at')
@@ -77,7 +78,9 @@ class ActivityAdmin(admin.ModelAdmin):
 #         return obj.content
 #     message_display.short_description = 'Message'
 
-# ChatRequest Admin
+
+
+# # ChatRequest Admin
 # @admin.register(ChatRequest)
 # class ChatRequestAdmin(admin.ModelAdmin):
 #     list_display = (
@@ -223,3 +226,47 @@ class VendorRatingAdmin(admin.ModelAdmin):
     def user_email(self, obj):
         return obj.user.email  # ✅ User ka email show karega
     user_email.short_description = "User Email"
+    
+@admin.register(RaiseAnIssueMyOrders)
+class RaiseAnIssueMyOrdersAdmin(admin.ModelAdmin):
+    list_display = ('issue_id', 'user', 'place_order', 'subject', 'created_at')
+    search_fields = ('subject', 'user__username', 'place_order__order_id')
+    list_filter = ('created_at',)
+    ordering = ('-created_at',)
+
+@admin.register(RaiseAnIssueVendors)
+class RaiseAnIssueVendorsAdmin(admin.ModelAdmin):
+    list_display = ('issue_uuid', 'user', 'vendor', 'subject', 'created_at')
+    search_fields = ('subject', 'user__username', 'vendor__business_name')
+    list_filter = ('created_at',)
+    ordering = ('-created_at',)
+
+@admin.register(RaiseAnIssueCustomUser)
+class RaiseAnIssueCustomUserAdmin(admin.ModelAdmin):
+    list_display = ('issue_id', 'raised_by', 'against_user', 'activity', 'subject', 'created_at')
+    search_fields = ('subject', 'raised_by__username', 'against_user__username', 'activity__title')
+    list_filter = ('created_at',)
+    ordering = ('-created_at',)
+    
+@admin.register(FavoriteVendor)
+class FavoriteVendorAdmin(admin.ModelAdmin):
+    list_display = ('user', 'vendor', 'added_at')
+    search_fields = ('user__email', 'vendor__full_name')
+    list_filter = ('added_at',)
+    ordering = ('-added_at',)
+    
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'notification_type', 'title', 'is_read', 'created_at')
+    list_filter = ('notification_type', 'is_read', 'created_at')
+    search_fields = ('title', 'body', 'user__email')
+    ordering = ('-created_at',)
+    readonly_fields = ('id', 'created_at')
+
+@admin.register(Device)
+class DeviceAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'device_type', 'device_token', 'created_at')
+    list_filter = ('device_type', 'created_at')
+    search_fields = ('user__email', 'device_token')
+    ordering = ('-created_at',)
+    readonly_fields = ('id', 'created_at')
