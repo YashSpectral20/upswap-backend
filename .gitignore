@@ -25,7 +25,6 @@ static/
 Thumbs.db
 Desktop.ini
 
-# Virtual 
 env/
 venv/
 .env/

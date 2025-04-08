@@ -1,16 +1,17 @@
 import os
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
+from channels.security.websocket import AllowedHostsOriginValidator
 from channels.auth import AuthMiddlewareStack
-import main.routing
+from upswap_chat import routing
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'upswap.settings')
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
-    "websocket": AuthMiddlewareStack(
+    "websocket": AllowedHostsOriginValidator(AuthMiddlewareStack(
         URLRouter(
-            main.routing.websocket_urlpatterns
+            routing.websocket_urlpatterns
         )
-    ),
+    )),
 })

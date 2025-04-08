@@ -85,6 +85,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'main',
+    'upswap_chat',
+    'activity_log',
     'storages',
     'rest_framework',
     'rest_framework_simplejwt',
@@ -243,6 +245,7 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 AUTH_USER_MODEL = 'main.CustomUser'
 
 REST_FRAMEWORK = {
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
              
@@ -333,10 +336,5 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 30
 FCM_API_KEY = 'AAAAd_w70I0:APA91bG9l53D7NMaURfpgLEN-wEYUygZ-WmHtcHtjjjFfl-MYWETco3qiRtQTPXRQbe6fQar3YtDguW4Ejz-tqesftyEOzdm6Ce_hgRO7zFffIyvuJPBmPWcs1wZS_bfCgorVFKw6co3'
 
 YOUR_PROJECT_ID = 'ittdealsapp'
-
-
-
 FIREBASE_CREDENTIALS = "/usr/src/app/creds.json"
 firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
-#
-#

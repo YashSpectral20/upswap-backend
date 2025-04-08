@@ -78,6 +78,8 @@ class ActivityAdmin(admin.ModelAdmin):
 #         return obj.content
 #     message_display.short_description = 'Message'
 
+
+
 # # ChatRequest Admin
 # @admin.register(ChatRequest)
 # class ChatRequestAdmin(admin.ModelAdmin):
