@@ -456,7 +456,7 @@ class VendorKYCCreateView(generics.CreateAPIView):
 
             # activity log
             ActivityLog.objects.create(
-                user=user,
+                user=request.user,
                 event=ActivityLog.APPLY_KYC,
                 metadata={}
             )
@@ -1884,7 +1884,7 @@ class FavoriteVendorView(APIView):
                 user=request.user,
                 event=ActivityLog.UNFAVORITE_VENDOR,
                 metadata={
-                    'vendor': vendor.vendor_id
+                    'vendor': str(vendor.vendor_id)
                 }
             )
             return Response({"message": f"{vendor.full_name} removed from favorites."}, status=status.HTTP_200_OK)
@@ -1896,7 +1896,7 @@ class FavoriteVendorView(APIView):
                 user=request.user,
                 event=ActivityLog.FAVORITE_VENDOR,
                 metadata={
-                    'vendor': vendor.vendor_id
+                    'vendor': str(vendor.vendor_id)
                 }
             )
             return Response({"message": f"{vendor.full_name} added to favorites."}, status=status.HTTP_201_CREATED)
@@ -1991,8 +1991,8 @@ class SubmitRatingView(generics.CreateAPIView):
                     user=request.user,
                     event=ActivityLog.RATE_VENDOR,
                     metadata={
-                        'vendor': vendor.vendor_id,
-                        'rating': serializer.validated_data['rating']
+                        'vendor': str(vendor.vendor_id),
+                        'rating': str(serializer.validated_data['rating'])
                     }
                 )
                 return Response({"message": "Rating submitted successfully!", "data": serializer.data}, status=status.HTTP_201_CREATED)
@@ -2026,8 +2026,8 @@ class RaiseAnIssueMyOrdersView(generics.CreateAPIView):
                 event=ActivityLog.RAISE_ISSUE,
                 metadata={
                     'issue_type': 'user_orders',
-                    'vendor': place_order.vendor.vendor_id,
-                    'order': place_order.order_id,
+                    'vendor': str(place_order.vendor.vendor_id),
+                    'order': str(place_order.order_id),
                     'subject': serializer.validated_data['subject']
                 }
             )
@@ -2107,9 +2107,9 @@ class DeactivateDealView(APIView):
             # activity log
             ActivityLog.objects.create(
                 user=request.user,
-                event=ActivityLog.DISABLE_DEAL,
+                event=ActivityLog.DEACTIVATE_DEAL,
                 metadata={
-                    'deal': deal_uuid
+                    'deal': str(deal_uuid)
                 }
             )
 
@@ -2216,8 +2216,8 @@ class RepostDealView(generics.CreateAPIView):
             user=request.user,
             event=ActivityLog.REPOST_DEAL,
             metadata={
-                'old_deal': deal_uuid,    # old deal id from the request parameter
-                'new_deal': new_deal.deal_uuid
+                'old_deal': str(deal_uuid),    # old deal id from the request parameter
+                'new_deal': str(new_deal.deal_uuid)
             }
         )
         return Response({"message": "Deal successfully reposted", "data": CreateDealSerializer(new_deal).data}, status=status.HTTP_201_CREATED)
@@ -2270,7 +2270,7 @@ class DeactivateActivitiesView(APIView):
                 user=request.user,
                 event=ActivityLog.DEACTIVATE_ACTIVITY,
                 metadata={
-                    'activity': activity.activity_id,
+                    'activity': str(activity.activity_id),
                     'activity_title': activity.activity_title
                 }
             )
@@ -2328,7 +2328,7 @@ class ActivityRepostView(APIView):
                 user=request.user,
                 event=ActivityLog.REPOST_ACTIVITY,
                 metadata={
-                    'old_activity': activity_id,  # Old activity ID from the request parameter
+                    'old_activity': str(activity_id),  # Old activity ID from the request parameter
                     'new_activity': serializer.data['activity_id']  # New activity ID from the serializer data
                 }
             )
