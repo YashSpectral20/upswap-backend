@@ -815,7 +815,7 @@ class CreateDealView(generics.CreateAPIView):
         if not vendor_kyc.is_approved:
             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
-        serializer.save(vendor_kyc=vendor_kyc)
+        serializer.save()
 
     def create(self, request, *args, **kwargs):
         try:

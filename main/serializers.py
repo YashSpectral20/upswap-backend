@@ -637,7 +637,7 @@ class VendorKYCStatusSerializer(serializers.ModelSerializer):
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
-    actual_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    # actual_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
