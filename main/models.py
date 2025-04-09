@@ -408,12 +408,12 @@ class CreateDeal(models.Model):
         if not self.vendor_kyc.is_approved:
             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
-        if self.select_service:
-            try:
-                service = self.vendor_kyc.services.get(item_name=self.select_service)
-                self.actual_price = service.item_price
-            except Service.DoesNotExist:
-                raise ValidationError(f"The service '{self.select_service}' does not exist.")
+        # if self.select_service:
+        #     try:
+        #         service = self.vendor_kyc.services.get(item_name=self.select_service)
+        #         self.actual_price = service.item_price
+        #     except Service.DoesNotExist:
+        #         raise ValidationError(f"The service '{self.select_service}' does not exist.")
 
         if self.start_now:
             now = timezone.now()
