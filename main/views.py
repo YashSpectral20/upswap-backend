@@ -1205,8 +1205,7 @@ class LogoutAPI(APIView):
             refresh.blacklist()  # Blacklists the refresh token
         except TokenError:
             return Response({"message": "Invalid or expired refresh token."}, status=status.HTTP_400_BAD_REQUEST)
-
-        logout(request)
+    
 
         # activity log
         ActivityLog.objects.create(
@@ -1214,6 +1213,7 @@ class LogoutAPI(APIView):
             event=ActivityLog.LOGOUT,
             metadata={}
         )
+        logout(request)
         return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
 
     
