@@ -662,7 +662,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
             'vendor_name', 'vendor_uuid', 'vendor_email', 'vendor_number',
             'discount_percentage', 'latitude', 'longitude', 'deal_post_time'
         ]
-        read_only_fields = ['deal_uuid', 'discount_percentage', 'actual_price']
+        read_only_fields = ['deal_uuid', 'discount_percentage']
 
     def get_discount_percentage(self, obj):
         if obj.actual_price and obj.deal_price:
