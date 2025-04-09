@@ -10,19 +10,27 @@ from main.models import (
 class ChatRequest(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
     from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
-    is_accepted = models.BooleanField(default=False, help_text="True if the request is accepted") # Is chat request accepted by the activity owner (activity.created_by)
+    is_accepted = models.BooleanField(default=False, help_text="True if the request is accepted")
+    initial_message = models.TextField(blank=True, null=True)  # Naya field
     created_at = models.DateTimeField(default=timezone.now)
-    
+
     def accept(self):
         self.is_accepted = True
         chat_room, created = ChatRoom.objects.get_or_create(activity=self.activity)
         chat_room.participants.add(self.from_user, self.activity.created_by)
         chat_room.save()
         self.save()
+        # Initial message ko chat room mein bhejna
+        if self.initial_message:
+            ChatMessage.objects.create(
+                chat_room=chat_room,
+                sender=self.from_user,
+                content=self.initial_message
+            )
         return chat_room
 
     def __str__(self):
-        return f"Request from {self.from_user} to {self.to_user} for {self.activity}"
+        return f"Request from {self.from_user} to {self.activity.created_by} for {self.activity}"
 
 class ChatRoom(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
