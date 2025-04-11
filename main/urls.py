@@ -121,7 +121,7 @@ from .views import (
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
     RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales,
-    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView
+    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, test_push_notification
 )
 
 # Swagger Schema View
@@ -251,6 +251,9 @@ urlpatterns = [
     path('notifications/', NotificationListView.as_view(), name='notifications-list'),
     path('notifications/mark-as-read/<uuid:pk>/', MarkNotificationAsReadView.as_view(), name='mark-as-read'),
     path('register-device/', RegisterDeviceView.as_view(), name='register-device'),
+    
+    #For Testing PUSH Notification
+    path('test-notification/', test_push_notification),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

@@ -48,7 +48,9 @@ from .serializers import (
 from datetime import datetime
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification  
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification 
+from .firebase_utils import send_notification_to_user 
+from rest_framework.decorators import api_view
 from geopy.distance import geodesic
 from .services import get_image_from_s3
 from django.contrib.auth import authenticate
@@ -74,6 +76,7 @@ from geopy.distance import distance
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils.timezone import make_aware
 from rest_framework.permissions import IsAuthenticated
+from firebase_admin import messaging
 
 from django.shortcuts import get_object_or_404
 
@@ -254,7 +257,7 @@ class ActivityCreateView(generics.CreateAPIView):
                 
                 activity = serializer.save(created_by=self.request.user)
                 
-                # ✅ ✅ ✅ Notification Send Logic Yahan Hai
+                #Notification Send Logic Yahan Hai
                 all_users = CustomUser.objects.exclude(id=request.user.id)
                 for user in all_users:
                     create_notification(
@@ -265,6 +268,16 @@ class ActivityCreateView(generics.CreateAPIView):
                         reference_instance=activity,
                         data={"activity_id": str(activity.activity_id)}
                     )
+
+                # 🔔 Notify the creator as well
+                create_notification(
+                    user=request.user,
+                    notification_type="activity",
+                    title="Your Activity is Live!",
+                    body=f"You have successfully posted: {activity.activity_title}",
+                    reference_instance=activity,
+                    data={"activity_id": str(activity.activity_id)}
+                )
                     
                 # activity log
                 ActivityLog.objects.create(
@@ -2452,3 +2465,26 @@ class RegisterDeviceView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        
+@api_view(["POST"])
+def test_push_notification(request):
+    device_token = request.data.get("device_token")
+    title = request.data.get("title", "Test Notification")
+    body = request.data.get("body", "This is a test message.")
+    
+    # You can also pass data payload if you want
+    data = {
+        "custom_key": "custom_value"
+    }
+
+    # Temporarily send without using user object
+    try:
+        message = messaging.Message(
+            notification=messaging.Notification(title=title, body=body),
+            token=device_token,
+            data=data,
+        )
+        response = messaging.send(message)
+        return Response({"message": "Notification sent!", "response_id": response})
+    except Exception as e:
+        return Response({"message": "Failed to send notification", "error": str(e)}, status=500)

@@ -22,27 +22,30 @@ def send_single_fcm_message(registration_token, title, body, data=None):
 
 
 def send_multicast_fcm_message(registration_tokens, title, body, data=None):
-    message = messaging.MulticastMessage(
-        notification=messaging.Notification(
-            title=title,
-            body=body,
-        ),
-        data={key: str(value) for key, value in (data or {}).items()},
-        tokens=registration_tokens,
-    )
+    success_count = 0
+    failure_count = 0
 
-    try:
-        response = messaging.send_multicast(message)
-        print(f"✅ {response.success_count} messages were sent successfully.")
-        print(f"❌ {response.failure_count} messages failed.")
-        if response.failure_count > 0:
-            for idx, failed_message in enumerate(response.responses):
-                if not failed_message.success:
-                    print(f"# {idx} failed: {failed_message.exception}")
-        return response
-    except Exception as e:
-        print(f"❌ Error sending multicast message: {e}")
-        return None
+    for idx, token in enumerate(registration_tokens):
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            data={key: str(value) for key, value in (data or {}).items()},
+            token=token,
+        )
+
+        try:
+            response = messaging.send(message)
+            print(f"✅ [{idx}] Sent to {token}: {response}")
+            success_count += 1
+        except Exception as e:
+            print(f"❌ [{idx}] Failed to send to {token}: {e}")
+            failure_count += 1
+
+    print(f"✅ {success_count} messages were sent successfully.")
+    print(f"❌ {failure_count} messages failed.")
+    return {"success": success_count, "failure": failure_count}
 
 
 def send_notification_to_user(user, title, body, data=None):
