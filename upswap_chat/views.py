@@ -57,21 +57,39 @@ class ChatRequestAPIView(APIView):
         
     def patch(self, request, format=None):
         data = request.data
-        try:
-            chat_request = ChatRequest.objects.filter(id=data['id']).first() 
-            if chat_request:
-                if data['is_accepted']:
+        if not isinstance(data, list):
+            return Response({
+                'error': 'Data must be a list of chat requests.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        response_data = []
+        errors = []
+
+        for item in data:
+            try:
+                chat_request = ChatRequest.objects.filter(id=item['id']).first()
+                if chat_request and item.get('is_accepted', False):
                     chat_room = chat_request.accept()
                     serializer = ChatRoomSerializer(chat_room)
-                    return Response({
-                        'message': 'Chat request accepted & chat room has been created.',
-                        'data': serializer.data
-                    }, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({
-                'error': str(e),
-                'message': 'Chat request could not be accepted, please try again later.'
-            }, status=status.HTTP_400_BAD_REQUEST)  
+                    response_data.append({
+                        'id': chat_request.id,
+                        'chat_room': serializer.data
+                    })
+            except Exception as e:
+                errors.append({
+                    'id': item.get('id'),
+                    'error': str(e)
+                })
+
+        response = {
+            'message': 'Processed chat requests.',
+            'accepted': response_data,
+        }
+
+        if errors:  # Add errors only if any exist
+            response['errors'] = errors
+
+        return Response(response, status=status.HTTP_200_OK)  
 
 
 class ChatMessageAPIView(APIView, CustomPagination):
