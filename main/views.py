@@ -195,6 +195,11 @@ class LoginView(generics.GenericAPIView):
 
         user = serializer.validated_data['user']
         login(request, user)
+        
+        # ✅ Save session and fetch session ID
+        if not request.session.session_key:
+            request.session.save()
+        session_id = request.session.session_key
 
         try:
             otp_instance = OTP.objects.get(user=user)
@@ -221,6 +226,7 @@ class LoginView(generics.GenericAPIView):
             'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
             'refresh': str(refresh),
             'access': access_token,
+            'sessionid': session_id,
             'is_approved': is_approved,
             'vendor_id': vendor_id,
             'message': 'User logged in successfully.'
@@ -850,7 +856,28 @@ class CreateDealView(generics.CreateAPIView):
             deal = serializer.instance
             deal.set_uploaded_images(uploaded_images)
             deal.save()
-
+            
+            create_notification(
+                user=request.user,
+                notification_type="deal",
+                title="Your Deal is Live!",
+                body=f"Congrats {request.user.name}, your deal '{deal.deal_title}' is now live!",
+                reference_instance=deal,
+                data={"deal_id": str(deal.deal_uuid)}
+            )
+            
+            # 2) Baaki sab users ko notify karo
+            all_users = User.objects.exclude(id=request.user.id)
+            for user in all_users:
+                create_notification(
+                    user=user,
+                    notification_type="deal",
+                    title="New Deal Posted!",
+                    body=f"{request.user.name} just posted a new deal: '{deal.deal_title}'",
+                    reference_instance=deal,
+                    data={"deal_id": str(deal.deal_uuid)}
+                )
+            
             # activity log
             ActivityLog.objects.create(
                 user=deal.vendor_kyc.user,
@@ -1490,6 +1517,12 @@ class SocialLogin(generics.GenericAPIView):
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
         login(request, user)
+        
+        # 🔐 Login and generate session
+        login(request, user)
+        if not request.session.session_key:
+            request.session.save()
+        session_id = request.session.session_key
 
         # activity log
         ActivityLog.objects.create(
@@ -1504,6 +1537,7 @@ class SocialLogin(generics.GenericAPIView):
             "user": CustomUserSerializer(user).data,
             "refresh": str(refresh),
             "access": access_token,
+            "sessionid": session_id,
             "vendor_id": vendor_id,
             "is_approved": is_approved,
             "message": "Login successful."

@@ -69,18 +69,34 @@ class ChatRequestAPIView(APIView):
             try:
                 chat_request = ChatRequest.objects.filter(id=item['id']).first()
                 if chat_request:
+                    is_undo = item.get('is_undo', False)
                     is_accepted = item.get('is_accepted', False)
 
-                    if is_accepted:
+                    if is_undo:
+                        # ✅ Undo logic: reset the status
+                        chat_request.is_accepted = False
+                        chat_request.is_clicked = False
+                        chat_request.is_undo = True
+                        chat_request.save()
+                        response_data.append({
+                            'id': chat_request.id,
+                            'message': 'Chat request undone.',
+                            'chat_room': None
+                        })
+                    elif is_accepted:
+                        # ✅ Accept logic
                         chat_room = chat_request.accept()
+                        chat_request.is_undo = False
                         serializer = ChatRoomSerializer(chat_room)
                         response_data.append({
                             'id': chat_request.id,
                             'chat_room': serializer.data
                         })
                     else:
-                        chat_request.is_accepted = False  # ya jo bhi value ho
-                        chat_request.is_clicked = True  # ✅ Even for reject
+                        # ✅ Reject logic
+                        chat_request.is_accepted = False
+                        chat_request.is_clicked = True
+                        chat_request.is_undo = False
                         chat_request.save()
                         response_data.append({
                             'id': chat_request.id,

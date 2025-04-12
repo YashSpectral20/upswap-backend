@@ -12,6 +12,7 @@ class ChatRequest(models.Model):
     from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
     is_accepted = models.BooleanField(default=False, help_text="True if the request is accepted")
     is_clicked = models.BooleanField(default=False, help_text="True if request was interacted with")  # ✅ NEW FIELD
+    is_undo = models.BooleanField(default=False, help_text="True if user wants to undo the action")
     initial_message = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
 
