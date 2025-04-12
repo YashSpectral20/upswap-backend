@@ -68,13 +68,24 @@ class ChatRequestAPIView(APIView):
         for item in data:
             try:
                 chat_request = ChatRequest.objects.filter(id=item['id']).first()
-                if chat_request and item.get('is_accepted', False):
-                    chat_room = chat_request.accept()
-                    serializer = ChatRoomSerializer(chat_room)
-                    response_data.append({
-                        'id': chat_request.id,
-                        'chat_room': serializer.data
-                    })
+                if chat_request:
+                    is_accepted = item.get('is_accepted', False)
+
+                    if is_accepted:
+                        chat_room = chat_request.accept()
+                        serializer = ChatRoomSerializer(chat_room)
+                        response_data.append({
+                            'id': chat_request.id,
+                            'chat_room': serializer.data
+                        })
+                    else:
+                        chat_request.is_accepted = False  # ya jo bhi value ho
+                        chat_request.is_clicked = True  # ✅ Even for reject
+                        chat_request.save()
+                        response_data.append({
+                            'id': chat_request.id,
+                            'chat_room': None
+                        })
             except Exception as e:
                 errors.append({
                     'id': item.get('id'),
@@ -86,10 +97,10 @@ class ChatRequestAPIView(APIView):
             'accepted': response_data,
         }
 
-        if errors:  # Add errors only if any exist
+        if errors:
             response['errors'] = errors
 
-        return Response(response, status=status.HTTP_200_OK)  
+        return Response(response, status=status.HTTP_200_OK)
 
 
 class ChatMessageAPIView(APIView, CustomPagination):

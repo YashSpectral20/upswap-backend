@@ -11,16 +11,17 @@ class ChatRequest(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
     from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
     is_accepted = models.BooleanField(default=False, help_text="True if the request is accepted")
-    initial_message = models.TextField(blank=True, null=True)  # Naya field
+    is_clicked = models.BooleanField(default=False, help_text="True if request was interacted with")  # ✅ NEW FIELD
+    initial_message = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     def accept(self):
         self.is_accepted = True
+        self.is_clicked = True
         chat_room, created = ChatRoom.objects.get_or_create(activity=self.activity)
         chat_room.participants.add(self.from_user, self.activity.created_by)
         chat_room.save()
         self.save()
-        # Initial message ko chat room mein bhejna
         if self.initial_message:
             ChatMessage.objects.create(
                 chat_room=chat_room,
