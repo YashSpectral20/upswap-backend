@@ -138,21 +138,29 @@ class RegisterView(generics.CreateAPIView):
             # Generate JWT tokens for the user
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
+            
+            # Create session manually
+            request.session["registered_user_id"] = str(user.id)  # 👈 Fix UUID serialization
+            if not request.session.session_key:
+                request.session.save()
+            session_id = request.session.session_key
 
             # activity log
             ActivityLog.objects.create(
-                user=user,
-                event=ActivityLog.SIGN_UP,
-                metadata={
-                    "longitude": user.longitude,
-                    "latitude": user.latitude
-                },
-            )
+            user=user,
+            event=ActivityLog.SIGN_UP,
+            metadata={
+                "user_id": str(user.id),
+                "longitude": str(user.longitude),
+                "latitude": str(user.latitude)
+            },
+        )
 
             return Response({
                 'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
                 'refresh': str(refresh),
                 'access': access_token,
+                'session_id': session_id,
                 'message': 'OTP sent successfully for login. Use the access token for OTP verification.'
             }, status=status.HTTP_201_CREATED)
 
