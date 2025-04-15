@@ -1805,8 +1805,9 @@ class OTPResetPasswordView(APIView):
         # Handle successful validation and save logic
         serializer.save()
         # activity log
+        user = serializer.validated_data.get("user")
         ActivityLog.objects.create(
-            user=request.user,
+            user=user,
             event=ActivityLog.RESET_PASSWORD,
             metadata={}
         )
