@@ -22,6 +22,8 @@ from .models import (
     ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser,
     Notification, Device
 )
+from upswap_chat.models import ChatRequest, ChatRoom, ChatMessage
+
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth import get_user_model
@@ -1306,12 +1308,14 @@ class MyActivitysSerializer(serializers.ModelSerializer):
     activity_category = ActivityCategorySerializer(required=True)
     uploaded_images = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
+    is_accepted = serializers.SerializerMethodField()
+    chat_room_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
         fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'activity_description', 'created_by', 'user_participation', 'maximum_participants', 'infinite_time', 'activity_category',
                   'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
-                  'location', 'created_at']
+                  'location', 'created_at', 'is_accepted', 'chat_room_id']
         
     def get_created_at(self, obj):
         if obj.created_at:
@@ -1331,6 +1335,25 @@ class MyActivitysSerializer(serializers.ModelSerializer):
         first_image = obj.uploaded_images[0]  # Get the first image
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
+    
+    def get_is_accepted(self, obj):
+        request = self.context.get('request', None)
+        user = getattr(request, 'user', None) if request else None
+        if not user or not user.is_authenticated:
+            return None
+        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).first()
+        return chat_request.is_accepted if chat_request else None
+
+    def get_chat_room_id(self, obj):
+        request = self.context.get('request', None)
+        user = getattr(request, 'user', None) if request else None
+        if not user or not user.is_authenticated:
+            return None
+        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user, is_accepted=True).first()
+        if chat_request:
+            chat_room = ChatRoom.objects.filter(activity=obj, participants=user).first()
+            return str(chat_room.id) if chat_room else None
+        return None
 
 class MyDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)

@@ -187,6 +187,21 @@ class VerifyOTPView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
+        user = request.user  # Currently verified user
+
+        # Sabhi existing users ko notification bhejna
+        existing_users = CustomUser.objects.exclude(id=user.id)
+        title = "New User Registered"
+        body = f"{user.username} has joined the platform."
+
+        for existing_user in existing_users:
+            create_notification(
+                user=existing_user,
+                notification_type="new_user_registered",
+                title=title,
+                body=body,
+                reference_instance=user
+            )
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
@@ -1517,6 +1532,20 @@ class SocialLogin(generics.GenericAPIView):
                 latitude=latitude,
                 longitude=longitude
             )
+            
+        # Notify all existing users about the new registration
+        existing_users = CustomUser.objects.exclude(id=user.id)
+        for existing_user in existing_users:
+            create_notification(
+                user=existing_user,
+                notification_type="new_user_registered",
+                title="New User Joined!",
+                body=f"{user.name} has just joined the platform.",
+                data={
+                    "new_user_id": str(user.id),  # Convert UUID to string
+                    "new_user_name": user.name
+                }
+            )
 
         vendor_kyc = VendorKYC.objects.filter(user=user).first()
         vendor_id = str(vendor_kyc.vendor_id) if vendor_kyc else ""
@@ -1822,6 +1851,7 @@ class MyActivityView(APIView):
 
     def get(self, request):
         current_time = make_aware(datetime.now())  # Timezone aware datetime
+        user = request.user
 
         # Authenticated user ki activities filter karna
         activities = Activity.objects.filter(created_by=request.user)
@@ -1846,17 +1876,28 @@ class MyActivityView(APIView):
                 scheduled_activities.append(activity)
             elif current_time > activity_end_datetime:
                 history_activities.append(activity)
+                
+        # Participation tab: user ne doosron ke activity mein participate kiya
+        participated_activities = Activity.objects.filter(
+            chatrequest__from_user=user
+        ).exclude(created_by=user).distinct()
 
-        # Teeno categories ko serialize karna
-        live_activities_serializer = MyActivitysSerializer(live_activities, many=True)
-        scheduled_activities_serializer = MyActivitysSerializer(scheduled_activities, many=True)
-        history_activities_serializer = MyActivitysSerializer(history_activities, many=True)
-        all_activities_serializer = MyActivitysSerializer(activities, many=True)
+        # Context zaroori hai serializer ke get_is_accepted & get_chat_room_id ke liye
+        # Context zaroori hai serializer ke get_is_accepted & get_chat_room_id ke liye
+        context = {'request': request}
+
+        # Teeno categories ko serialize karna (context sab jagah pass karo)
+        live_activities_serializer = MyActivitysSerializer(live_activities, many=True, context=context)
+        scheduled_activities_serializer = MyActivitysSerializer(scheduled_activities, many=True, context=context)
+        history_activities_serializer = MyActivitysSerializer(history_activities, many=True, context=context)
+        all_activities_serializer = MyActivitysSerializer(activities, many=True, context=context)
+        participation_activities_serializer = MyActivitysSerializer(participated_activities, many=True, context=context)
 
         return Response({
             'live': live_activities_serializer.data,
             'scheduled': scheduled_activities_serializer.data,
             'history': history_activities_serializer.data,
+            'participation': participation_activities_serializer.data,
             'all': all_activities_serializer.data  # Sabhi activities
         }, status=status.HTTP_200_OK)
         
