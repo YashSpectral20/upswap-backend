@@ -63,7 +63,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'chat_message',
                 'message': message,
-                'sender': self.user.username,
+                'sender': self.user.id,
                 'sent_at': timezone.now().strftime('%Y-%m-%d %H:%M:%S')
             }
         )
