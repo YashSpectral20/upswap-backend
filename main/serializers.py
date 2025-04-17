@@ -195,32 +195,27 @@ class ActivitySerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        # Extract uploaded_images
         uploaded_images = validated_data.pop('uploaded_images', [])
-
-        # Assign the created_by field
         validated_data['created_by'] = self.context['request'].user
 
-        # Preserve user-provided values
-        start_date = validated_data.get('start_date')
-        start_time = validated_data.get('start_time')
-        end_date = validated_data.get('end_date')
-        end_time = validated_data.get('end_time')
+        set_current_datetime = validated_data.get('set_current_datetime', False)
+        infinite_time = validated_data.get('infinite_time', False)
 
-        if validated_data.pop('set_current_datetime', False) and not (start_date or start_time):
+        if set_current_datetime and not (validated_data.get('start_date') or validated_data.get('start_time')):
             current_datetime = timezone.now()
             validated_data['start_date'] = current_datetime.date()
             validated_data['start_time'] = current_datetime.time()
 
-        if validated_data.pop('infinite_time', False) and not (end_date or end_time):
-            future_date = timezone.now() + timezone.timedelta(days=365 * 999)  # 999 years from now
+        if infinite_time and not (validated_data.get('end_date') or validated_data.get('end_time')):
+            future_date = timezone.now() + timezone.timedelta(days=365 * 999)
             validated_data['end_date'] = future_date.date()
             validated_data['end_time'] = future_date.time()
 
-        # Create activity
+        if not validated_data.get('user_participation', True):
+            validated_data['maximum_participants'] = 0
+
         activity = super().create(validated_data)
 
-        # Save uploaded_images metadata
         if uploaded_images:
             activity.uploaded_images = uploaded_images
             activity.save()

@@ -330,6 +330,8 @@ class ActivityCreateView(generics.CreateAPIView):
                         "end_time": activity.end_time,
                         "created_at": activity.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                         "created_by": str(activity.created_by.id),
+                        "infinite_time": activity.infinite_time,
+                        "set_current_datetime": activity.set_current_datetime,
                         "location": activity.location,
                         "latitude": activity.latitude,
                         "longitude": activity.longitude,
