@@ -1336,9 +1336,6 @@ class MyActivitysSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None) if request else None
         if not user or not user.is_authenticated:
             return None
-        # Check if user is the creator
-        if obj.created_by == user:
-            return True
         chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).first()
         return chat_request.is_accepted if chat_request else None
 
@@ -1347,9 +1344,11 @@ class MyActivitysSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None) if request else None
         if not user or not user.is_authenticated:
             return None
-        # Check if user is a participant
-        chat_room = ChatRoom.objects.filter(activity=obj, participants=user).first()
-        return str(chat_room.id) if chat_room else None
+        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user, is_accepted=True).first()
+        if chat_request:
+            chat_room = ChatRoom.objects.filter(activity=obj, participants=user).first()
+            return str(chat_room.id) if chat_room else None
+        return None
 
 class MyDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
