@@ -19,16 +19,20 @@ class ChatRequest(models.Model):
     def accept(self):
         self.is_accepted = True
         self.is_clicked = True
-        chat_room, created = ChatRoom.objects.get_or_create(activity=self.activity)
+
+        # Create individual chatrooms for each requests
+        chat_room = ChatRoom.objects.create(activity=self.activity)
         chat_room.participants.add(self.from_user, self.activity.created_by)
         chat_room.save()
         self.save()
+
         if self.initial_message:
             ChatMessage.objects.create(
                 chat_room=chat_room,
                 sender=self.from_user,
                 content=self.initial_message
             )
+
         return chat_room
 
     def __str__(self):

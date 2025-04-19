@@ -14,7 +14,10 @@ class ChatRequestSerializer(serializers.ModelSerializer):
     def get_chatroom_id(self, obj):
         if obj.is_accepted:
             try:
-                chatroom = ChatRoom.objects.filter(activity=obj.activity, participants=obj.from_user).first()
+                chatroom = ChatRoom.objects.filter(
+                    activity=obj.activity,
+                    participants=obj.from_user
+                ).order_by('-created_at').first()
                 if chatroom:
                     return str(chatroom.id)
             except:
