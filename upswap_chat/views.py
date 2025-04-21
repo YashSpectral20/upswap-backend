@@ -87,6 +87,8 @@ class ChatRequestAPIView(APIView):
                         # ✅ Accept logic
                         chat_room = chat_request.accept()
                         chat_request.is_undo = False
+                        chat_request.is_rejected = False
+                        chat_request.save()
                         serializer = ChatRoomSerializer(chat_room)
                         response_data.append({
                             'id': chat_request.id,
@@ -97,6 +99,7 @@ class ChatRequestAPIView(APIView):
                         chat_request.is_accepted = False
                         chat_request.is_clicked = True
                         chat_request.is_undo = False
+                        chat_request.is_rejected = True
                         chat_request.save()
                         response_data.append({
                             'id': chat_request.id,

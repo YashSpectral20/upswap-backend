@@ -11,16 +11,17 @@ class ChatRequest(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
     from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
     is_accepted = models.BooleanField(default=False, help_text="True if the request is accepted")
-    is_clicked = models.BooleanField(default=False, help_text="True if request was interacted with")  # ✅ NEW FIELD
+    is_clicked = models.BooleanField(default=False, help_text="True if request was interacted with")
     is_undo = models.BooleanField(default=False, help_text="True if user wants to undo the action")
+    is_rejected = models.BooleanField(default=False, help_text="True if the request is rejected")  # ✅ NEW FIELD
     initial_message = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     def accept(self):
         self.is_accepted = True
         self.is_clicked = True
+        self.is_rejected = False
 
-        # Create individual chatrooms for each requests
         chat_room = ChatRoom.objects.create(activity=self.activity)
         chat_room.participants.add(self.from_user, self.activity.created_by)
         chat_room.save()
