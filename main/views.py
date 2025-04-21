@@ -1343,7 +1343,40 @@ class PlaceOrderView(generics.CreateAPIView):
             error_message = list(serializer.errors.values())[0][0]
             return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
 
-        place_order = serializer.save(user=request.user, deal=deal)
+        place_order = serializer.save(user=request.user, deal=deal)    
+        
+        # Vendor notification logic
+        vendor = deal.vendor_kyc.user
+        notification_title = "New Order Received!"
+        notification_body = f"{request.user.name} ne aapki deal '{deal.deal_name}' purchase ki hai"
+        
+        notification_data = {
+            "order_id": str(place_order.order_id),
+            "deal_id": str(deal.deal_uuid),
+            "user_id": str(request.user.id),
+            "user_name": request.user.name,
+            "quantity": str(place_order.quantity),
+            "total_amount": str(place_order.total_amount),
+            "type": "new_order"
+        }
+
+        # Send notification to vendor
+        send_notification_to_user(
+            vendor,
+            title=notification_title,
+            body=notification_body,
+            data=notification_data
+        )
+
+        # Also create a database record
+        create_notification(
+            user=vendor,
+            notification_type="new_order",
+            title=notification_title,
+            body=notification_body,
+            reference_instance=place_order,
+            data=notification_data
+        )
 
         response_data = {
             "order_id": str(place_order.order_id),
