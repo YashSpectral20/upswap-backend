@@ -1304,13 +1304,14 @@ class MyActivitysSerializer(serializers.ModelSerializer):
     uploaded_images = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
     is_accepted = serializers.SerializerMethodField()
+    is_rejected = serializers.SerializerMethodField()
     chat_room_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
         fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'activity_description', 'created_by', 'user_participation', 'maximum_participants', 'infinite_time', 'activity_category',
                   'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
-                  'location', 'created_at', 'is_accepted', 'chat_room_id']
+                  'location', 'created_at', 'is_accepted', 'is_rejected', 'chat_room_id']
         
     def get_created_at(self, obj):
         if obj.created_at:
@@ -1338,6 +1339,14 @@ class MyActivitysSerializer(serializers.ModelSerializer):
             return None
         chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).first()
         return chat_request.is_accepted if chat_request else None
+    
+    def get_is_rejected(self, obj):  # ✅ NEW
+        request = self.context.get('request', None)
+        user = getattr(request, 'user', None) if request else None
+        if not user or not user.is_authenticated:
+            return None
+        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).first()
+        return chat_request.is_rejected if chat_request else None
 
     def get_chat_room_id(self, obj):
         request = self.context.get('request', None)
