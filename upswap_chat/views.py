@@ -15,7 +15,7 @@ class ChatRequestAPIView(APIView):
     '''
     def get(self, request, activity_id):
         try:
-            chat_requests = ChatRequest.objects.filter(activity=activity_id)
+            chat_requests = ChatRequest.objects.filter(activity=activity_id, is_rejected=False)
             if chat_requests.exists():
                 serializer = ChatRequestSerializer(chat_requests, many=True)
                 return Response({
