@@ -187,21 +187,6 @@ class VerifyOTPView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        user = request.user  # Currently verified user
-
-        # Sabhi existing users ko notification bhejna
-        existing_users = CustomUser.objects.exclude(id=user.id)
-        title = "New User Registered"
-        body = f"{user.username} has joined the platform."
-
-        for existing_user in existing_users:
-            create_notification(
-                user=existing_user,
-                notification_type="new_user_registered",
-                title=title,
-                body=body,
-                reference_instance=user
-            )
         return Response(serializer.validated_data, status=status.HTTP_200_OK)
 
 
@@ -1533,20 +1518,6 @@ class SocialLogin(generics.GenericAPIView):
                 fcm_token=fcm_token,
                 latitude=latitude,
                 longitude=longitude
-            )
-            
-        # Notify all existing users about the new registration
-        existing_users = CustomUser.objects.exclude(id=user.id)
-        for existing_user in existing_users:
-            create_notification(
-                user=existing_user,
-                notification_type="new_user_registered",
-                title="New User Joined!",
-                body=f"{user.name} has just joined the platform.",
-                data={
-                    "new_user_id": str(user.id),  # Convert UUID to string
-                    "new_user_name": user.name
-                }
             )
 
         vendor_kyc = VendorKYC.objects.filter(user=user).first()
