@@ -22,6 +22,17 @@ class ChatRequest(models.Model):
         self.is_clicked = True
         self.is_rejected = False
 
+        # Check if ChatRoom already exists for this ChatRequest
+        existing_chatroom = ChatRoom.objects.filter(
+            activity=self.activity,
+            participants=self.from_user
+        ).first()
+
+        if existing_chatroom:
+            self.save()
+            return existing_chatroom
+
+        # Create new chat room if it doesn't exist
         chat_room = ChatRoom.objects.create(activity=self.activity)
         chat_room.participants.add(self.from_user, self.activity.created_by)
         chat_room.save()
@@ -35,6 +46,7 @@ class ChatRequest(models.Model):
             )
 
         return chat_room
+
 
     def __str__(self):
         return f"Request from {self.from_user} to {self.activity.created_by} for {self.activity}"
