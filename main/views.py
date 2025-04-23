@@ -1231,17 +1231,46 @@ class ActivityListsView(generics.ListAPIView):
             if activity_start_datetime <= current_time <= activity_end_datetime:
                 live_activities.append(activity)
 
-        # Agar search filter diya hai toh location ko bhi filter karein
+        # Address-based filtering
         if search_keyword:
-            search_terms = search_keyword.split(',')
-            query = Q()
-            for term in search_terms:
-                clean_term = term.strip()
-                query &= Q(location__icontains=clean_term)
+            search_terms = [term.strip() for term in search_keyword.split(',')]
+            filtered_activities = []
 
-            live_activities = [activity for activity in live_activities if query]
+            for activity in live_activities:
+                match = False
+
+                if len(search_terms) == 1:
+                    if search_terms[0].lower() in (activity.location or '').lower():
+                        match = True
+
+                elif len(search_terms) == 2:
+                    match = any(term.lower() in (activity.location or '').lower() for term in search_terms)
+
+                elif len(search_terms) == 3:
+                    match = all(term.lower() in (activity.location or '').lower() for term in search_terms)
+
+                elif len(search_terms) >= 4:
+                    match = any(term.lower() in (activity.location or '').lower() for term in search_terms)
+
+                if match:
+                    filtered_activities.append(activity)
+
+            return filtered_activities
 
         return live_activities
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        response_data = {
+            "message": "No activities found for the specified search keyword." if not queryset else "List of Activities",
+            "activities": []
+        }
+
+        if queryset:
+            serializer = self.get_serializer(queryset, many=True)
+            response_data["activities"] = serializer.data
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
     
 class ActivityDetailsView(generics.RetrieveAPIView):
