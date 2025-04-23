@@ -638,9 +638,9 @@ class VendorKYCListView(ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
+        queryset = VendorKYC.objects.all()
         search_keyword = self.request.query_params.get('address', None)
-        queryset = VendorKYC.objects.all()  # Removed the end_date filter
-        
+
         if search_keyword:
             search_terms = [term.strip() for term in search_keyword.split(',')]
             query = Q()
@@ -652,7 +652,7 @@ class VendorKYCListView(ListAPIView):
                 query |= Q(addresses__country__icontains=clean_term)
                 query |= Q(addresses__pincode__icontains=clean_term)
                 query |= Q(addresses__road_name_area_colony__icontains=clean_term)
-            
+
             elif len(search_terms) == 2:
                 if queryset.filter(addresses__city__icontains=search_terms[0]).exists():
                     query |= Q(addresses__city__icontains=search_terms[0])
@@ -664,9 +664,9 @@ class VendorKYCListView(ListAPIView):
             elif len(search_terms) == 3:
                 if queryset.filter(addresses__city__icontains=search_terms[0]).exists():
                     query |= Q(addresses__city__icontains=search_terms[0])
-                elif queryset.filter(addresses__state__icontains=search_terms[1]).exists():
+                if queryset.filter(addresses__state__icontains=search_terms[1]).exists():
                     query |= Q(addresses__state__icontains=search_terms[1])
-                elif queryset.filter(addresses__country__icontains=search_terms[2]).exists():
+                if queryset.filter(addresses__country__icontains=search_terms[2]).exists():
                     query |= Q(addresses__country__icontains=search_terms[2])
 
             elif len(search_terms) >= 4:
@@ -674,9 +674,9 @@ class VendorKYCListView(ListAPIView):
                     query |= Q(addresses__road_name_area_colony__icontains=search_terms[0])
                 else:
                     return VendorKYC.objects.none()
-            
+
             queryset = queryset.filter(query).distinct()
-        
+
         return queryset
 
     def list(self, request, *args, **kwargs):
@@ -684,10 +684,11 @@ class VendorKYCListView(ListAPIView):
         response_data = {
             "message": "No vendors found for the specified search keyword." if not queryset.exists() else "List of Vendors",
         }
-        
+
         if queryset.exists():
             serializer = self.get_serializer(queryset, many=True, context={'request': request})
-            response_data["vendors"] = serializer.data 
+            response_data["vendors"] = serializer.data
+
         return Response(response_data, status=status.HTTP_200_OK)
     
 
