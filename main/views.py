@@ -18,8 +18,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q
 from django.db.models import F, Func, FloatField
-from math import radians, sin, cos, sqrt, atan2
-from math import radians, sin, cos, sqrt, asin
+from math import radians, sin, cos, sqrt, atan2, asin
 from django.db.models import Sum
 from django.db import models
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
@@ -254,6 +253,16 @@ class CustomUserCreateView(APIView):
             serializer.save()
             return Response({'message': 'CustomUser created successfully'}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+# Haversine distance calculation
+def calculate_distance(lat1, lon1, lat2, lon2):
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a)) 
+    r = 6371  # Radius of earth in kilometers
+    return c * r
 
 class ActivityCreateView(generics.CreateAPIView):
     queryset = Activity.objects.all()
@@ -271,17 +280,32 @@ class ActivityCreateView(generics.CreateAPIView):
                 
                 activity = serializer.save(created_by=self.request.user)
                 
-                #Notification Send Logic Yahan Hai
-                all_users = CustomUser.objects.exclude(id=request.user.id)
-                for user in all_users:
-                    create_notification(
-                        user=user,
-                        notification_type="activity",
-                        title="New Activity Posted!",
-                        body=f"{request.user.name} just posted: {activity.activity_title}",
-                        reference_instance=activity,
-                        data={"activity_id": str(activity.activity_id)}
-                    )
+                # ✅ Notify Nearby Users Within 5KM Only
+                notified_users = []
+
+                if activity.latitude and activity.longitude:
+                    # Exclude creator and users without location data
+                    nearby_users = CustomUser.objects.exclude(id=request.user.id).exclude(latitude__isnull=True, longitude__isnull=True)
+                    
+                    for user in nearby_users:
+                        distance = calculate_distance(
+                            float(activity.latitude),
+                            float(activity.longitude),
+                            float(user.latitude),
+                            float(user.longitude)
+                        )
+                        if distance <= 5:
+                            create_notification(
+                                user=user,
+                                notification_type="activity",
+                                title="New Activity Near You!",
+                                body=f"{request.user.name} just posted: {activity.activity_title}",
+                                reference_instance=activity,
+                                data={"activity_id": str(activity.activity_id)}
+                            )
+                            notified_users.append(str(user.id))
+                else:
+                    print("Activity location not provided; skipping user-distance filtering.")
 
                 # 🔔 Notify the creator as well
                 create_notification(
