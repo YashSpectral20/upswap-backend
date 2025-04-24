@@ -2545,8 +2545,35 @@ class RegisterDeviceView(generics.CreateAPIView):
     serializer_class = DeviceSerializer
     permission_classes = [IsAuthenticated]
 
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        device_token = request.data.get('device_token')
+        device_type = request.data.get('device_type')
+
+        # Required fields check
+        if not device_token or not device_type:
+            return Response(
+                {'message': 'Device token and device type dono chahiye.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Get existing or create new
+        device, created = Device.objects.get_or_create(
+            user=user,
+            device_token=device_token,
+            defaults={'device_type': device_type}
+        )
+
+        if not created:
+            # Agar pehle se exist karta hai
+            return Response(
+                {'message': 'Device already registered.', 'device_id': str(device.id)},
+                status=status.HTTP_200_OK
+            )
+
+        # Naya device bana, serializer se response bhejo
+        serializer = self.get_serializer(device)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
         
 @api_view(["POST"])
 def test_push_notification(request):
