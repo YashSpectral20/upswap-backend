@@ -1234,13 +1234,13 @@ class ActivityListsView(generics.ListAPIView):
 
         # Agar search filter diya hai toh location ko bhi filter karein
         if search_keyword:
-            search_terms = search_keyword.split(',')
-            query = Q()
-            for term in search_terms:
-                clean_term = term.strip()
-                query &= Q(location__icontains=clean_term)
-
-            live_activities = [activity for activity in live_activities if query]
+            search_terms = [term.strip().lower() for term in search_keyword.split(',')]
+            filtered_activities = []
+            for activity in live_activities:
+                activity_location = activity.location.lower() if activity.location else ''
+                if any(term in activity_location for term in search_terms):
+                    filtered_activities.append(activity)
+            return filtered_activities
 
         return live_activities
 
