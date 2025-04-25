@@ -852,7 +852,19 @@ class VendorKYCDetailView(generics.RetrieveAPIView):
 
 ########################################################################################################
 
-
+# Helper function to calculate distance between two lat/lng points
+def calculate_distance(lat1, lon1, lat2, lon2):
+    # convert decimal degrees to radians 
+    lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    
+    # haversine formula
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a)) 
+    r = 6371  # Radius of earth in kilometers
+    return c * r
 
 class CreateDealView(generics.CreateAPIView):
     """
@@ -901,17 +913,23 @@ class CreateDealView(generics.CreateAPIView):
                 data={"deal_id": str(deal.deal_uuid)}
             )
             
-            # 2) Baaki sab users ko notify karo
-            all_users = User.objects.exclude(id=request.user.id)
-            for user in all_users:
-                create_notification(
-                    user=user,
-                    notification_type="deal",
-                    title="New Deal Posted!",
-                    body=f"{request.user.name} just posted a new deal: '{deal.deal_title}'",
-                    reference_instance=deal,
-                    data={"deal_id": str(deal.deal_uuid)}
-                )
+            # Notify users within 5KM
+            if deal.latitude and deal.longitude:
+                nearby_users = User.objects.exclude(id=request.user.id).filter(latitude__isnull=False, longitude__isnull=False)
+                for user in nearby_users:
+                    try:
+                        distance = calculate_distance(deal.latitude, deal.longitude, user.latitude, user.longitude)
+                        if distance <= 5:
+                            create_notification(
+                                user=user,
+                                notification_type="deal",
+                                title="New Deal Posted Nearby!",
+                                body=f"{request.user.name} just posted a new deal: '{deal.deal_title}' near you!",
+                                reference_instance=deal,
+                                data={"deal_id": str(deal.deal_uuid)}
+                            )
+                    except Exception as e:
+                        print(f"❌ Distance calc error for user {user.id}: {e}")
             
             # activity log
             ActivityLog.objects.create(
