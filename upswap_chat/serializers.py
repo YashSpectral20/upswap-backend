@@ -25,9 +25,9 @@ class ChatRequestSerializer(serializers.ModelSerializer):
         return None
 
     def get_from_user_profile_pic(self, obj):
-        profile_pics = obj.from_user.profile_pic
-        if isinstance(profile_pics, list) and profile_pics:
-            return profile_pics[0]  # ya koi aur logic agar multiple image handle kar raha hai
+        profile_pic = obj.from_user.profile_pic
+        if profile_pic:
+            return profile_pic.url if hasattr(profile_pic, 'url') else str(profile_pic)
         return None
 
 class ChatRoomSerializer(serializers.ModelSerializer):

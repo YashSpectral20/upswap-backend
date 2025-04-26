@@ -65,6 +65,7 @@ class ChatMessage(models.Model):
     sender = models.ForeignKey(CustomUser, related_name='sent_messages', on_delete=models.CASCADE)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    seen_by = models.ManyToManyField(CustomUser, related_name='seen_messages', blank=True)
 
     class Meta:
         ordering = ('-created_at',)

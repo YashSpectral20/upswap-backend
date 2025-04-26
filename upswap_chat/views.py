@@ -132,6 +132,11 @@ class ChatMessageAPIView(APIView, CustomPagination):
     def get(self, request, chat_room_id):
         try:
             messages = ChatMessage.objects.filter(chat_room=chat_room_id)
+            
+            # ✅ Mark all retrieved messages as seen by the current user
+            for message in messages.exclude(seen_by=request.user):
+                message.seen_by.add(request.user)
+            
             page = self.paginate_queryset(messages, request, view=self)
             if page is not None:
                 serializer = self.serializer_class(page, many=True)
@@ -144,4 +149,41 @@ class ChatMessageAPIView(APIView, CustomPagination):
         except Exception as e:
             return Response({
                 'error': str(e),
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+class UnseenMessagesAPIView(APIView):
+    """
+    GET: /api/chat/chatrooms/<uuid:chat_room_id>/unseen/
+    Returns unseen message count for each participant in the chatroom.
+    """
+
+    def get(self, request, chat_room_id):
+        try:
+            chat_room = ChatRoom.objects.get(id=chat_room_id)
+            participants = chat_room.participants.all()
+
+            unseen_counts = {}
+            for user in participants:
+                count = ChatMessage.objects.filter(
+                    chat_room=chat_room
+                ).exclude(seen_by=user).exclude(sender=user).count()
+
+                unseen_counts[str(user.id)] = {
+                    "user": user.name,
+                    "unseen_messages": count
+                }
+
+            return Response({
+                'message': 'Unseen message counts fetched.',
+                'data': unseen_counts
+            }, status=status.HTTP_200_OK)
+
+        except ChatRoom.DoesNotExist:
+            return Response({
+                'error': 'Chat room not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({
+                'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
