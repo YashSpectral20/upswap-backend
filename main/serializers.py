@@ -1337,16 +1337,19 @@ class MyActivitysSerializer(serializers.ModelSerializer):
         user = getattr(request, 'user', None) if request else None
         if not user or not user.is_authenticated:
             return None
-        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).first()
+        # Latest chat request lena, old nahi
+        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).order_by('-created_at').first()
         return chat_request.is_accepted if chat_request else None
-    
-    def get_is_rejected(self, obj):  # ✅ NEW
+
+    def get_is_rejected(self, obj):
         request = self.context.get('request', None)
         user = getattr(request, 'user', None) if request else None
         if not user or not user.is_authenticated:
             return None
-        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).first()
+        # Latest chat request lena, old nahi
+        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).order_by('-created_at').first()
         return chat_request.is_rejected if chat_request else None
+
 
     def get_chat_room_id(self, obj):
         request = self.context.get('request', None)
