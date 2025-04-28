@@ -6,6 +6,8 @@ from main.paginations import CustomPagination
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from main.firebase_utils import send_single_fcm_message
+from main.models import Device
 
 class ChatRequestAPIView(APIView):
     '''
@@ -36,24 +38,39 @@ class ChatRequestAPIView(APIView):
 
     def post(self, request, format=None):
         data = request.data
-        try:
-            serializer = ChatRequestSerializer(data=data)
-            if serializer.is_valid():
-                serializer.save()
+        serializer = ChatRequestSerializer(data=data)
+        
+        if serializer.is_valid():
+            chat_request = serializer.save()
 
-                return Response({
-                    'message': 'Chat request has been sent.',
-                    'data': serializer.data
-                }, status=status.HTTP_201_CREATED)
-            
+            # ✅ Send notification to the activity admin
+            activity_admin = chat_request.activity.created_by
+            devices = Device.objects.filter(user=activity_admin)
+
+            if devices.exists():
+                for device in devices:
+                    send_single_fcm_message(
+                        registration_token=device.device_token,
+                        title="New Chat Request",
+                        body=f"{chat_request.from_user.name} has sent you a chat request for {chat_request.activity.activity_title}.",
+                        data={
+                            "type": "chat_request_received",
+                            "activity_id": str(chat_request.activity.activity_id),
+                            "from_user_id": str(chat_request.from_user.id),
+                        }
+                    )
+
             return Response({
-                'error': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({
-                'message': 'Chat request could not be sent.',
-                'error': str(e)
-            }, status=status.HTTP_400_BAD_REQUEST)
+                'message': 'Chat request has been sent.',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        # ✅ If serializer is invalid, return immediately
+        return Response({
+            'message': 'Chat request could not be sent.',
+            'error': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
         
     def patch(self, request, format=None):
         data = request.data
@@ -89,6 +106,23 @@ class ChatRequestAPIView(APIView):
                         chat_request.is_undo = False
                         chat_request.is_rejected = False
                         chat_request.save()
+                        
+                    # After accepting, send notification to the user
+                    user = chat_request.from_user
+                    devices = Device.objects.filter(user=user)
+
+                    if devices.exists():
+                        for device in devices:
+                            send_single_fcm_message(
+                                registration_token=device.device_token,
+                                title="Chat Request Accepted",
+                                body=f"Your chat request for {chat_request.activity.activity_title} has been accepted.",
+                                data={
+                                    "type": "chat_request_accepted",
+                                    "activity_id": str(chat_request.activity.activity_id),
+                                    "chat_room_id": str(chat_room.id),
+                                }
+                            )
                         serializer = ChatRoomSerializer(chat_room)
                         response_data.append({
                             'id': chat_request.id,
