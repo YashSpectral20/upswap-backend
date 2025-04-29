@@ -5,11 +5,12 @@ class ChatRequestSerializer(serializers.ModelSerializer):
     from_user_name = serializers.CharField(source='from_user.name', read_only=True)
     from_user_profile_pic = serializers.SerializerMethodField()
     chatroom_id = serializers.SerializerMethodField()
+    activity_admin_profile_pic = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatRequest
         fields = '__all__' 
-        extra_fields = ['from_user_name', 'from_user_profile_pic']
+        extra_fields = ['from_user_name', 'from_user_profile_pic', 'chatroom_id', 'activity_admin_profile_pic']
         
     def get_chatroom_id(self, obj):
         if obj.is_accepted:
@@ -26,6 +27,12 @@ class ChatRequestSerializer(serializers.ModelSerializer):
 
     def get_from_user_profile_pic(self, obj):
         profile_pic = obj.from_user.profile_pic
+        if profile_pic:
+            return profile_pic.url if hasattr(profile_pic, 'url') else str(profile_pic)
+        return None
+    
+    def get_activity_admin_profile_pic(self, obj):
+        profile_pic = obj.activity.created_by.profile_pic
         if profile_pic:
             return profile_pic.url if hasattr(profile_pic, 'url') else str(profile_pic)
         return None
