@@ -267,7 +267,7 @@ class ActivityListsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Activity
         fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
-                  'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
+                  'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude',
                   'location']
         
     def get_uploaded_images(self, obj):
