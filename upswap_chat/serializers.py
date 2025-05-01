@@ -9,12 +9,13 @@ class ChatRequestSerializer(serializers.ModelSerializer):
     activity_admin_profile_pic = serializers.SerializerMethodField()
     activity_admin_username = serializers.SerializerMethodField()
     last_admin_message = serializers.SerializerMethodField()
+    last_user_message = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
 
     class Meta:
         model = ChatRequest
         fields = '__all__' 
-        extra_fields = ['from_user_name', 'from_user_profile_pic', 'chatroom_id', 'activity_admin_profile_pic', 'activity_admin_username', 'last_admin_message']
+        extra_fields = ['from_user_name', 'from_user_profile_pic', 'chatroom_id', 'activity_admin_profile_pic', 'activity_admin_username', 'last_admin_message', 'last_user_message']
         
     def get_chatroom_id(self, obj):
         if obj.is_accepted:
@@ -54,6 +55,23 @@ class ChatRequestSerializer(serializers.ModelSerializer):
                 ).order_by('-created_at').first()
                 if last_message:
                     return {
+                        "id": last_message.id,
+                        "content": last_message.content,
+                        "created_at": last_message.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    }
+        return None
+    
+    def get_last_user_message(self, obj):
+        if obj.is_accepted:
+            chatroom = ChatRoom.objects.filter(activity=obj.activity, participants=obj.from_user).first()
+            if chatroom:
+                last_message = ChatMessage.objects.filter(
+                    chat_room=chatroom,
+                    sender=obj.from_user
+                ).order_by('-created_at').first()
+                if last_message:
+                    return {
+                        "id": last_message.id,
                         "content": last_message.content,
                         "created_at": last_message.created_at.strftime("%Y-%m-%d %H:%M:%S")
                     }
