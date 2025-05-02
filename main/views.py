@@ -31,7 +31,7 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import (CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, CreateDeal, PlaceOrder,
+from .models import (CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, CreateDeal, PlaceOrder,
                     ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device)
 
 from .serializers import (
@@ -40,7 +40,7 @@ from .serializers import (
     CreateDealSerializer, VendorKYCDetailSerializer,
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
-    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, 
+    MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, AddressSerializer,
     ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer
 
 )    # ChatRoomSerializer, ChatMessageSerializer, ChatRequestSerializer,
@@ -2615,3 +2615,14 @@ def test_push_notification(request):
         return Response({"message": "Notification sent!", "response_id": response})
     except Exception as e:
         return Response({"message": "Failed to send notification", "error": str(e)}, status=500)
+    
+class VendorAddressListView(generics.ListAPIView):
+    serializer_class = AddressSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        # Logged-in user ka VendorKYC fetch karo
+        vendor_kyc = VendorKYC.objects.filter(user=self.request.user).first()
+        if vendor_kyc:
+            return Address.objects.filter(vendor=vendor_kyc)
+        return Address.objects.none()
