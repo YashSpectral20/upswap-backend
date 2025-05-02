@@ -2616,6 +2616,8 @@ def test_push_notification(request):
     except Exception as e:
         return Response({"message": "Failed to send notification", "error": str(e)}, status=500)
     
+    
+#For WebVersion
 class VendorAddressListView(generics.ListAPIView):
     serializer_class = AddressSerializer
     permission_classes = [IsAuthenticated]
