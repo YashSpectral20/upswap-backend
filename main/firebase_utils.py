@@ -54,6 +54,11 @@ def send_notification_to_user(user, title, body, data=None):
     if not device_tokens:
         print(f"⚠️ No devices registered for user {user.email}")
         return
+    
+     # Ensure user ID is added in the data payload
+    if data is None:
+        data = {}
+    data['user_id'] = str(user.id)  # UUID ko string me convert karo
 
     if len(device_tokens) == 1:
         return send_single_fcm_message(device_tokens[0], title, body, data)
