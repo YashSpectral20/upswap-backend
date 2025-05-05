@@ -202,14 +202,15 @@ class MyEventsAPIView(APIView):
             participants = [req.from_user for req in accepted_requests]
 
             for participant in participants:
-                # Get chatroom between admin and this participant
                 chatroom = ChatRoom.objects.filter(
                     activity=activity,
                     participants=participant
                 ).distinct().first()
 
                 last_message = None
+                chatroom_id = None
                 if chatroom:
+                    chatroom_id = str(chatroom.id)
                     last_msg = ChatMessage.objects.filter(chat_room=chatroom).order_by('-created_at').first()
                     if last_msg:
                         last_message = {
@@ -227,7 +228,8 @@ class MyEventsAPIView(APIView):
                             "id": participant.id,
                             "name": participant.name,
                             "username": participant.username,
-                            "profile_pic": participant.profile_pic if participant.profile_pic else None
+                            "profile_pic": participant.profile_pic if participant.profile_pic else None,
+                            "chatroom_id": chatroom_id  # ✅ Add this
                         }
                     ],
                     "last_message": last_message
