@@ -222,7 +222,7 @@ class MyEventsAPIView(APIView):
                         "id": participant.id,
                         "name": participant.name,
                         "username": participant.username,
-                        "profile_pic": participant.profile_pic[0] if isinstance(participant.profile_pic, list) and participant.profile_pic else None
+                        "profile_pic": participant.profile_pic if participant.profile_pic else None
                     } for participant in participants
                 ],
                 "last_message": last_message
