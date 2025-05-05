@@ -86,3 +86,46 @@ class ChatMessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ChatMessage
         fields = '__all__'
+        
+class MyInterestedActivitySerializer(serializers.ModelSerializer):
+    activity_id = serializers.UUIDField(source='activity.activity_id')
+    activity_admin_uuid = serializers.UUIDField(source='activity.created_by.id')
+    activity_title = serializers.CharField(source='activity.activity_title')
+    activity_admin_name = serializers.CharField(source='activity.created_by.name')
+    activity_admin_profile_pic = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
+    thumbnail_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChatRequest
+        fields = ['activity_id', 'activity_title', 'activity_admin_uuid', 'activity_admin_name', 'activity_admin_profile_pic', 'last_message', 'thumbnail_image']
+
+    def get_activity_admin_profile_pic(self, obj):
+        pic = obj.activity.created_by.profile_pic
+        return pic.url if pic and hasattr(pic, 'url') else str(pic) if pic else None
+    
+    def get_thumbnail_image(self, obj):
+        imgs = obj.activity.uploaded_images
+        if isinstance(imgs, list) and imgs:
+            first = imgs[0]
+            # agar dict ho to thumbnail key
+            if isinstance(first, dict):
+                return first.get('thumbnail')
+            # agar direct string URL ho
+            return first
+        return None
+
+    def get_last_message(self, obj):
+        try:
+            chatroom = ChatRoom.objects.filter(activity=obj.activity, participants=obj.from_user).first()
+            if chatroom:
+                last_msg = ChatMessage.objects.filter(chat_room=chatroom).order_by('-created_at').first()
+                if last_msg:
+                    return {
+                        "sender": last_msg.sender.name,
+                        "content": last_msg.content,
+                        "created_at": last_msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    }
+        except:
+            pass
+        return None

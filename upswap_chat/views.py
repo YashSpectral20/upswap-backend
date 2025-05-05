@@ -1,5 +1,5 @@
 from .models import ChatRoom, ChatRequest, ChatMessage
-from .serializers import ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer
+from .serializers import ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer, MyInterestedActivitySerializer
 from main.serializers import CustomUserSerializer
 
 from main.paginations import CustomPagination
@@ -239,7 +239,28 @@ class MyEventsAPIView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+class MyInterestedActivitiesView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        try:
+            chat_requests = ChatRequest.objects.filter(
+                from_user=request.user,
+                is_accepted=True,
+                is_rejected=False
+            ).select_related('activity', 'activity__created_by')
+
+            serializer = MyInterestedActivitySerializer(chat_requests, many=True)
+            return Response({
+                'message': 'My interested activities fetched successfully.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'error': str(e),
+                'message': 'Failed to fetch interested activities.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             
 class UnseenMessagesAPIView(APIView):
     """
