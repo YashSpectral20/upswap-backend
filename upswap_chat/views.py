@@ -216,7 +216,7 @@ class MyEventsAPIView(APIView):
             result.append({
                 "activity_id": str(activity.activity_id),
                 "activity_title": activity.activity_title,
-                "thumbnail": activity.images[0] if activity.images else None,
+                "thumbnail": activity.uploaded_images[0].get('thumbnail') if activity.uploaded_images else None,
                 "participants": [
                     {
                         "id": participant.id,
