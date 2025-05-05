@@ -1,13 +1,17 @@
 from .models import ChatRoom, ChatRequest, ChatMessage
 from .serializers import ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer
+from main.serializers import CustomUserSerializer
 
 from main.paginations import CustomPagination
+from rest_framework.permissions import IsAuthenticated
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from main.firebase_utils import send_single_fcm_message
-from main.models import Device
+from main.models import Device, Activity, CustomUser
+from django.db.models import Q
+from rest_framework import status
 
 class ChatRequestAPIView(APIView):
     '''
@@ -184,6 +188,50 @@ class ChatMessageAPIView(APIView, CustomPagination):
             return Response({
                 'error': str(e),
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+class MyEventsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        activities = Activity.objects.filter(created_by=user)
+
+        result = []
+        for activity in activities:
+            accepted_requests = ChatRequest.objects.filter(activity=activity, is_accepted=True)
+            participants = [req.from_user for req in accepted_requests]
+
+            chatrooms = ChatRoom.objects.filter(activity=activity)
+            last_message = None
+
+            if chatrooms.exists():
+                last_msg = ChatMessage.objects.filter(chat_room__in=chatrooms).order_by('-created_at').first()
+                if last_msg:
+                    last_message = {
+                        "sender_name": last_msg.sender.name,
+                        "content": last_msg.content,
+                        "created_at": last_msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    }
+
+            result.append({
+                "activity_id": str(activity.activity_id),
+                "activity_title": activity.activity_title,
+                "thumbnail": activity.images[0] if activity.images else None,
+                "participants": [
+                    {
+                        "id": participant.id,
+                        "name": participant.name,
+                        "username": participant.username,
+                        "profile_pic": participant.profile_pic.url if participant.profile_pic else None
+                    } for participant in participants
+                ],
+                "last_message": last_message
+            })
+
+        return Response({
+            "message": "My Events retrieved successfully.",
+            "data": result
+        }, status=status.HTTP_200_OK)
             
 class UnseenMessagesAPIView(APIView):
     """
