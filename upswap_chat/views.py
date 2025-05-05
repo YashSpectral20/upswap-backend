@@ -195,43 +195,51 @@ class MyEventsAPIView(APIView):
     def get(self, request):
         user = request.user
         activities = Activity.objects.filter(created_by=user)
-
         result = []
+
         for activity in activities:
             accepted_requests = ChatRequest.objects.filter(activity=activity, is_accepted=True)
             participants = [req.from_user for req in accepted_requests]
 
-            chatrooms = ChatRoom.objects.filter(activity=activity)
-            last_message = None
+            for participant in participants:
+                # Get chatroom between admin and this participant
+                chatroom = ChatRoom.objects.filter(
+                    activity=activity,
+                    participants=participant
+                ).distinct().first()
 
-            if chatrooms.exists():
-                last_msg = ChatMessage.objects.filter(chat_room__in=chatrooms).order_by('-created_at').first()
-                if last_msg:
-                    last_message = {
-                        "sender_name": last_msg.sender.name,
-                        "content": last_msg.content,
-                        "created_at": last_msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                    }
+                last_message = None
+                if chatroom:
+                    last_msg = ChatMessage.objects.filter(chat_room=chatroom).order_by('-created_at').first()
+                    if last_msg:
+                        last_message = {
+                            "sender_name": last_msg.sender.name,
+                            "content": last_msg.content,
+                            "created_at": last_msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                        }
 
-            result.append({
-                "activity_id": str(activity.activity_id),
-                "activity_title": activity.activity_title,
-                "thumbnail": activity.uploaded_images[0].get('thumbnail') if activity.uploaded_images else None,
-                "participants": [
-                    {
-                        "id": participant.id,
-                        "name": participant.name,
-                        "username": participant.username,
-                        "profile_pic": participant.profile_pic if participant.profile_pic else None
-                    } for participant in participants
-                ],
-                "last_message": last_message
-            })
+                result.append({
+                    "activity_id": str(activity.activity_id),
+                    "activity_title": activity.activity_title,
+                    "thumbnail": activity.uploaded_images[0].get('thumbnail') if activity.uploaded_images else None,
+                    "participants": [
+                        {
+                            "id": participant.id,
+                            "name": participant.name,
+                            "username": participant.username,
+                            "profile_pic": participant.profile_pic if participant.profile_pic else None
+                        }
+                    ],
+                    "last_message": last_message
+                })
 
         return Response({
             "message": "My Events retrieved successfully.",
             "data": result
         }, status=status.HTTP_200_OK)
+
+
+
             
 class UnseenMessagesAPIView(APIView):
     """
