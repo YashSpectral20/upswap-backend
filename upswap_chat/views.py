@@ -222,6 +222,7 @@ class MyEventsAPIView(APIView):
                 result.append({
                     "activity_id": str(activity.activity_id),
                     "activity_title": activity.activity_title,
+                    "activity_admin_id": str(activity.created_by.id),
                     "thumbnail": activity.uploaded_images[0].get('thumbnail') if activity.uploaded_images else None,
                     "participants": [
                         {
@@ -229,7 +230,7 @@ class MyEventsAPIView(APIView):
                             "name": participant.name,
                             "username": participant.username,
                             "profile_pic": participant.profile_pic if participant.profile_pic else None,
-                            "chatroom_id": chatroom_id  # ✅ Add this
+                            "chatroom_id": chatroom_id
                         }
                     ],
                     "last_message": last_message
