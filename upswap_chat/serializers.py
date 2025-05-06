@@ -93,13 +93,14 @@ class MyInterestedActivitySerializer(serializers.ModelSerializer):
     activity_title = serializers.CharField(source='activity.activity_title')
     activity_admin_name = serializers.CharField(source='activity.created_by.name')
     activity_admin_profile_pic = serializers.SerializerMethodField()
+    user_uuid = serializers.UUIDField(source='from_user.id')
     last_message = serializers.SerializerMethodField()
     thumbnail_image = serializers.SerializerMethodField()
     chatroom_id = serializers.SerializerMethodField() 
 
     class Meta:
         model = ChatRequest
-        fields = ['activity_id', 'activity_title', 'activity_admin_uuid', 'activity_admin_name', 'activity_admin_profile_pic', 'last_message', 'thumbnail_image', 'chatroom_id']
+        fields = ['activity_id', 'activity_title', 'activity_admin_uuid', 'activity_admin_name', 'activity_admin_profile_pic', 'user_uuid', 'last_message', 'thumbnail_image', 'chatroom_id']
 
     def get_activity_admin_profile_pic(self, obj):
         pic = obj.activity.created_by.profile_pic
