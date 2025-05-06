@@ -488,31 +488,24 @@ class VendorKYCCreateView(generics.CreateAPIView):
     def perform_create(self, serializer):
         user = self.request.user
         uploaded_images = self.request.data.get('uploaded_images', [])
-        
-        if not isinstance(uploaded_images, list):
-            raise ValidationError({"uploaded_images": "uploaded_images must be a list of dictionaries."})
-        
-        # Check if VendorKYC instance already exists for this user
-        try:
-            vendor_kyc = VendorKYC.objects.get(user=user)
-            # If the instance exists, update it instead of creating a new one
-            serializer.instance = vendor_kyc
-            serializer.validated_data['is_approved'] = False  # Reset is_approved
-        except VendorKYC.DoesNotExist:
-            vendor_kyc = None
-
-        # Add uploaded_images to validated data
-        serializer.save(user=user, uploaded_images=uploaded_images)
-        
-    def perform_create(self, serializer):
-        user = self.request.user
         profile_pic = self.request.data.get('profile_pic', '')
 
-        # Ensure profile_pic is stored as a string
+        # Validate uploaded_images
+        if not isinstance(uploaded_images, list):
+            raise ValidationError({"uploaded_images": "uploaded_images must be a list of dictionaries."})
+
+        # Validate profile_pic
         if isinstance(profile_pic, list) or isinstance(profile_pic, dict):
             raise ValidationError({"profile_pic": "profile_pic must be a string (image URL or path)."})
 
-        serializer.save(user=user, profile_pic=profile_pic)
+        # Check if VendorKYC already exists
+        try:
+            vendor_kyc = VendorKYC.objects.get(user=user)
+            serializer.instance = vendor_kyc
+        except VendorKYC.DoesNotExist:
+            pass
+
+        serializer.save(user=user, uploaded_images=uploaded_images, profile_pic=profile_pic, is_approved=False)
 
     def create(self, request, *args, **kwargs):
         try:
