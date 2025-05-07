@@ -294,7 +294,7 @@ class ActivityCreateView(generics.CreateAPIView):
                             float(user.latitude),
                             float(user.longitude)
                         )
-                        if distance <= 5:
+                        if distance <= 20:
                             create_notification(
                                 user=user,
                                 notification_type="activity",
@@ -912,7 +912,7 @@ class CreateDealView(generics.CreateAPIView):
                 for user in nearby_users:
                     try:
                         distance = calculate_distance(deal.latitude, deal.longitude, user.latitude, user.longitude)
-                        if distance <= 5:
+                        if distance <= 20:
                             create_notification(
                                 user=user,
                                 notification_type="deal",
