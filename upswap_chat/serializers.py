@@ -125,6 +125,7 @@ class MyInterestedActivitySerializer(serializers.ModelSerializer):
                 if last_msg:
                     return {
                         "sender": last_msg.sender.name,
+                        "sender_id": str(last_msg.sender.id),
                         "content": last_msg.content,
                         "created_at": last_msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
                     }
