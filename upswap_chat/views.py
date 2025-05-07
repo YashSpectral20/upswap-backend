@@ -214,6 +214,7 @@ class MyEventsAPIView(APIView):
                     last_msg = ChatMessage.objects.filter(chat_room=chatroom).order_by('-created_at').first()
                     if last_msg:
                         last_message = {
+                            "sender_id": last_msg.sender.id,
                             "sender_name": last_msg.sender.name,
                             "content": last_msg.content,
                             "created_at": last_msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
