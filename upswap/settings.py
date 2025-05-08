@@ -94,6 +94,7 @@ INSTALLED_APPS = [
     'channels',
     'corsheaders',
     'drf_yasg',
+    'deals_agent',
     ]
 
 # Define the ASGI application
