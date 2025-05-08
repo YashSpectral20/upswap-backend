@@ -405,8 +405,9 @@ class CreateDeal(models.Model):
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
 
     def save(self, *args, **kwargs):
-        if not self.vendor_kyc.is_approved:
-            raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
+        if self.pk is None: 
+            if not self.vendor_kyc.is_approved:
+                raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
         # if self.select_service:
         #     try:
