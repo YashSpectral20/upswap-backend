@@ -4,6 +4,7 @@ from django.utils import timezone
  
 from main.models import VendorKYC as Vendor
 from main.models import CreateDeal as Deal
+from main.models import Address as Adrs
  
 # class Vendor(models.Model):
 #     vendor_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -119,6 +120,29 @@ class DealSuggestion(models.Model):
     vendor_reviewed_at = models.DateTimeField(blank=True, null=True)
     is_implemented_as_deal = models.ForeignKey(Deal, on_delete=models.SET_NULL, null=True, blank=True)
     notes_from_vendor = models.TextField(blank=True, null=True)
+    
+class Event(models.Model):
+    class EventTriggerChoices(models.TextChoices):
+        WEATHER = 'weather', 'Weather'
+        PRODUCT_EXPIRY = 'product_expiry', 'Product Expiry'
+        HOLIDAY_SPECIAL = 'holiday_special', 'Holiday Special'
+        LOCAL_EVENT = 'local_event', 'Local Event'
+        COMPETITOR_ACTION = 'competitor_action', 'Competitor Action'
+        STOCK_LEVEL = 'stock_level', 'Stock Level'
+
+    event_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    vendor = models.ForeignKey('main.VendorKYC', on_delete=models.CASCADE, related_name='events')
+    location = models.ForeignKey('main.Address', on_delete=models.CASCADE, related_name='events')
+    event_trigger_point = models.CharField(max_length=50, choices=EventTriggerChoices.choices)
+    event_details_text = models.TextField()
+    event_location_latitude = models.DecimalField(max_digits=10, decimal_places=8)
+    event_location_longitude = models.DecimalField(max_digits=11, decimal_places=8)
+    event_timestamp = models.DateTimeField()
+    created_at = models.DateTimeField(default=timezone.now)
+    processed_for_suggestion = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Event {self.event_id} - {self.event_trigger_point}"
  
 # class Deal(models.Model):
 #     DEAL_TYPES = [
