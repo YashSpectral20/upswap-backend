@@ -340,3 +340,4 @@ FCM_API_KEY = 'AAAAd_w70I0:APA91bG9l53D7NMaURfpgLEN-wEYUygZ-WmHtcHtjjjFfl-MYWETc
 YOUR_PROJECT_ID = 'ittdealsapp'
 FIREBASE_CREDENTIALS = "/usr/src/app/creds.json"
 firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
+

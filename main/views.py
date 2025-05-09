@@ -10,6 +10,7 @@ import boto3
 from uuid import uuid4
 import traceback
 import base64
+from twilio.rest import Client
 from django.conf import settings
 from botocore.exceptions import ClientError
 from django.http import HttpResponse, JsonResponse
@@ -76,6 +77,9 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils.timezone import make_aware
 from rest_framework.permissions import IsAuthenticated
 from firebase_admin import messaging
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from django.contrib.auth.models import AnonymousUser
 
 from django.shortcuts import get_object_or_404
 
@@ -2621,3 +2625,93 @@ class VendorAddressListView(generics.ListAPIView):
         if vendor_kyc:
             return Address.objects.filter(vendor=vendor_kyc)
         return Address.objects.none()
+    
+def calculate_distance(lat1, lon1, lat2, lon2):
+    # convert decimal degrees to radians 
+    lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    
+    # haversine formula
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a)) 
+    r = 6371  # Radius of earth in kilometers
+    return c * r
+
+class CreateDealHackathonView(CreateAPIView):
+    queryset = CreateDeal.objects.all()
+    serializer_class = CreateDealSerializer
+    authentication_classes = []  # No authentication
+    permission_classes = []      # No permissions
+
+    def perform_create(self, serializer):
+        serializer.save()  # Save without user or KYC validation
+
+    def post(self, request, *args, **kwargs):
+        try:
+            uploaded_images = request.data.get('uploaded_images', [])
+
+            if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
+                return Response(
+                    {"message": "uploaded_images must be a list of dictionaries."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+
+            deal = serializer.instance
+            deal.set_uploaded_images(uploaded_images)
+            deal.save()
+
+            headers = self.get_success_headers(serializer.data)
+            return Response(
+                {"message": "Deal created successfully!", "data": serializer.data},
+                status=status.HTTP_201_CREATED,
+                headers=headers
+            )
+
+        except ValidationError as e:
+            message = " ".join([f"{key}: {', '.join(map(str, value))}" for key, value in e.detail.items()]) if isinstance(e.detail, dict) else str(e.detail)
+            return Response({"message": message}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+class SendWhatsAppMessageView(APIView):
+    def post(self, request):
+        vendor_id = request.data.get('vendor_id')
+        message_body = request.data.get('message')
+
+        if not vendor_id or not message_body:
+            return Response({"error": "vendor_id and message are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            vendor = VendorKYC.objects.select_related('user').get(vendor_id=vendor_id)
+        except VendorKYC.DoesNotExist:
+            return Response({"error": "Vendor not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        phone = vendor.phone_number or vendor.user.phone_number
+        dial_code = vendor.dial_code or vendor.user.dial_code
+
+        if not phone or not dial_code:
+            return Response({"error": "Phone number or dial code is missing."}, status=status.HTTP_400_BAD_REQUEST)
+
+        full_whatsapp_number = f"whatsapp:{phone}"
+
+        try:
+            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+            message = client.messages.create(
+                from_=settings.TWILIO_WHATSAPP_NUMBER,
+                body=message_body,
+                to=full_whatsapp_number
+            )
+            return Response({
+                "message": "WhatsApp message sent successfully.",
+                "sid": message.sid,
+                "to": full_whatsapp_number
+            })
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
