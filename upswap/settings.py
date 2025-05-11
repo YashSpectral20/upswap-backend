@@ -341,3 +341,7 @@ YOUR_PROJECT_ID = 'ittdealsapp'
 FIREBASE_CREDENTIALS = "/usr/src/app/creds.json"
 firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
 
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
+TWILIO_CONTENT_SID = os.getenv("TWILIO_CONTENT_SID")

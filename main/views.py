@@ -48,7 +48,7 @@ from .serializers import (
 from datetime import datetime
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification 
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification, send_whatsapp_message
 from .firebase_utils import send_notification_to_user 
 from rest_framework.decorators import api_view
 from geopy.distance import geodesic
@@ -2680,38 +2680,31 @@ class CreateDealHackathonView(CreateAPIView):
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-class SendWhatsAppMessageView(APIView):
+class SendVendorWhatsAppMessage(APIView):
+    """
+    POST /api/vendor/send-whatsapp/
+    Body: {
+        "vendor_id": "<uuid>",
+        "message": "Hello Vendor!..."
+    }
+    """
+
     def post(self, request):
-        vendor_id = request.data.get('vendor_id')
-        message_body = request.data.get('message')
+        vendor_id = request.data.get("vendor_id")
+        message = request.data.get("message")
 
-        if not vendor_id or not message_body:
-            return Response({"error": "vendor_id and message are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not vendor_id or not message:
+            return Response({"detail": "vendor_id and message are required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            vendor = VendorKYC.objects.select_related('user').get(vendor_id=vendor_id)
-        except VendorKYC.DoesNotExist:
-            return Response({"error": "Vendor not found."}, status=status.HTTP_404_NOT_FOUND)
+        vendor = get_object_or_404(VendorKYC, vendor_id=vendor_id)
 
-        phone = vendor.phone_number or vendor.user.phone_number
-        dial_code = vendor.dial_code or vendor.user.dial_code
+        phone = vendor.phone_number
+        dial_code = vendor.dial_code or "+91"  # default fallback
 
-        if not phone or not dial_code:
-            return Response({"error": "Phone number or dial code is missing."}, status=status.HTTP_400_BAD_REQUEST)
+        full_phone = f"{dial_code}{phone}".replace(" ", "").replace("-", "")
 
-        full_whatsapp_number = f"whatsapp:{phone}"
-
-        try:
-            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
-            message = client.messages.create(
-                from_=settings.TWILIO_WHATSAPP_NUMBER,
-                body=message_body,
-                to=full_whatsapp_number
-            )
-            return Response({
-                "message": "WhatsApp message sent successfully.",
-                "sid": message.sid,
-                "to": full_whatsapp_number
-            })
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        result = send_whatsapp_message(full_phone, message)
+        if result["status"] == "success":
+            return Response({"detail": "Message sent successfully", "sid": result["sid"]}, status=200)
+        else:
+            return Response({"detail": result["message"]}, status=500)

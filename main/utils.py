@@ -26,6 +26,7 @@ from twilio.rest import Client
 from dotenv import load_dotenv
 from .firebase_utils import send_notification_to_user
 from firebase_admin import messaging
+from twilio.rest import Client
 
 load_dotenv()
 
@@ -206,6 +207,35 @@ def create_notification(user, notification_type, title, body, reference_instance
     send_notification_to_user(user, title, body, data)
 
     return notification
+
+def send_whatsapp_message(to_phone, message_body):
+    account_sid = os.getenv("TWILIO_ACCOUNT_SID", settings.TWILIO_ACCOUNT_SID)
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN", settings.TWILIO_AUTH_TOKEN)
+    from_whatsapp_number = os.getenv("TWILIO_WHATSAPP_NUMBER", settings.TWILIO_WHATSAPP_NUMBER)
+    content_sid = os.getenv("TWILIO_CONTENT_SID", settings.TWILIO_CONTENT_SID)
+
+    client = Client(account_sid, auth_token)
+
+    try:
+        message = client.messages.create(
+            from_=from_whatsapp_number,
+            # body=message_body,
+            content_sid=content_sid,
+            to=f'whatsapp:{to_phone}'
+            
+        )
+        print("Message Body:", message.body)
+        print("SID:", message.sid)
+        print("Status:", message.status)
+        print("From:", message.from_)
+        print("To:", message.to)
+        print("error_code", message.error_code)
+        print("error_message", message.error_message)
+        latest_message = client.messages(message.sid).fetch()
+        print(latest_message.status)
+        return {"status": "success", "sid": message.sid}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 # def custom_exception_handler(exc, context):
 #     response = exception_handler(exc, context)
