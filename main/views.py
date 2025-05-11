@@ -2686,30 +2686,29 @@ class SendVendorWhatsAppMessage(APIView):
     """
     POST /api/vendor/send-whatsapp/
     Body: {
-        "vendor_id": "<uuid>",
-        "message": "Hello Vendor!..."
+        "vendor_id": "<uuid>"
     }
     """
 
     def post(self, request):
         vendor_id = request.data.get("vendor_id")
-        message = request.data.get("message")
 
-        if not vendor_id or not message:
-            return Response({"detail": "vendor_id and message are required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not vendor_id:
+            return Response({"detail": "vendor_id is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         vendor = get_object_or_404(VendorKYC, vendor_id=vendor_id)
 
         phone = vendor.phone_number
-        dial_code = vendor.dial_code or "+91"  # default fallback
-
+        dial_code = vendor.dial_code or "+91"  # fallback
         full_phone = f"{dial_code}{phone}".replace(" ", "").replace("-", "")
 
-        result = send_whatsapp_message(full_phone, message)
+        result = send_whatsapp_message(full_phone)  # only phone pass kar rahe
+
         if result["status"] == "success":
             return Response({"detail": "Message sent successfully", "sid": result["sid"]}, status=200)
         else:
             return Response({"detail": result["message"]}, status=500)
+
         
 class CheckVendorStatusView(APIView):
     def get(self, request, user_id):
