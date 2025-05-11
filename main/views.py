@@ -2708,3 +2708,23 @@ class SendVendorWhatsAppMessage(APIView):
             return Response({"detail": "Message sent successfully", "sid": result["sid"]}, status=200)
         else:
             return Response({"detail": result["message"]}, status=500)
+        
+class CheckVendorStatusView(APIView):
+    def get(self, request, user_id):
+        try:
+            user = CustomUser.objects.get(id=user_id)
+        except CustomUser.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        vendor = VendorKYC.objects.filter(user=user).first()
+
+        if vendor:
+            return Response({
+                "is_vendor": True,
+                "vendor_id": str(vendor.vendor_id)
+            })
+        else:
+            return Response({
+                "is_vendor": False,
+                "vendor_id": ""
+            })

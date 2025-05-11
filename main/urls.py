@@ -121,7 +121,7 @@ from .views import (
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
     RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales,
-    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, test_push_notification
+    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, CheckVendorStatusView, test_push_notification
 )
 
 # Swagger Schema View
@@ -257,6 +257,8 @@ urlpatterns = [
     path('send-whatsapp/', SendVendorWhatsAppMessage.as_view(), name='send-whatsapp'),
     
     path('create-deal/hackathon/', CreateDealHackathonView.as_view(), name='create-deal-hackathon'),
+    
+    path('check-vendor/<uuid:user_id>/', CheckVendorStatusView.as_view(), name='check-vendor'),
     
     #For Testing PUSH Notification
     path('test-notification/', test_push_notification),
