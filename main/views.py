@@ -86,7 +86,6 @@ from django.shortcuts import get_object_or_404
 from activity_log.models import ActivityLog
 from activity_log.serializers import ActivityLogSerializer
 
-logger = logging.getLogger(__name__) #WebHook Hackathone
 
 User = get_user_model()
 token_generator = PasswordResetTokenGenerator()
@@ -912,9 +911,9 @@ class CreateDealView(generics.CreateAPIView):
                 data={"deal_id": str(deal.deal_uuid)}
             )
             
-            # Notify users within 5KM
+            # Notify users within 20KM
             if deal.latitude and deal.longitude:
-                nearby_users = User.objects.exclude(id=request.user.id).filter(latitude__isnull=False, longitude__isnull=False)
+                nearby_users = CustomUser.objects.exclude(id=request.user.id).filter(latitude__isnull=False, longitude__isnull=False)
                 for user in nearby_users:
                     try:
                         distance = calculate_distance(deal.latitude, deal.longitude, user.latitude, user.longitude)
@@ -2730,26 +2729,3 @@ class CheckVendorStatusView(APIView):
                 "vendor_id": ""
             })
             
-@csrf_exempt
-@api_view(['POST'])
-def whatsapp_webhook(request):
-    """
-    Twilio webhook se aane wale WhatsApp messages ka handler.
-    Vendor agar "Yes" ya "No" click kare, toh ye API call hoti hai.
-    """
-    from_number = request.POST.get('From')  # E.g., whatsapp:+9199xxxx
-    message_body = request.POST.get('Body')  # E.g., "Yes" or "No"
-
-    logger.info(f"WhatsApp response from {from_number}: {message_body}")
-
-    # Example logic: response handle karo
-    if message_body and message_body.lower() == 'yes':
-        logger.info("✅ Vendor ACCEPTED the deal.")
-        # Yahan koi database update ya signal fire kar sakte ho
-    elif message_body and message_body.lower() == 'no':
-        logger.info("❌ Vendor DECLINED the deal.")
-        # Yahan bhi kuch processing kar sakte ho
-    else:
-        logger.warning("🤷 Unknown response received.")
-
-    return Response({"status": "received"})

@@ -176,8 +176,6 @@ class ActivitySerializer(serializers.ModelSerializer):
         infinite_time = data.get('infinite_time', False)
 
         if not set_current_datetime and not infinite_time:
-            if data.get('start_date') and data['start_date'] < now:
-                raise serializers.ValidationError({"start_date": "Start date cannot be in the past."})
             if data.get('end_date') and data['end_date'] < now:
                 raise serializers.ValidationError({"end_date": "End date cannot be in the past."})
             if data.get('start_date') and data.get('end_date') and data['end_date'] < data['start_date']:
