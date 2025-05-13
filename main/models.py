@@ -161,8 +161,6 @@ class Activity(models.Model):
 
     def clean(self):
         now = timezone.now().date()
-        if self.start_date and self.start_date < now:
-            raise ValidationError("Start date cannot be in the past.")
         if self.end_date and self.end_date < now:
             raise ValidationError("End date cannot be in the past.")
         if self.start_date and self.end_date and self.end_date < self.start_date:
