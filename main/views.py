@@ -913,7 +913,7 @@ class CreateDealView(generics.CreateAPIView):
             
             # Notify users within 20KM
             if deal.latitude and deal.longitude:
-                nearby_users = CustomUser.objects.exclude(id=request.user.id).filter(latitude__isnull=False, longitude__isnull=False)
+                nearby_users = User.objects.exclude(id=request.user.id).filter(latitude__isnull=False, longitude__isnull=False)
                 for user in nearby_users:
                     try:
                         distance = calculate_distance(deal.latitude, deal.longitude, user.latitude, user.longitude)
@@ -928,6 +928,22 @@ class CreateDealView(generics.CreateAPIView):
                             )
                     except Exception as e:
                         print(f"❌ Distance calc error for user {user.id}: {e}")
+
+            # ✅ Notify users who favorited this vendor — regardless of location
+            vendor_kyc = get_object_or_404(VendorKYC, user=request.user)
+            favoriting_users = CustomUser.objects.filter(
+                favorite_vendors__vendor=vendor_kyc
+            ).exclude(id=request.user.id).distinct()
+
+            for user in favoriting_users:
+                create_notification(
+                    user=user,
+                    notification_type="deal",
+                    title="Your Favorite Vendor Posted a New Deal!",
+                    body=f"{request.user.name} posted a new deal: '{deal.deal_title}'. Check it out!",
+                    reference_instance=deal,
+                    data={"deal_id": str(deal.deal_uuid)}
+                )
             
             # activity log
             ActivityLog.objects.create(
