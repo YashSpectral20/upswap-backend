@@ -112,26 +112,51 @@ class RegisterView(generics.CreateAPIView):
         if not re.match(PASSWORD_REGEX, password):
             return Response({'message': 'Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a digit, and a special character.'},
                             status=status.HTTP_400_BAD_REQUEST)
-            
+
         def validate(self, data):
             if data['password'] != data['confirm_password']:
                 raise serializers.ValidationError({"confirm_password": "Passwords must match."})
             return data
-        
 
-        # Check if the username, email, or phone number already exists
-        if CustomUser.objects.filter(username=username).exists():
-            return Response({'message': 'User already exists with the same username'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if CustomUser.objects.filter(email=data.get('email')).exists():
-            return Response({'message': 'User already exists with the same email'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if CustomUser.objects.filter(phone_number=data.get('phone_number')).exists():
-            return Response({'message': 'User already exists with the same phone number'}, status=status.HTTP_400_BAD_REQUEST)
+        # Check if user already exists
+        existing_user = CustomUser.objects.filter(
+            Q(username=username) | Q(email=data.get('email')) | Q(phone_number=data.get('phone_number'))
+        ).first()
 
-        # If no duplicate user, proceed with registration
+        if existing_user:
+            if existing_user.otp_verified:
+                return Response({'message': 'User already registered.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # If user exists but is not verified, update the data and resend OTP
+            for attr, value in data.items():
+                setattr(existing_user, attr, value)
+            existing_user.set_password(data['password'])
+            existing_user.save()
+
+            # Resend OTP
+            generate_otp(existing_user)
+
+            # Generate tokens
+            refresh = RefreshToken.for_user(existing_user)
+            access_token = str(refresh.access_token)
+
+            # Create session manually
+            request.session["registered_user_id"] = str(existing_user.id)
+            if not request.session.session_key:
+                request.session.save()
+            session_id = request.session.session_key
+
+            return Response({
+                'user': CustomUserSerializer(existing_user, context=self.get_serializer_context()).data,
+                'refresh': str(refresh),
+                'access': access_token,
+                'session_id': session_id,
+                'message': 'OTP resent. User already exists but not yet verified.'
+            }, status=status.HTTP_200_OK)
+
+        # If user does not exist, proceed with fresh registration
         serializer = self.get_serializer(data=data)
-        
+
         try:
             serializer.is_valid(raise_exception=True)
             user = serializer.save()
@@ -139,26 +164,26 @@ class RegisterView(generics.CreateAPIView):
             # Generate and send OTP
             generate_otp(user)
 
-            # Generate JWT tokens for the user
+            # Generate tokens
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
-            
+
             # Create session manually
-            request.session["registered_user_id"] = str(user.id)  # 👈 Fix UUID serialization
+            request.session["registered_user_id"] = str(user.id)
             if not request.session.session_key:
                 request.session.save()
             session_id = request.session.session_key
 
-            # activity log
+            # Log activity
             ActivityLog.objects.create(
-            user=user,
-            event=ActivityLog.SIGN_UP,
-            metadata={
-                "user_id": str(user.id),
-                "longitude": str(user.longitude),
-                "latitude": str(user.latitude)
-            },
-        )
+                user=user,
+                event=ActivityLog.SIGN_UP,
+                metadata={
+                    "user_id": str(user.id),
+                    "longitude": str(user.longitude),
+                    "latitude": str(user.latitude)
+                },
+            )
 
             return Response({
                 'user': CustomUserSerializer(user, context=self.get_serializer_context()).data,
