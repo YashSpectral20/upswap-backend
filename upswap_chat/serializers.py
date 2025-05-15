@@ -11,12 +11,16 @@ class ChatRequestSerializer(serializers.ModelSerializer):
     last_admin_message = serializers.SerializerMethodField()
     last_user_message = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    activity_title = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatRequest
         fields = '__all__' 
-        extra_fields = ['from_user_name', 'from_user_profile_pic', 'chatroom_id', 'activity_admin_profile_pic', 'activity_admin_username', 'last_admin_message', 'last_user_message']
+        extra_fields = ['from_user_name', 'activity_title', 'from_user_profile_pic', 'chatroom_id', 'activity_admin_profile_pic', 'activity_admin_username', 'last_admin_message', 'last_user_message']
         
+    def get_activity_title(self, obj):
+        return obj.activity.activity_title
+    
     def get_chatroom_id(self, obj):
         if obj.is_accepted:
             try:
