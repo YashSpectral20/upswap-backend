@@ -77,7 +77,6 @@ class VerifyOTPSerializer(serializers.Serializer):
         if user.is_anonymous:
             raise serializers.ValidationError("Authentication credentials were not provided.")
 
-        # Check if the OTP is correct and not expired
         try:
             otp_instance = OTP.objects.get(user=user, otp=otp, is_verified=False)
             if otp_instance.is_expired():
@@ -89,18 +88,21 @@ class VerifyOTPSerializer(serializers.Serializer):
         otp_instance.is_verified = True
         otp_instance.save()
 
+        # Mark user as otp_verified
+        user.otp_verified = True
+        user.save()
+
         # Generate new JWT tokens
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
-        
-        # activity log
+
+        # Log activity
         ActivityLog.objects.create(
             user=user,
             event=ActivityLog.VERIFY_OTP,
             metadata={}
         )
 
-        # Return the tokens and a success message
         return {
             'refresh': str(refresh),
             'access': access_token,
