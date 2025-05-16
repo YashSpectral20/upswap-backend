@@ -1581,15 +1581,12 @@ class SocialLogin(generics.GenericAPIView):
         if user:
             if not user.social_id:
                 user.social_id = social_id
-
-            # ✅ Always update login type
-            user.type = login_type
-
+            if not user.type:
+                user.type = login_type
             user.fcm_token = fcm_token or user.fcm_token
             user.latitude = latitude or user.latitude
             user.longitude = longitude or user.longitude
             user.save()
-
         else:
             user = CustomUser.objects.create(
                 social_id=social_id,
