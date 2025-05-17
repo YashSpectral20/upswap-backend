@@ -1047,11 +1047,11 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone_number(self, value):
-        if not re.match(r'^\d{10}$', value):
-            raise serializers.ValidationError("Phone number must be exactly 10 digits.")
-        user = self.context['request'].user
-        if CustomUser.objects.exclude(id=user.id).filter(phone_number=value).exists():
-            raise serializers.ValidationError("This phone number is already in use.")
+        user = self.instance  # logged in user
+        if user.phone_number != value:
+            # Check if OTP verification exists for this user and new phone number
+            if not OTP.objects.filter(user=user, phone_number=value, is_verified=True).exists():
+                raise serializers.ValidationError("This phone number is not verified via OTP.")
         return value
 
     def validate_email(self, value):

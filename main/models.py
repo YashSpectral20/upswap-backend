@@ -122,7 +122,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return self.username
     
 class OTP(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    phone_number = models.CharField(max_length=15)
     otp = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -130,6 +131,9 @@ class OTP(models.Model):
 
     def is_expired(self):
         return timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"{self.user.email} - {self.phone_number} - {self.otp}"
     
 class ActivityCategory(models.Model):
     actv_category = models.CharField(max_length=100, unique=True)
