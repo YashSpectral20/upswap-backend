@@ -35,6 +35,7 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.contrib.auth import authenticate
 from django.db.models import Avg
+from .exceptions import PhoneNumberNotVerified
 
 from activity_log.models import ActivityLog
 
@@ -1047,11 +1048,10 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone_number(self, value):
-        user = self.instance  # logged in user
+        user = self.instance
         if user.phone_number != value:
-            # Check if OTP verification exists for this user and new phone number
             if not OTP.objects.filter(user=user, phone_number=value, is_verified=True).exists():
-                raise serializers.ValidationError("This phone number is not verified via OTP.")
+                raise PhoneNumberNotVerified()
         return value
 
     def validate_email(self, value):
