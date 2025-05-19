@@ -1,4 +1,4 @@
-import random
+import random, string
 import datetime as dt
 from PIL import Image
 from io import BytesIO
@@ -2770,3 +2770,32 @@ class CheckVendorStatusView(APIView):
                 "vendor_id": ""
             })
             
+class SendPhoneVerificationOTP(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        new_phone_number = request.data.get("phone_number")
+
+        if not new_phone_number:
+            return Response({"message": "Phone number is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate OTP
+        otp = ''.join(random.choices(string.digits, k=6))
+        expires_at = timezone.now() + timedelta(minutes=10)
+
+        # Save OTP entry
+        OTP.objects.update_or_create(
+            user=user,
+            phone_number=new_phone_number,
+            defaults={
+                'otp': otp,
+                'expires_at': expires_at,
+                'is_verified': False
+            }
+        )
+
+        # Send OTP
+        send_otp_via_sms(new_phone_number, otp)
+
+        return Response({"message": f"OTP has been sent to {new_phone_number}."}, status=status.HTTP_200_OK)
