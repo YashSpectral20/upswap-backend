@@ -239,11 +239,11 @@ class LoginView(generics.GenericAPIView):
         session_id = request.session.session_key
 
         try:
-            otp_instance = OTP.objects.get(user=user)
-            if not otp_instance.is_verified:
+            otp_instance = OTP.objects.filter(user=user).order_by('-created_at').first()
+            if not otp_instance or not otp_instance.is_verified:
                 return Response({"message": "OTP not verified. Please verify your OTP first."}, status=status.HTTP_403_FORBIDDEN)
-        except OTP.DoesNotExist:
-            return Response({"message": "You have not set a  password yet. Log in with Google or Signup with a new account."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"message": "Unexpected error while checking OTP."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
