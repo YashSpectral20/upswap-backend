@@ -121,8 +121,8 @@ from .views import (
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
     RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales,
-    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, CheckVendorStatusView, SendPhoneVerificationOTP , 
-    test_push_notification
+    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, CheckVendorStatusView, SendPhoneVerificationOTP, 
+    VerifyOTPNewPhoneNumberView, test_push_notification
 )
 
 # Swagger Schema View
@@ -262,6 +262,8 @@ urlpatterns = [
     path('check-vendor/<uuid:user_id>/', CheckVendorStatusView.as_view(), name='check-vendor'),
     
     path('send-phone-verification-otp/', SendPhoneVerificationOTP.as_view(), name='send-phone-verification-otp'),
+    
+    path('verify-otp/update-phone-number/', VerifyOTPNewPhoneNumberView.as_view(), name='verify-otp'),
     
     #For Testing PUSH Notification
     path('test-notification/', test_push_notification),

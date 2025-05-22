@@ -2799,3 +2799,31 @@ class SendPhoneVerificationOTP(APIView):
         send_otp_via_sms(new_phone_number, otp)
 
         return Response({"message": f"OTP has been sent to {new_phone_number}."}, status=status.HTTP_200_OK)
+    
+class VerifyOTPNewPhoneNumberView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        phone_number = request.data.get('phone_number')
+        otp = request.data.get('otp')
+
+        if not phone_number or not otp:
+            return Response({"message": "Phone number and OTP are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        otp_entry = OTP.objects.filter(user=request.user, phone_number=phone_number, otp=otp).order_by('-created_at').first()
+
+        if not otp_entry:
+            return Response({"message": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if otp_entry.is_expired():
+            return Response({"message": "OTP has expired."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Mark as verified
+        otp_entry.is_verified = True
+        otp_entry.save()
+
+        # Optionally: Mark user as verified too
+        request.user.otp_verified = True
+        request.user.save()
+
+        return Response({"message": "OTP verified successfully."}, status=status.HTTP_200_OK)
