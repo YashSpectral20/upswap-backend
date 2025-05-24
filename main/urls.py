@@ -122,7 +122,7 @@ from .views import (
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
     RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales,
     ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, CheckVendorStatusView, SendPhoneVerificationOTP, 
-    VerifyOTPNewPhoneNumberView, test_push_notification
+    VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification
 )
 
 # Swagger Schema View
@@ -264,6 +264,8 @@ urlpatterns = [
     path('send-phone-verification-otp/', SendPhoneVerificationOTP.as_view(), name='send-phone-verification-otp'),
     
     path('verify-otp/update-phone-number/', VerifyOTPNewPhoneNumberView.as_view(), name='verify-otp'),
+    
+    path('vendor/<uuid:vendor_id>/services/create/', ServicesCreateView.as_view(), name='create-multiple-services'),
     
     #For Testing PUSH Notification
     path('test-notification/', test_push_notification),

@@ -1664,6 +1664,23 @@ class DeviceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Device
         fields = '__all__'
+        
+class ServiceCreateSerializer(serializers.Serializer):
+    service_category = serializers.CharField()
+    item_name = serializers.CharField()
+    item_description = serializers.CharField()
+    item_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+    def create(self, validated_data):
+        vendor_kyc = self.context['vendor_kyc']
+        category_name = validated_data.pop('service_category')
+        category_obj, created = ServiceCategory.objects.get_or_create(serv_category=category_name)
+
+        return Service.objects.create(
+            vendor_kyc=vendor_kyc,
+            service_category=category_obj,
+            **validated_data
+        )
     
 # class ResendOTPSerializer(serializers.Serializer):
 #     phone_number = serializers.CharField()

@@ -42,7 +42,7 @@ from .serializers import (
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
     MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, AddressSerializer,
-    ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer
+    ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer
 
 )    # ChatRoomSerializer, ChatMessageSerializer, ChatRequestSerializer,
 from datetime import datetime
@@ -2827,3 +2827,37 @@ class VerifyOTPNewPhoneNumberView(APIView):
         request.user.save()
 
         return Response({"message": "OTP verified successfully."}, status=status.HTTP_200_OK)
+    
+class ServicesCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, vendor_id):
+        try:
+            vendor_kyc = VendorKYC.objects.get(vendor_id=vendor_id, user=request.user)
+        except VendorKYC.DoesNotExist:
+            return Response({"detail": "Vendor KYC not found or not yours."}, status=status.HTTP_404_NOT_FOUND)
+
+        services_data = request.data  # Expecting list of dicts
+        created_services = []
+        errors = []
+
+        for data in services_data:
+            serializer = ServiceCreateSerializer(data=data, context={'vendor_kyc': vendor_kyc})
+            if serializer.is_valid():
+                service = serializer.save()
+                created_services.append({
+                    "uuid": service.uuid,
+                    "item_name": service.item_name,
+                    "item_description": service.item_description,
+                    "item_price": service.item_price
+                })
+            else:
+                errors.append(serializer.errors)
+
+        if errors:
+            return Response({
+                "services": created_services,
+                "errors": errors
+            }, status=status.HTTP_207_MULTI_STATUS)  # 207 = Partial Success
+
+        return Response({"services": created_services}, status=status.HTTP_201_CREATED)
