@@ -82,17 +82,17 @@ class ChatRequestAPIView(APIView):
             return Response({
                 'error': 'Data must be a list of chat requests.'
             }, status=status.HTTP_400_BAD_REQUEST)
-
+ 
         response_data = []
         errors = []
-
+ 
         for item in data:
             try:
                 chat_request = ChatRequest.objects.filter(id=item['id']).first()
                 if chat_request:
                     is_undo = item.get('is_undo', False)
                     is_accepted = item.get('is_accepted', False)
-
+ 
                     if is_undo:
                         # ✅ Undo logic: reset the status
                         chat_request.is_accepted = False
@@ -110,11 +110,12 @@ class ChatRequestAPIView(APIView):
                         chat_request.is_undo = False
                         chat_request.is_rejected = False
                         chat_request.save()
-                        
+                       
                     # After accepting, send notification to the user
                     user = chat_request.from_user
                     devices = Device.objects.filter(user=user)
-
+                    chat_room_serializer = ChatRoomSerializer(chat_room)
+ 
                     if devices.exists():
                         for device in devices:
                             send_single_fcm_message(
@@ -127,36 +128,37 @@ class ChatRequestAPIView(APIView):
                                     "chat_room_id": str(chat_room.id),
                                 }
                             )
-                        serializer = ChatRoomSerializer(chat_room)
+                        # serializer = ChatRoomSerializer(chat_room)
                         response_data.append({
                             'id': chat_request.id,
-                            'chat_room': serializer.data
+                            'chat_room': chat_room_serializer.data
                         })
                     else:
                         # ✅ Reject logic
-                        chat_request.is_accepted = False
+                        chat_request.is_accepted = True
                         chat_request.is_clicked = True
                         chat_request.is_undo = False
-                        chat_request.is_rejected = True
+                        chat_request.is_rejected = False
                         chat_request.save()
                         response_data.append({
+                            'note': 'Chat request accepted but no notification sent.',
                             'id': chat_request.id,
-                            'chat_room': None
+                            'chat_room': chat_room_serializer.data
                         })
             except Exception as e:
                 errors.append({
                     'id': item.get('id'),
                     'error': str(e)
                 })
-
+ 
         response = {
             'message': 'Processed chat requests.',
             'accepted': response_data,
         }
-
+ 
         if errors:
             response['errors'] = errors
-
+ 
         return Response(response, status=status.HTTP_200_OK)
 
 
