@@ -24,6 +24,9 @@ from .models import (
 )
 from upswap_chat.models import ChatRequest, ChatRoom, ChatMessage
 
+from upswap_chat.models import ChatRequest
+from upswap_chat.serializers import ChatRequestSerializer
+
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth import get_user_model
@@ -1659,6 +1662,16 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = '__all__'
+        extra_fields = ['chat_request']
+
+    def get_chat_request(self, obj):
+        if obj.reference_type == 'chatrequest':
+            try:
+                chat_request = ChatRequest.objects.get(id=obj.reference_id)
+                return ChatRequestSerializer(chat_request).data  # Or use model fields manually
+            except ChatRequest.DoesNotExist:
+                return None
+        return None
 
 class DeviceSerializer(serializers.ModelSerializer):
     class Meta:
