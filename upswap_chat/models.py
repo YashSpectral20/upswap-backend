@@ -6,6 +6,7 @@ from main.models import (
     CustomUser,
     Activity
 )
+from main.utils import create_notification
 
 class ChatRequest(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
@@ -34,6 +35,16 @@ class ChatRequest(models.Model):
                 sender=self.from_user,
                 content=self.initial_message
             )
+            
+        # Create notification for the user who sent the request
+        create_notification(
+            user=self.from_user,
+            notification_type="activity",  # or "general"
+            title="Your Chat Request was Accepted",
+            body=f"{self.activity.created_by.name} accepted your request for activity: {self.activity.activity_title}",
+            reference_instance=self.activity,
+            data={"activity_id": str(self.activity.activity_id)}
+        )
 
         return chat_room
 
