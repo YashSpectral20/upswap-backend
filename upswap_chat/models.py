@@ -14,7 +14,7 @@ class ChatRequest(models.Model):
     is_accepted = models.BooleanField(default=False, help_text="True if the request is accepted")
     is_clicked = models.BooleanField(default=False, help_text="True if request was interacted with")
     is_undo = models.BooleanField(default=False, help_text="True if user wants to undo the action")
-    is_rejected = models.BooleanField(default=False, help_text="True if the request is rejected")  # ✅ NEW FIELD
+    is_rejected = models.BooleanField(default=False, help_text="True if the request is rejected")
     initial_message = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
 

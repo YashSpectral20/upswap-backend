@@ -12,6 +12,7 @@ from main.firebase_utils import send_single_fcm_message
 from main.models import Device, Activity, CustomUser
 from django.db.models import Q
 from rest_framework import status
+from main.utils import create_notification
 
 class ChatRequestAPIView(APIView):
     '''
@@ -43,12 +44,13 @@ class ChatRequestAPIView(APIView):
     def post(self, request, format=None):
         data = request.data
         serializer = ChatRequestSerializer(data=data)
-        
+
         if serializer.is_valid():
             chat_request = serializer.save()
 
             # ✅ Send notification to the activity admin
             activity_admin = chat_request.activity.created_by
+            from_user = chat_request.from_user
             devices = Device.objects.filter(user=activity_admin)
 
             if devices.exists():
@@ -56,20 +58,34 @@ class ChatRequestAPIView(APIView):
                     send_single_fcm_message(
                         registration_token=device.device_token,
                         title="New Chat Request",
-                        body=f"{chat_request.from_user.name} has sent you a chat request for {chat_request.activity.activity_title}.",
+                        body=f"{from_user.name} has sent you a chat request for {chat_request.activity.activity_title}.",
                         data={
                             "type": "chat_request_received",
                             "activity_id": str(chat_request.activity.activity_id),
-                            "from_user_id": str(chat_request.from_user.id),
+                            "from_user_id": str(from_user.id),
                         }
                     )
+
+            # ✅ Save notification to the database
+            create_notification(
+                user=activity_admin,
+                notification_type="activity",  # or use "chat_request" if you want to separate it
+                title="New Chat Request",
+                body=f"{from_user.name} has sent you a chat request for {chat_request.activity.activity_title}.",
+                reference_instance=chat_request.activity,
+                data={
+                    "chat_request_id": str(chat_request.id),
+                    "activity_id": str(chat_request.activity.activity_id),
+                    "from_user_id": str(from_user.id),
+                    "from_user_name": from_user.name
+                }
+            )
 
             return Response({
                 'message': 'Chat request has been sent.',
                 'data': serializer.data
             }, status=status.HTTP_201_CREATED)
 
-        # ✅ If serializer is invalid, return immediately
         return Response({
             'message': 'Chat request could not be sent.',
             'error': serializer.errors
