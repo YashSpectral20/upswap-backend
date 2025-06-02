@@ -94,6 +94,7 @@ INSTALLED_APPS = [
     'channels',
     'corsheaders',
     'drf_yasg',
+    'deals_agent',
     ]
 
 # Define the ASGI application
@@ -113,6 +114,7 @@ CHANNEL_LAYERS = {
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -127,17 +129,19 @@ CORS_ALLOWED_ORIGINS = [
     "https://api.upswap.app",
     "http://api.upswap.app", # Include if testing locally with HTTP
     "http://localhost:5173",
+    "https://web.upswap.app",
 ]
-
+ 
 CSRF_TRUSTED_ORIGINS = [
     "https://api.upswap.app",
+    "https://web.upswap.app",
 ]
-
+ 
 CORS_ALLOW_ALL_ORIGINS = True
-
+ 
 # Optional: Allow credentials (cookies, authorization headers)
 CORS_ALLOW_CREDENTIALS = True
-
+ 
 # Allow specific headers if needed
 CORS_ALLOW_HEADERS = [
     'content-type',
@@ -145,6 +149,7 @@ CORS_ALLOW_HEADERS = [
     'accept',
     'x-csrftoken',
     'x-requested-with',
+    'x-session-id',
 ]
 
 
@@ -338,3 +343,8 @@ FCM_API_KEY = 'AAAAd_w70I0:APA91bG9l53D7NMaURfpgLEN-wEYUygZ-WmHtcHtjjjFfl-MYWETc
 YOUR_PROJECT_ID = 'ittdealsapp'
 FIREBASE_CREDENTIALS = "/usr/src/app/creds.json"
 firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
+
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
+TWILIO_CONTENT_SID = os.getenv("TWILIO_CONTENT_SID")

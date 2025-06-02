@@ -121,7 +121,8 @@ from .views import (
     CustomUserDetailView, PlaceOrderListsView, UploadImagesAPI, UploadDocumentsAPI, UploadProfileImageAPI, VendorKYCStatusView, CustomUserEditView, SocialLogin, MyDealView,
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
     RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales,
-    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView
+    ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, CheckVendorStatusView, SendPhoneVerificationOTP, 
+    VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification
 )
 
 # Swagger Schema View
@@ -251,6 +252,23 @@ urlpatterns = [
     path('notifications/', NotificationListView.as_view(), name='notifications-list'),
     path('notifications/mark-as-read/<uuid:pk>/', MarkNotificationAsReadView.as_view(), name='mark-as-read'),
     path('register-device/', RegisterDeviceView.as_view(), name='register-device'),
+    
+    path('vendor/addresses/', VendorAddressListView.as_view(), name='vendor-address-list'),
+    
+    path('send-whatsapp/', SendVendorWhatsAppMessage.as_view(), name='send-whatsapp'),
+    
+    path('create-deal/hackathon/', CreateDealHackathonView.as_view(), name='create-deal-hackathon'),
+    
+    path('check-vendor/<uuid:user_id>/', CheckVendorStatusView.as_view(), name='check-vendor'),
+    
+    path('send-phone-verification-otp/', SendPhoneVerificationOTP.as_view(), name='send-phone-verification-otp'),
+    
+    path('verify-otp/update-phone-number/', VerifyOTPNewPhoneNumberView.as_view(), name='verify-otp'),
+    
+    path('vendor/<uuid:vendor_id>/services/create/', ServicesCreateView.as_view(), name='create-multiple-services'),
+    
+    #For Testing PUSH Notification
+    path('test-notification/', test_push_notification),
     
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),

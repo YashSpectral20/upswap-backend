@@ -22,6 +22,11 @@ from .models import (
     ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser,
     Notification, Device
 )
+from upswap_chat.models import ChatRequest, ChatRoom, ChatMessage
+
+from upswap_chat.models import ChatRequest
+from upswap_chat.serializers import ChatRequestSerializer
+
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth import get_user_model
@@ -33,6 +38,7 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.contrib.auth import authenticate
 from django.db.models import Avg
+from .exceptions import PhoneNumberNotVerified
 
 from activity_log.models import ActivityLog
 
@@ -75,7 +81,6 @@ class VerifyOTPSerializer(serializers.Serializer):
         if user.is_anonymous:
             raise serializers.ValidationError("Authentication credentials were not provided.")
 
-        # Check if the OTP is correct and not expired
         try:
             otp_instance = OTP.objects.get(user=user, otp=otp, is_verified=False)
             if otp_instance.is_expired():
@@ -87,18 +92,21 @@ class VerifyOTPSerializer(serializers.Serializer):
         otp_instance.is_verified = True
         otp_instance.save()
 
+        # Mark user as otp_verified
+        user.otp_verified = True
+        user.save()
+
         # Generate new JWT tokens
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
-        
-        # activity log
+
+        # Log activity
         ActivityLog.objects.create(
             user=user,
             event=ActivityLog.VERIFY_OTP,
             metadata={}
         )
 
-        # Return the tokens and a success message
         return {
             'refresh': str(refresh),
             'access': access_token,
@@ -174,8 +182,6 @@ class ActivitySerializer(serializers.ModelSerializer):
         infinite_time = data.get('infinite_time', False)
 
         if not set_current_datetime and not infinite_time:
-            if data.get('start_date') and data['start_date'] < now:
-                raise serializers.ValidationError({"start_date": "Start date cannot be in the past."})
             if data.get('end_date') and data['end_date'] < now:
                 raise serializers.ValidationError({"end_date": "End date cannot be in the past."})
             if data.get('start_date') and data.get('end_date') and data['end_date'] < data['start_date']:
@@ -193,32 +199,27 @@ class ActivitySerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        # Extract uploaded_images
         uploaded_images = validated_data.pop('uploaded_images', [])
-
-        # Assign the created_by field
         validated_data['created_by'] = self.context['request'].user
 
-        # Preserve user-provided values
-        start_date = validated_data.get('start_date')
-        start_time = validated_data.get('start_time')
-        end_date = validated_data.get('end_date')
-        end_time = validated_data.get('end_time')
+        set_current_datetime = validated_data.get('set_current_datetime', False)
+        infinite_time = validated_data.get('infinite_time', False)
 
-        if validated_data.pop('set_current_datetime', False) and not (start_date or start_time):
+        if set_current_datetime and not (validated_data.get('start_date') or validated_data.get('start_time')):
             current_datetime = timezone.now()
             validated_data['start_date'] = current_datetime.date()
             validated_data['start_time'] = current_datetime.time()
 
-        if validated_data.pop('infinite_time', False) and not (end_date or end_time):
-            future_date = timezone.now() + timezone.timedelta(days=365 * 999)  # 999 years from now
+        if infinite_time and not (validated_data.get('end_date') or validated_data.get('end_time')):
+            future_date = timezone.now() + timezone.timedelta(days=365 * 999)
             validated_data['end_date'] = future_date.date()
             validated_data['end_time'] = future_date.time()
 
-        # Create activity
+        if not validated_data.get('user_participation', True):
+            validated_data['maximum_participants'] = 0
+
         activity = super().create(validated_data)
 
-        # Save uploaded_images metadata
         if uploaded_images:
             activity.uploaded_images = uploaded_images
             activity.save()
@@ -270,7 +271,7 @@ class ActivityListsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Activity
         fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
-                  'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
+                  'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude',
                   'location']
         
     def get_uploaded_images(self, obj):
@@ -662,7 +663,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
             'vendor_name', 'vendor_uuid', 'vendor_email', 'vendor_number',
             'discount_percentage', 'latitude', 'longitude', 'deal_post_time'
         ]
-        read_only_fields = ['deal_uuid', 'discount_percentage', 'actual_price']
+        read_only_fields = ['deal_uuid', 'discount_percentage']
 
     def get_discount_percentage(self, obj):
         if obj.actual_price and obj.deal_price:
@@ -1050,11 +1051,10 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
         return value
 
     def validate_phone_number(self, value):
-        if not re.match(r'^\d{10}$', value):
-            raise serializers.ValidationError("Phone number must be exactly 10 digits.")
-        user = self.context['request'].user
-        if CustomUser.objects.exclude(id=user.id).filter(phone_number=value).exists():
-            raise serializers.ValidationError("This phone number is already in use.")
+        user = self.instance
+        if user.phone_number != value:
+            if not OTP.objects.filter(user=user, phone_number=value, is_verified=True).exists():
+                raise PhoneNumberNotVerified()
         return value
 
     def validate_email(self, value):
@@ -1306,12 +1306,15 @@ class MyActivitysSerializer(serializers.ModelSerializer):
     activity_category = ActivityCategorySerializer(required=True)
     uploaded_images = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
+    is_accepted = serializers.SerializerMethodField()
+    is_rejected = serializers.SerializerMethodField()
+    chat_room_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
         fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'activity_description', 'created_by', 'user_participation', 'maximum_participants', 'infinite_time', 'activity_category',
                   'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
-                  'location', 'created_at']
+                  'location', 'created_at', 'is_accepted', 'is_rejected', 'chat_room_id']
         
     def get_created_at(self, obj):
         if obj.created_at:
@@ -1331,6 +1334,36 @@ class MyActivitysSerializer(serializers.ModelSerializer):
         first_image = obj.uploaded_images[0]  # Get the first image
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
+    
+    def get_is_accepted(self, obj):
+        request = self.context.get('request', None)
+        user = getattr(request, 'user', None) if request else None
+        if not user or not user.is_authenticated:
+            return None
+        # Latest chat request lena, old nahi
+        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).order_by('-created_at').first()
+        return chat_request.is_accepted if chat_request else None
+
+    def get_is_rejected(self, obj):
+        request = self.context.get('request', None)
+        user = getattr(request, 'user', None) if request else None
+        if not user or not user.is_authenticated:
+            return None
+        # Latest chat request lena, old nahi
+        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user).order_by('-created_at').first()
+        return chat_request.is_rejected if chat_request else None
+
+
+    def get_chat_room_id(self, obj):
+        request = self.context.get('request', None)
+        user = getattr(request, 'user', None) if request else None
+        if not user or not user.is_authenticated:
+            return None
+        chat_request = ChatRequest.objects.filter(activity=obj, from_user=user, is_accepted=True).first()
+        if chat_request:
+            chat_room = ChatRoom.objects.filter(activity=obj, participants=user).first()
+            return str(chat_room.id) if chat_room else None
+        return None
 
 class MyDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
@@ -1583,17 +1616,10 @@ class ActivityRepostSerializer(serializers.ModelSerializer):
         read_only_fields = ['activity_id', 'created_by', 'created_at']
 
     def validate(self, data):
-        now = timezone.now()
         start_date = data.get('start_date')
         start_time = data.get('start_time')
         end_date = data.get('end_date')
         end_time = data.get('end_time')
-
-        # Start date aur time current date-time se pehle nahi hona chahiye
-        if start_date < now.date():
-            raise serializers.ValidationError({"message": "Start date cannot be in the past."})
-        if start_date == now.date() and start_time < now.time():
-            raise serializers.ValidationError({"message": "Start time cannot be in the past."})
 
         # End date aur time start date aur time se pehle nahi hona chahiye
         if end_date < start_date:
@@ -1636,11 +1662,38 @@ class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
         fields = '__all__'
+        extra_fields = ['chat_request']
+
+    def get_chat_request(self, obj):
+        if obj.reference_type == 'chatrequest':
+            try:
+                chat_request = ChatRequest.objects.get(id=obj.reference_id)
+                return ChatRequestSerializer(chat_request).data  # Or use model fields manually
+            except ChatRequest.DoesNotExist:
+                return None
+        return None
 
 class DeviceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Device
         fields = '__all__'
+        
+class ServiceCreateSerializer(serializers.Serializer):
+    service_category = serializers.CharField()
+    item_name = serializers.CharField()
+    item_description = serializers.CharField()
+    item_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+    def create(self, validated_data):
+        vendor_kyc = self.context['vendor_kyc']
+        category_name = validated_data.pop('service_category')
+        category_obj, created = ServiceCategory.objects.get_or_create(serv_category=category_name)
+
+        return Service.objects.create(
+            vendor_kyc=vendor_kyc,
+            service_category=category_obj,
+            **validated_data
+        )
     
 # class ResendOTPSerializer(serializers.Serializer):
 #     phone_number = serializers.CharField()

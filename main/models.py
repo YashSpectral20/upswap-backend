@@ -122,7 +122,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         return self.username
     
 class OTP(models.Model):
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    phone_number = models.CharField(max_length=15)
     otp = models.CharField(max_length=6)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -130,6 +131,9 @@ class OTP(models.Model):
 
     def is_expired(self):
         return timezone.now() > self.expires_at
+
+    def __str__(self):
+        return f"{self.user.email} - {self.phone_number} - {self.otp}"
     
 class ActivityCategory(models.Model):
     actv_category = models.CharField(max_length=100, unique=True)
@@ -161,8 +165,6 @@ class Activity(models.Model):
 
     def clean(self):
         now = timezone.now().date()
-        if self.start_date and self.start_date < now:
-            raise ValidationError("Start date cannot be in the past.")
         if self.end_date and self.end_date < now:
             raise ValidationError("End date cannot be in the past.")
         if self.start_date and self.end_date and self.end_date < self.start_date:
@@ -405,15 +407,16 @@ class CreateDeal(models.Model):
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
 
     def save(self, *args, **kwargs):
-        if not self.vendor_kyc.is_approved:
-            raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
+        if self.pk is None: 
+            if not self.vendor_kyc.is_approved:
+                raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
 
-        if self.select_service:
-            try:
-                service = self.vendor_kyc.services.get(item_name=self.select_service)
-                self.actual_price = service.item_price
-            except Service.DoesNotExist:
-                raise ValidationError(f"The service '{self.select_service}' does not exist.")
+        # if self.select_service:
+        #     try:
+        #         service = self.vendor_kyc.services.get(item_name=self.select_service)
+        #         self.actual_price = service.item_price
+        #     except Service.DoesNotExist:
+        #         raise ValidationError(f"The service '{self.select_service}' does not exist.")
 
         if self.start_now:
             now = timezone.now()
