@@ -11,5 +11,5 @@ class Provider(models.Model):
     phone = models.CharField(max_length=15, blank=True, null=True)
     profile_photo = models.JSONField(blank=True, default=list)
     title = models.CharField(max_length=100)
-    services = models.ManyToManyField(Service, related_name='providers')
+    services = models.ManyToManyField(Service, related_name='providers', blank=True)
     work_hours = models.JSONField(default=dict)

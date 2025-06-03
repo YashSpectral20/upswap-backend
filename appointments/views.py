@@ -1,3 +1,4 @@
+import json
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -20,13 +21,14 @@ class ProviderAPIView(APIView):
     def get(self, request, format=None):
         try:
             user = request.user
-            if not user.vendor_kyc_set:
+            vendor = VendorKYC.objects.filter(user=user).first()
+            if not vendor:
                 return Response({
                     'message': 'You must be a vendor to view providers.',
                     'data': {}
                 }, status=status.HTTP_401_UNAUTHORIZED)
             
-            providers = user.vendor_kyc_set.providers.all()
+            providers = vendor.providers.all()
             if providers:
                 serializer = ProviderSerializer(providers, many=True)
                 return Response({
@@ -44,40 +46,59 @@ class ProviderAPIView(APIView):
                 'message': 'An error occurred while retrieving providers.',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+    
     def post(self, request, format=None):
+        user = request.user
+        vendor = VendorKYC.objects.filter(user=user).first()
+
+        if not vendor:
+            return Response({
+                'message': 'You must be a vendor to add a provider.',
+                'data': {}
+            }, status=status.HTTP_401_UNAUTHORIZED)
+
+        profile_photo = request.FILES.get('profilePhoto')
+        data = request.data.copy()
+
+        # Parse and remove 'services' from data
         try:
-            user = request.user
-            vendor = VendorKYC.objects.filter(user=user).first()
-            profile_picture = request.FILES.get('profilePhoto')
-            if not vendor:
-                return Response({
-                    'message': 'You must be a vendor to add a provider.',
-                    'data': {}
-                }, status=status.HTTP_401_UNAUTHORIZED)
-            serializer = ProviderSerializer(data=request.data)
-            if serializer.is_valid():
-                if profile_picture:
-                    # upload profile picture to s3
-                    profile_picture_url = upload_to_s3(profile_picture, f'profile-pictures/{vendor.id}/', profile_picture.name)
-                    serializer.save(vendor=vendor, profile_picture=[profile_picture_url])
-                else:
-                    serializer.save(vendor=vendor)
-                return Response({
-                    'message': 'Provider added successfully.',
-                    'data': serializer.data
-                }, status=status.HTTP_201_CREATED)
-            
+            services = json.loads(data.get('services', '[]'))
+        except json.JSONDecodeError:
+            return Response({
+                'message': 'Invalid format for services.',
+                'data': {}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        data.pop('services', None)
+
+        serializer = ProviderSerializer(data=data)
+        if not serializer.is_valid():
             return Response({
                 'message': 'Failed to add provider.',
                 'error': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
-        
-        except Exception as e:
-            return Response({
-                'message': 'An error occurred while adding the provider.',
-                'error': str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Upload profile photo if provided
+        profile_photo_url = None
+        if profile_photo:
+            profile_photo_url = upload_to_s3(
+                profile_photo,
+                f'profile-pictures/{vendor.vendor_id}',
+                profile_photo.name
+            )
+
+        provider_instance = serializer.save(
+            vendor=vendor,
+            profile_photo=[profile_photo_url] if profile_photo_url else []
+        )
+
+        # Add services if provided
+        if services:
+            provider_instance.services.set(services)
+
+        return Response({
+            'message': 'Provider added successfully.',
+            'data': ProviderSerializer(provider_instance).data
+        }, status=status.HTTP_201_CREATED)
 
 
 class GetProvidersView(generics.ListAPIView):

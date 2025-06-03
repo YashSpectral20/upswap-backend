@@ -28,3 +28,7 @@ class ProviderSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(f"{day} must contain keys: start, end, closed.")
 
         return value
+
+    # def validate(self, attrs):
+    #     data = attrs.get('services')
+    #     services = data.pop('services')
