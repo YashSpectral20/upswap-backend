@@ -100,6 +100,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     type = models.CharField(max_length=10, choices=LOGIN_TYPE_CHOICES, blank=True, null=True)
     
     bio = models.TextField(blank=True, null=True)
+    user_type = models.CharField(max_length=50, blank=True, default='')
     profile_pic = models.JSONField(default=list, blank=True, null=True)
     fcm_token = models.CharField(max_length=255, blank=True, null=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
