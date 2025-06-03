@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     'main',
     'upswap_chat',
     'activity_log',
+    'appointments',
     'storages',
     'rest_framework',
     'rest_framework_simplejwt',
