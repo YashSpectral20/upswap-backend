@@ -1,15 +1,19 @@
-from rest_framework import APIView
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework import generics
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from main.utils import upload_to_s3
 from .serializers import ProviderSerializer
+from .models import Provider
 
 class ProviderAPIView(APIView):
     """
     Get() ---> Retreive all Providers for the vendor.
     Post() ---> Create a new Provider.
     """
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, format=None):
         try:
@@ -71,3 +75,9 @@ class ProviderAPIView(APIView):
                 'message': 'An error occurred while adding the provider.',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class GetProvidersView(generics.ListAPIView):
+    queryset = Provider.objects.all()
+    serializer_class = ProviderSerializer
+    permission_classes = [AllowAny]
