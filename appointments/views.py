@@ -8,6 +8,8 @@ from main.utils import upload_to_s3
 from .serializers import ProviderSerializer
 from .models import Provider
 
+from main.models import VendorKYC
+
 class ProviderAPIView(APIView):
     """
     Get() ---> Retreive all Providers for the vendor.
@@ -18,13 +20,13 @@ class ProviderAPIView(APIView):
     def get(self, request, format=None):
         try:
             user = request.user
-            if not user.vendor_kyc:
+            if not user.vendor_kyc_set:
                 return Response({
                     'message': 'You must be a vendor to view providers.',
                     'data': {}
                 }, status=status.HTTP_401_UNAUTHORIZED)
             
-            providers = user.venor_kyc.providers.all()
+            providers = user.vendor_kyc_set.providers.all()
             if providers:
                 serializer = ProviderSerializer(providers, many=True)
                 return Response({
@@ -46,8 +48,9 @@ class ProviderAPIView(APIView):
     def post(self, request, format=None):
         try:
             user = request.user
+            vendor = VendorKYC.objects.filter(user=user).first()
             profile_picture = request.FILES.get('profilePhoto')
-            if not user.vendor_kyc:
+            if not vendor:
                 return Response({
                     'message': 'You must be a vendor to add a provider.',
                     'data': {}
@@ -56,10 +59,10 @@ class ProviderAPIView(APIView):
             if serializer.is_valid():
                 if profile_picture:
                     # upload profile picture to s3
-                    profile_picture_url = upload_to_s3(profile_picture, f'profile-pictures/{user.vendor_kyc.id}/', profile_picture.name)
-                    serializer.save(vendor=user.vendor_kyc, profile_picture=[profile_picture_url])
+                    profile_picture_url = upload_to_s3(profile_picture, f'profile-pictures/{vendor.id}/', profile_picture.name)
+                    serializer.save(vendor=vendor, profile_picture=[profile_picture_url])
                 else:
-                    serializer.save(vendor=user.vendor_kyc)
+                    serializer.save(vendor=vendor)
                 return Response({
                     'message': 'Provider added successfully.',
                     'data': serializer.data
