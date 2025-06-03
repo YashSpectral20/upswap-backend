@@ -927,13 +927,17 @@ class CreateDealView(generics.CreateAPIView):
             deal.set_uploaded_images(uploaded_images)
             deal.save()
             
+            # Get vendor_id from VendorKYC
+            vendor_kyc = get_object_or_404(VendorKYC, user=request.user)
+            vendor_id = str(vendor_kyc.vendor_id) if hasattr(vendor_kyc, 'vendor_id') else None
+            
             create_notification(
                 user=request.user,
                 notification_type="deal",
                 title="Your Deal is Live!",
                 body=f"Congrats {request.user.name}, your deal '{deal.deal_title}' is now live!",
                 reference_instance=deal,
-                data={"deal_id": str(deal.deal_uuid)}
+                data={"deal_id": str(deal.deal_uuid), "vendor_id": vendor_id,}
             )
             
             # Notify users within 20KM
@@ -949,7 +953,7 @@ class CreateDealView(generics.CreateAPIView):
                                 title="New Deal Posted Nearby!",
                                 body=f"{request.user.name} just posted a new deal: '{deal.deal_title}' near you!",
                                 reference_instance=deal,
-                                data={"deal_id": str(deal.deal_uuid)}
+                                data={"deal_id": str(deal.deal_uuid), "vendor_id": vendor_id,}
                             )
                     except Exception as e:
                         print(f"❌ Distance calc error for user {user.id}: {e}")
@@ -967,7 +971,7 @@ class CreateDealView(generics.CreateAPIView):
                     title="Your Favorite Vendor Posted a New Deal!",
                     body=f"{request.user.name} posted a new deal: '{deal.deal_title}'. Check it out!",
                     reference_instance=deal,
-                    data={"deal_id": str(deal.deal_uuid)}
+                    data={"deal_id": str(deal.deal_uuid), "vendor_id": vendor_id,}
                 )
             
             # activity log
