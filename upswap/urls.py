@@ -75,16 +75,16 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
-    # Admin Site
-    path('admin/', admin.site.urls),
+    # Admin Staging Site
+    path('admin/staging/', admin.site.urls),
 
-    # Include app URLs
-    path('api/', include('main.urls')),
-    path('api/chat/', include('upswap_chat.urls')),
+    # Include app Staging URLs
+    path('api/staging/', include('main.urls')),
+    path('api/chat/staging/', include('upswap_chat.urls')),
 
     # Swagger Endpoints
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+    path('swagger/staging/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('redoc/staging/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     path('swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
 ]
 

@@ -188,7 +188,7 @@ DATABASES = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'upswap-db',
+        'NAME': 'upswap-staging-db',
         'USER': 'upswap',
         'PASSWORD': 'upswapDBadmin',
         'HOST': 'upswap-db.cno04mc4gmpt.us-east-1.rds.amazonaws.com',  # The hostname of the PostgreSQL service in Docker Compose
