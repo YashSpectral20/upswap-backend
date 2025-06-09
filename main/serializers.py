@@ -759,11 +759,13 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     discount_percentage = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
+    service_category = serializers.SerializerMethodField()
+
 
     class Meta:
         model = CreateDeal
         fields = [
-            'deal_uuid', 'deal_post_time', 'deal_title', 'select_service',
+            'deal_uuid', 'deal_post_time', 'deal_title', 'select_service', 'service_category',
             'uploaded_images', 'start_date', 'end_date', 'start_time', 'end_time',
             'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
@@ -803,6 +805,13 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         ).aggregate(avg_rating=Avg('rating'))['avg_rating']
         
         return round(average, 1) if average else 0.0
+    
+    def get_service_category(self, obj):
+        try:
+            service = obj.vendor_kyc.services.get(item_name=obj.select_service)
+            return service.service_category.serv_category if service.service_category else None
+        except Service.DoesNotExist:
+            return None
         
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
