@@ -265,12 +265,12 @@ class ActivitySerializer(serializers.ModelSerializer):
 class ActivityListsSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source='created_by.id', read_only=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    activity_category = ActivityCategorySerializer(required=True)
+    activity_category = serializers.CharField(source='activity_category.actv_category', read_only=True)
     uploaded_images = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
-        fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time', 'activity_category',
+        fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time',
                   'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude',
                   'location']
         
@@ -760,7 +760,6 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     uploaded_images = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     service_category = serializers.SerializerMethodField()
-
 
     class Meta:
         model = CreateDeal
