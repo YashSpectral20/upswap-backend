@@ -182,6 +182,7 @@ class ChatMessageAPIView(APIView, CustomPagination):
     '''
     get messages from a ChatRoom.
     '''
+    permission_classes = [IsAuthenticated]
     pagination_class = CustomPagination
     serializer_class = ChatMessageSerializer
 

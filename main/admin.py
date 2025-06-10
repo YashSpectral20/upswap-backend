@@ -6,15 +6,15 @@ from .models import (
 
 # Custom User Admin
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ('id', 'email', 'name', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio', 'fcm_token', 'latitude', 'longitude')
+    list_display = ('id', 'email', 'name', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio', 'fcm_token', 'latitude', 'longitude', 'user_type')
     list_filter = ('is_staff', 'is_active', 'otp_verified', 'country', 'type')
     fieldsets = (
         (None, {'fields': ('username', 'password', 'email', 'social_id', 'type')}),
-        ('Personal info', {'fields': ('id', 'name', 'phone_number', 'date_of_birth', 'gender', 'country_code', 'dial_code', 'country', 'bio', 'profile_pic', 'fcm_token', 'latitude', 'longitude')}),
+        ('Personal info', {'fields': ('id', 'name', 'phone_number', 'date_of_birth', 'gender', 'country_code', 'dial_code', 'country', 'bio', 'profile_pic', 'fcm_token', 'latitude', 'longitude', 'user_type')}),
         ('Permissions', {'fields': ('is_staff', 'is_active', 'otp_verified', 'is_superuser')}),
     )
     readonly_fields = ('id',)
-    search_fields = ('username', 'email', 'phone_number', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio', 'fcm_token')
+    search_fields = ('username', 'email', 'phone_number', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio', 'fcm_token', 'user_type')
     ordering = ('email',)
     filter_horizontal = ()
 
