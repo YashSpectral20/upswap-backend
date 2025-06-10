@@ -1,4 +1,8 @@
 import json
+
+from datetime import datetime, timedelta
+from django.db import IntegrityError
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -7,15 +11,19 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from main.utils import upload_to_s3
 
+from .utils.generate_slots import generate_timeslots
 from .serializers import (
     ProviderSerializer,
     ServiceSerializer,
-    ServiceCategorySerializer
+    ServiceCategorySerializer,
+    TimeSlotSerializer,
+    AppointmentSerializer
 )
 from .models import (
     Provider,
     Service,
-    ServiceCategory
+    ServiceCategory,
+    TimeSlot
 )
 
 from main.models import VendorKYC
@@ -104,9 +112,14 @@ class ProviderAPIView(APIView):
         # Add services if provided
         if services:
             provider_instance.services.set(services)
-
+        message = 'Provider added successfully.'
+        generated, err = generate_timeslots(provider_instance)
+        if generated:
+            message += ' Time slots generated successfully.'
+        elif err:
+            message += f" Failed to generate time slots: {err}"
         return Response({
-            'message': 'Provider added successfully.',
+            'message': message,
             'data': ProviderSerializer(provider_instance).data
         }, status=status.HTTP_201_CREATED)
 
@@ -114,11 +127,8 @@ class ProviderAPIView(APIView):
         try:
             provider = Provider.objects.get(pk=pk)
             data = request.data.copy()
-
-            # Handle profile photo upload
             profile_photo = request.FILES.get('profilePhoto')
 
-            # Parse and update 'services'
             services = json.loads(data.get('services', '[]'))
             data.pop('services', None)
             if profile_photo:
@@ -418,3 +428,104 @@ class GetServicesView(generics.ListAPIView):
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
     permission_classes = [AllowAny]
+
+class TimeSlotAPIView(APIView):
+    """
+    Get() ---> Get time slots for a provider & service.
+    Post() ---> Create time slots for the provider.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, format=None):
+        try:
+            provider_id = request.query_params.get('provider_id')
+            for_date = request.query_params.get('for_date')
+            if not provider_id or not for_date:
+                return Response({
+                    'message': 'Provider ID and date are required.',
+                    'data': {}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            # for_date =datetime.strptime(for_date, '%Y-%m-%d').date()
+            timeslots = TimeSlot.objects.filter(provider_id=provider_id, date=for_date)
+            if timeslots:
+                serializer = TimeSlotSerializer(timeslots, many=True)
+                return Response({
+                    'message': 'Time slots found for the provider.',
+                    'data': serializer.data
+                }, status=status.HTTP_200_OK)
+            return Response({
+                    'message': 'Time slots not found for the provider.',
+                    'data': []
+                }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                    'message': 'Error occurred while fetching time slots.',
+                    'error': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request, service_id, format=None):
+        try:
+            data = request.data.copy()
+            start_date = data.get('start_date')
+            if not start_date:
+                return Response({
+                    'message': 'Start date and is required.',
+                    'date': {}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            generated, err = generate_timeslots(service_id, start_date)
+            if generated:
+                return Response({
+                    'message': 'Time slots created successfully.',
+                    'data': {}
+                }, status=status.HTTP_201_CREATED)
+            return Response({
+                'message': 'Failed to create time slots.',
+                'error': err
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'message': 'An error occurred while creating time slots.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class AppointmentsAPIView(APIView):
+    # provider, service, timeslot, notes, vendor, customer, created_at, updated_at, status
+    """
+    Post() ---> Book an Appointment 
+    """
+    
+    def post(self, request, format=None):
+        from django.db import connection
+        connection.queries_log.clear()
+        data = request.data.copy()
+        data['customer'] = request.user.id
+        
+        try:
+            provider = Provider.objects.get(id=data['provider'])
+            timeslot = TimeSlot.objects.get(id=data['time_slot'])
+            if not timeslot.is_available:
+                return Response({
+                    'message': 'This timeslot is not available, try a different time slot.',
+                    'data': {}
+                }, status=status.HTTP_200_OK)
+            data['vendor'] = provider.vendor.vendor_id
+        except Exception as e:
+            return Response({
+                'message': 'provider not found.',
+                'error': str(e)
+            }, status=status.HTTP_404_NOT_FOUND)
+        serializer = AppointmentSerializer(data=data)
+        if serializer.is_valid():
+            timeslot.is_available = False
+            serializer.save()
+            timeslot.save()
+            num_queries = len(connection.queries)
+            print(num_queries)
+            return Response({
+                'message': 'Appointment has been booked successfully.',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED)
+        return Response({
+            'message': 'Appointment cannot be booked.',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)

@@ -42,7 +42,7 @@ from .serializers import (
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
     MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, AddressSerializer,
-    ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer
+    ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer, GetVendorSerializer
 
 )    # ChatRoomSerializer, ChatMessageSerializer, ChatRequestSerializer,
 from datetime import datetime
@@ -1362,7 +1362,10 @@ class LogoutAPI(APIView):
             event=ActivityLog.LOGOUT,
             metadata={}
         )
-        logout(request)
+        try:
+            logout(request)
+        except Exception as e:
+            pass
         return Response({"message": "User logged out successfully."}, status=status.HTTP_200_OK)
 
     
@@ -2865,3 +2868,54 @@ class ServicesCreateView(APIView):
             }, status=status.HTTP_207_MULTI_STATUS)  # 207 = Partial Success
 
         return Response({"services": created_services}, status=status.HTTP_201_CREATED)
+
+from appointments.serializers import (
+    ProviderSerializer,
+    ServiceSerializer,
+)
+
+from appointments.models import (
+    Service as AppointmentService,
+    Provider,
+) 
+
+
+class GetAllVendors(generics.ListAPIView):
+    """
+    Get all vendors
+    """
+    queryset = VendorKYC.objects.all()
+    serializer_class = GetVendorSerializer
+    permission_classes = [AllowAny]
+
+class GetVendorServiceAndProviders(APIView):
+    """
+    Get vendor's info, services and providers in single API call
+    """
+
+    def get(self, request, vendor_id, format=None):
+        try:
+            vendor = VendorKYC.objects.get(vendor_id=vendor_id)
+        except VendorKYC.DoesNotExist:
+            return Response({"detail": "Vendor not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            # Serialize vendor info
+            vendor_serializer = GetVendorSerializer(vendor)
+
+            # Get services and providers
+            services = AppointmentService.objects.filter(vendor=vendor).select_related('category')
+            service_serializer = ServiceSerializer(services, many=True)
+
+            providers = Provider.objects.filter(vendor=vendor)
+            provider_serializer = ProviderSerializer(providers, many=True)
+
+            return Response({
+                "vendor": vendor_serializer.data,
+                "services": service_serializer.data,
+                "providers": provider_serializer.data
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'message': 'An error occurred while fetching vendor data.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

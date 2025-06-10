@@ -33,6 +33,22 @@ class Provider(models.Model):
     services = models.ManyToManyField(Service, related_name='providers', blank=True)
     work_hours = models.JSONField(default=dict)
 
+class TimeSlot(models.Model):
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name='time_slots')
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_available = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['date', 'start_time']
+        unique_together = ['provider', 'date', 'start_time', 'end_time']
+
+    def __str__(self):
+        return f"{self.date} {self.start_time}-{self.end_time}"
+
 class Appointment(models.Model):
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -44,8 +60,9 @@ class Appointment(models.Model):
 
     customer = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='customer_appointments')
     vendor = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='vendor_appointments')
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, null=True, blank=True)
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='appointments')
-    # time_slot = models.ForeignKey(TimeSlot, on_delete=models.CASCADE, related_name='appointments')
+    time_slot = models.ForeignKey(TimeSlot, on_delete=models.CASCADE, related_name='appointments')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -81,18 +98,3 @@ class Appointment(models.Model):
 
         super().save(*args, **kwargs) 
 
-class TimeSlot(models.Model):
-    vendor = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='time_slots')
-    date = models.DateField()
-    start_time = models.TimeField()
-    end_time = models.TimeField()
-    is_available = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['date', 'start_time']
-        unique_together = ['vendor', 'date', 'start_time', 'end_time']
-
-    def __str__(self):
-        return f"{self.date} {self.start_time}-{self.end_time} - {self.vendor.business_name}"

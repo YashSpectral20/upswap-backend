@@ -4,6 +4,7 @@ from .models import (
     Service,
     ServiceCategory,
     Appointment,
+    TimeSlot,
 )
 
 class ServiceNameSerializer(serializers.ModelSerializer):
@@ -86,3 +87,23 @@ class AppointmentSerializer(serializers.ModelSerializer):
             'status', 'notes', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class TimeSlotSerializer(serializers.ModelSerializer):
+    provider = ProviderNameSerializer(read_only=True)
+
+    class Meta:
+        model = TimeSlot
+        fields = [
+            'id', 'provider', 'date', 'start_time', 
+            'end_time', 'is_available'
+        ]
+
+class AppointmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Appointment
+        fields = [
+            'id', 'customer', 'vendor', 'provider',
+            'service', 'time_slot', 'status', 'notes',
+            'created_at', 'updated_at'
+        ]

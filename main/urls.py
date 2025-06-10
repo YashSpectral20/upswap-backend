@@ -122,7 +122,7 @@ from .views import (
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
     RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales,
     ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, CheckVendorStatusView, SendPhoneVerificationOTP, 
-    VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification
+    VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification, GetAllVendors, GetVendorServiceAndProviders
 )
 
 # Swagger Schema View
@@ -180,6 +180,8 @@ urlpatterns = [
     path('vendor/lists/', VendorKYCListView.as_view(), name='vendor-kyc-list'),
     path('vendor/details/<uuid:vendor_id>/', VendorKYCDetailView.as_view(), name='vendorKYC-details'),
     path('vendor/status/<str:vendor_id>/', VendorKYCStatusView.as_view(), name='vendor-status'),
+    path('get-all-vendors/', GetAllVendors.as_view(), name='get-all-vendors'),
+    path('get-vendor-service-and-providers/<uuid:vendor_id>/', GetVendorServiceAndProviders.as_view(), name='get-vendor-service-and-providers'),
     
     # Deals (Requires Authentication)
     path('deals/create/', CreateDealView.as_view(), name='create-deal'),

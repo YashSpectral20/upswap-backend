@@ -8,6 +8,8 @@ from .views import (
     ServiceAPIVIew,
     RetrieveServiceAPIView,
     GetServicesView,
+    TimeSlotAPIView,
+    AppointmentsAPIView,
 )
 
 urlpatterns = [
@@ -30,4 +32,11 @@ urlpatterns = [
     path('delete-service/<int:pk>/', ServiceAPIVIew.as_view(), name='delete-service'),
     path('get-service/<int:pk>/', RetrieveServiceAPIView.as_view(), name='get-service-by-id'),
     path('get-all-services/', GetServicesView.as_view(), name='get-all-services'),
+
+    # Time slot URLs
+    path('create-time-slot/<int:service_id>/', TimeSlotAPIView.as_view(), name='create-time-slot'),
+    path('get-time-slots/', TimeSlotAPIView.as_view(), name='get-time-slots'),
+
+    # Appointments URLs
+    path('book-appointment/', AppointmentsAPIView.as_view(), name='book-appointment'),
 ]
