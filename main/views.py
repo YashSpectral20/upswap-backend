@@ -11,6 +11,7 @@ from uuid import uuid4
 import traceback
 import base64
 from twilio.rest import Client
+from django.core.cache import cache
 from django.conf import settings
 from botocore.exceptions import ClientError
 from django.http import HttpResponse, JsonResponse
@@ -48,7 +49,7 @@ from .serializers import (
 from datetime import datetime
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification, send_whatsapp_message
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification, send_whatsapp_message, send_email_via_mailgun
 from .firebase_utils import send_notification_to_user 
 from rest_framework.decorators import api_view
 from geopy.distance import geodesic
@@ -238,12 +239,12 @@ class LoginView(generics.GenericAPIView):
             request.session.save()
         session_id = request.session.session_key
 
-        try:
-            otp_instance = OTP.objects.filter(user=user).order_by('-created_at').first()
-            if not otp_instance or not otp_instance.is_verified:
-                return Response({"message": "OTP not verified. Please verify your OTP first."}, status=status.HTTP_403_FORBIDDEN)
-        except Exception as e:
-            return Response({"message": "Unexpected error while checking OTP."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # try:
+        #     otp_instance = OTP.objects.filter(user=user).order_by('-created_at').first()
+        #     if not otp_instance or not otp_instance.is_verified:
+        #         return Response({"message": "OTP not verified. Please verify your OTP first."}, status=status.HTTP_403_FORBIDDEN)
+        # except Exception as e:
+        #     return Response({"message": "Unexpected error while checking OTP."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
@@ -1807,7 +1808,7 @@ class SendOTPView(APIView):
 
         # Send the OTP via SMS using Twilio
         try:
-            send_otp_via_sms(user.phone_number, otp)
+            send_otp_via_sms(user.dial_code, user.phone_number, otp)
         except Exception as e:
             return Response(
                 {"message": f"Failed to send OTP SMS. Error: {str(e)}"},
@@ -2865,3 +2866,117 @@ class ServicesCreateView(APIView):
             }, status=status.HTTP_207_MULTI_STATUS)  # 207 = Partial Success
 
         return Response({"services": created_services}, status=status.HTTP_201_CREATED)
+
+class SendVerificationOTP(APIView):
+    """
+    Post() ---> Send OTP to the phone number or email of the user
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        verification_type = request.data.get('verification_type')
+        if not verification_type:
+            return Response({
+                'message': 'Verification type is required.',
+                'data': {}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if verification_type == 'email':
+            email = request.data.get('email')
+            if not email:
+                return Response({
+                    'message': 'Email is required.',
+                    'data': {}
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            if email == request.user.email:
+                return Response({
+                    'message': 'New email is same as old email.',
+                    'data': {}
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
+            cache.set(email, otp, timeout=600)
+            sent = send_email_via_mailgun(email, otp)
+            if not sent:
+                return Response({
+                    'message': 'OTP couldn\'t be sent, please try again later.',
+                    'data': {}
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({
+                    'message': 'OTP send successfully.',
+                    'data': {}
+                }, status=status.HTTP_200_OK)
+                            
+        elif verification_type == 'phone':
+            phone = request.data.get('phone')
+            dial_code = request.data.get('dial_code')
+            if not phone or not dial_code:
+                return Response({
+                    'message': 'Phone number and dial code is required.',
+                    'data': {}
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            dial_code = request.data.get('dial_code')
+            otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
+            cache.set(phone, otp, timeout=600)
+            err, err_code = send_otp_via_sms(dial_code, phone, otp)
+            if err or err_code:
+                return Response({
+                'message': 'OTP couldn\'t be sent.',
+                'error': f"{err}, {err_code}"
+            }, status=status.HTTP_200_OK)
+            return Response({
+                'message': 'OTP sent successfully.',
+                'data': {}
+            }, status=status.HTTP_200_OK)
+
+class VerifyOTPViewV2(APIView):
+    """
+    Post() ---> verify the OTP
+    """
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        user = request.user
+        verification_type = request.data.get('verification_type')
+        otp = request.data.get('otp')
+
+        try:
+            if verification_type == 'email':
+                email = request.data.get('email')
+                original_otp = cache.get(email)
+                if not original_otp:
+                    return Response({
+                        'message': 'OTP has expired, please try again.',
+                        'data': {}
+                    }, status=status.HTTP_200_OK)
+                if original_otp == otp:     
+                    user = CustomUser.objects.get(email=user.email)
+                    user.social_id = None
+                    user.save()
+                    return Response({
+                        'message': 'OTP has been verified.',
+                        'data': {}
+                    }, status=status.HTTP_200_OK)
+            
+            elif verification_type == 'phone':
+                phone = request.data.get('phone')
+                original_otp = cache.get(phone)
+                if not original_otp:
+                    return Response({
+                        'message': 'OTP has expired, please try again.',
+                        'data': {}
+                    }, status=status.HTTP_200_OK)
+                if original_otp == otp:     
+                    user = CustomUser.objects.get(phone_number=user.phone_number)
+                    user.otp_verified = True
+                    user.save()
+                    return Response({
+                        'message': 'OTP has been verified.',
+                        'data': {}
+                    }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'message': 'OTP cannot be verified.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

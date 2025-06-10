@@ -1014,7 +1014,7 @@ class CustomUserDetailsSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = [
             'id', 'name', 'bio', 'profile_pic', 'username', 'email', 'phone_number', 'date_of_birth',
-            'gender', 'country_code', 'dial_code', 'country'
+            'gender', 'country_code', 'dial_code', 'country', 'social_id'
         ]
         read_only_fields = fields
     
