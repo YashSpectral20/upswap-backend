@@ -5,6 +5,7 @@ import random
 import string
 import boto3
 import uuid
+import requests
 from PIL import Image
 from io import BytesIO
 import base64
@@ -66,25 +67,27 @@ def send_email(from_email_address, to_email_address, subject, body, api_key=None
         "headers": dict(response.headers),
     }
 
-def send_otp_via_sms(phone_number, otp):
+def send_otp_via_sms(dial_code, phone_number, otp):
     try:
         account_sid = os.getenv("TWILIO_ACCOUNT_SID")
         auth_token = os.getenv("TWILIO_AUTH_TOKEN")
         from_phone = os.getenv("FROM_PHONE_NUMBER")
         app_hash = os.getenv("APP_HASH")
-
         client = Client(account_sid, auth_token)
 
-        message_body = f"Your code is {otp}\n{app_hash}"
+        message_body = f"Please verify your email/phone number with this OTP - {otp}\n{app_hash}"
 
         message = client.messages.create(
             body=message_body,
             from_=from_phone,
-            to=f"+91{phone_number}"
+            to=f"{dial_code}{phone_number}"
         )
+        err, err_code = message.error_message, message.error_code
         print(f"OTP sent: {message.sid}")
+        return err, err_code
     except Exception as e:
         print(f"Failed to send OTP: {str(e)}")
+        return str(e), None
 
 def generate_otp(user):
     otp = ''.join(random.choices(string.digits, k=6))  # 6-digit OTP
@@ -97,7 +100,7 @@ def generate_otp(user):
     )
 
     # Send OTP via SMS instead of email
-    send_otp_via_sms(user.phone_number, otp)
+    send_otp_via_sms(user.dial_code, user.phone_number, otp)
 
     return otp
 
@@ -239,3 +242,22 @@ def send_whatsapp_message(to_phone):
 #         return Response({'message': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 #     return response
+
+
+def send_email_via_mailgun(email, otp):
+    response = requests.post(
+        f"https://api.mailgun.net/v3/{os.getenv('MAILGUN_DOMAIN')}/messages",
+        auth=("api", os.getenv("MAILGUN_API_KEY")),
+        data={
+            "from": "Upswap  <verify@upswap.app>",
+            "to": [email], 
+            "subject": "OTP verification",
+            "text": f"Verify your email with this OTP - {otp}",
+        },
+    )
+
+    if response.status_code == 200:
+        return True
+    else:
+        print(response.text)
+        return False

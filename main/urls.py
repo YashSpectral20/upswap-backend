@@ -112,8 +112,9 @@ from rest_framework_simplejwt.views import (
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework import permissions
-from .views import (
-    OTPResetPasswordView, RegisterView, SendOTPView, ValidateOTPView, VerifyOTPView, LoginView, CustomUserCreateView,
+from .views import (    
+    OTPResetPasswordView, 
+    RegisterView, SendOTPView, ValidateOTPView, VerifyOTPView, LoginView, CustomUserCreateView,
     ActivityCreateView,
     VendorKYCCreateView, VendorKYCDetailView, 
     CreateDealView, CreateDealDetailView, CreateDeallistView, 
@@ -122,7 +123,9 @@ from .views import (
     SuperadminLoginView, FavoriteVendorView, FavoriteVendorsListView, MyActivityView, SubmitRatingView, RaiseAnIssueMyOrdersView, RaiseAnIssueVendorsCreateView,
     RaiseAnIssueCustomUserView, DeactivateDealView, RepostDealView, DeactivateActivitiesView, ActivityRepostView, MySalesAPIView, ViewTotalSales,
     ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, CheckVendorStatusView, SendPhoneVerificationOTP, 
-    VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification, GetAllVendors, GetVendorServiceAndProviders
+    GetAllVendors, GetVendorServiceAndProviders,
+    VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification,
+    SendVerificationOTP, VerifyOTPViewV2, UpdatePasswordAPI
 )
 
 # Swagger Schema View
@@ -196,7 +199,7 @@ urlpatterns = [
     
     path('send-otp/', SendOTPView.as_view(), name='send-otp'),
     path('validate-otp/', ValidateOTPView.as_view(), name='validate-otp'),
-    path('reset-password-otp/', OTPResetPasswordView.as_view(), name='reset-password-otp'),
+    path('reset-password-otp/', OTPResetPasswordView.as_view(), name='reset-password-otp'), #
     
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('password-reset-confirm/<uidb64>/<token>/', ResetPasswordView.as_view(), name='password-reset-confirm'),
@@ -275,6 +278,10 @@ urlpatterns = [
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+
+    path('send-verification-otp/', SendVerificationOTP.as_view(), name='send-verification-otp'),
+    path('verify-otp/v2/', VerifyOTPViewV2.as_view(), name='verify-otp-v2'),
+    path('update-password/v2/', UpdatePasswordAPI.as_view(), name='update-password-v2'),
 ]
 
 if settings.DEBUG:
