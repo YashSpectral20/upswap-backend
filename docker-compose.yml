@@ -87,7 +87,7 @@ services:
   redis:
     image: redis:latest
     ports:
-      - "6370:6379"
+      - "6379:6379"
       
   web:
     build: .
@@ -97,7 +97,7 @@ services:
       - .:/usr/src/app
       - ./logs:/usr/src/app/logs  # Map logs directory to the host
     ports:
-      - "8008:8000"
+      - "8000:8000"
     depends_on:
       - redis
       - adminer
@@ -114,4 +114,4 @@ services:
     image: adminer
     restart: always
     ports:
-      - 3403:8080
+      - 3402:8080
