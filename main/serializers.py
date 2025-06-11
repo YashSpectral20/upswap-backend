@@ -415,7 +415,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
     )
     business_hours = serializers.JSONField(required=False, allow_null=True)
     addresses = AddressSerializer(many=True, required=False)
-    services = ServiceSerializer(many=True, required=True)
+    # services = ServiceSerializer(many=True, required=True)
 
     class Meta:
         model = VendorKYC
@@ -428,8 +428,8 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             'country_code', 'dial_code', 
             'bank_account_number', 
             'retype_bank_account_number', 'bank_name', 'ifsc_code', 
-            'services', 'business_hours', 'is_approved', 'latitude', 'longitude'
-        ]
+            'business_hours', 'is_approved', 'latitude', 'longitude'
+        ]   # 'services',
 
     def validate_business_hours(self, value):
         if not isinstance(value, list):
@@ -450,12 +450,12 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 
         # If no existing VendorKYC, create a new one
         addresses_data = validated_data.pop('addresses', [])
-        services_data = validated_data.pop('services', [])
+        # services_data = validated_data.pop('services', [])
         uploaded_documents = validated_data.pop('uploaded_business_documents', [])
 
         vendor_kyc = VendorKYC.objects.create(**validated_data)
 
-        self.handle_addresses_and_services(vendor_kyc, addresses_data, services_data)
+        self.handle_addresses(vendor_kyc, addresses_data) # , services_data
 
         if uploaded_documents:
             vendor_kyc.uploaded_business_documents = uploaded_documents
@@ -465,7 +465,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         addresses_data = validated_data.pop('addresses', None)
-        services_data = validated_data.pop('services', None)
+        # services_data = validated_data.pop('services', None)
         uploaded_documents = validated_data.pop('uploaded_business_documents', [])
         profile_pic = validated_data.pop('profile_pic', None)
 
@@ -481,22 +481,22 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             instance.profile_pic = profile_pic
 
         # Handle addresses and services
-        self.handle_addresses_and_services(instance, addresses_data, services_data)
+        self.handle_addresses(instance, addresses_data)  # , services_data
 
         instance.save()
         return instance
 
-    def handle_addresses_and_services(self, vendor_kyc, addresses_data, services_data):
-        """Helper method to update addresses and services"""
+    def handle_addresses(self, vendor_kyc, addresses_data):  # _and_services
+        """Helper method to update addresses"""
         if addresses_data is not None:
             vendor_kyc.addresses.all().delete()
             for address in addresses_data:
                 Address.objects.create(vendor=vendor_kyc, **address)
 
-        if services_data is not None:
-            vendor_kyc.services.all().delete()
-            for service in services_data:
-                Service.objects.create(vendor_kyc=vendor_kyc, **service)
+        # if services_data is not None:
+        #     vendor_kyc.services.all().delete()
+        #     for service in services_data:
+        #         Service.objects.create(vendor_kyc=vendor_kyc, **service)
 
     
     
@@ -504,7 +504,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 class VendorKYCListSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.name', read_only=True)
     user = serializers.UUIDField(source='user.id', read_only=True)
-    services = serializers.SerializerMethodField()
+    # services = serializers.SerializerMethodField()
     addresses = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
@@ -512,12 +512,12 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = VendorKYC
-        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'services', 'addresses', 'is_favorite', 'average_rating']
+        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'addresses', 'is_favorite', 'average_rating']
 
-    def get_services(self, obj):
-        # Assuming 'services' is a related field in the VendorKYC model
-        services = obj.services.all()  # Fetch related services
-        return ServiceSerializer(services, many=True).data
+    # def get_services(self, obj):
+    #     # Assuming 'services' is a related field in the VendorKYC model
+    #     services = obj.services.all()  # Fetch related services
+    #     return ServiceSerializer(services, many=True).data
 
     def get_addresses(self, obj):
         # Assuming 'addresses' is a related field in the VendorKYC model
@@ -563,7 +563,7 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
 class VendorKYCDetailSerializer(serializers.ModelSerializer):
     # Include related fields for addresses, services, business documents, and photos
     addresses = AddressSerializer(many=True, read_only=True)
-    services = ServiceSerializer(many=True, read_only=True)
+    # services = ServiceSerializer(many=True, read_only=True)
 
     # Handling the business related documents and photos as lists of strings
     uploaded_business_documents = serializers.SerializerMethodField()
@@ -580,7 +580,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
             'uploaded_images', 'same_as_personal_phone_number', 
             'same_as_personal_email_id', 'addresses', 'country_code', 'dial_code', 
             'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
-            'services', 'business_hours', 'is_approved', 'average_rating'
+            'business_hours', 'is_approved', 'average_rating'
         ]
         read_only_fields = ['user', 'is_approved']  # Keep read-only fields to avoid updates during detail fetching
 
@@ -592,7 +592,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         """
         representation = super().to_representation(instance)
         # Format services and addresses for response
-        representation['services'] = ServiceSerializer(instance.services.all(), many=True).data
+        # representation['services'] = ServiceSerializer(instance.services.all(), many=True).data
         representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
 
         return representation

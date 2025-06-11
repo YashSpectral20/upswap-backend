@@ -73,7 +73,6 @@ def send_otp_via_sms(dial_code, phone_number, otp):
         auth_token = os.getenv("TWILIO_AUTH_TOKEN")
         from_phone = os.getenv("FROM_PHONE_NUMBER")
         app_hash = os.getenv("APP_HASH")
-        print(dial_code, phone_number, otp)
         client = Client(account_sid, auth_token)
 
         message_body = f"Please verify your email/phone number with this OTP - {otp}\n{app_hash}"

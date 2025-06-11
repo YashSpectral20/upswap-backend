@@ -125,35 +125,52 @@ class RegisterView(generics.CreateAPIView):
         ).first()
 
         if existing_user:
-            if existing_user.otp_verified:
-                return Response({'message': 'User already registered.'}, status=status.HTTP_400_BAD_REQUEST)
+            if existing_user:
+                if existing_user.type == 'Google':
+                     return Response({
+                        'message': 'User exists, try google or apple login.'
+                    }, status=status.HTTP_400_BAD_REQUEST) 
+                elif existing_user.email == data.get('email'):
+                    return Response({
+                        'message': 'User with this email already exists.'
+                    }, status=status.HTTP_400_BAD_REQUEST) 
+                elif existing_user.username == data.get('username'):
+                    return Response({
+                        'message': 'User with this username already exists.'
+                    }, status=status.HTTP_400_BAD_REQUEST) 
+                elif existing_user.phone_number == data.get('phone_number'):
+                    return Response({
+                        'message': 'User with this phone number already exists.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                return Response({'message': f"User already registered." }, status=status.HTTP_400_BAD_REQUEST)
 
-            # If user exists but is not verified, update the data and resend OTP
-            for attr, value in data.items():
-                setattr(existing_user, attr, value)
-            existing_user.set_password(data['password'])
-            existing_user.save()
+            # # If user exists but is not verified, update the data and resend OTP
+            # for attr, value in data.items():
+            #     setattr(existing_user, attr, value)
+            # existing_user.set_password(data['password'])
+            # existing_user.save()
 
-            # Resend OTP
-            generate_otp(existing_user)
+            # # Resend OTP
+            # generate_otp(existing_user)
 
-            # Generate tokens
-            refresh = RefreshToken.for_user(existing_user)
-            access_token = str(refresh.access_token)
+            # # Generate tokens
+            # refresh = RefreshToken.for_user(existing_user)
+            # access_token = str(refresh.access_token)
 
-            # Create session manually
-            request.session["registered_user_id"] = str(existing_user.id)
-            if not request.session.session_key:
-                request.session.save()
-            session_id = request.session.session_key
+            # # Create session manually
+            # request.session["registered_user_id"] = str(existing_user.id)
+            # if not request.session.session_key:
+            #     request.session.save()
+            # session_id = request.session.session_key
 
-            return Response({
-                'user': CustomUserSerializer(existing_user, context=self.get_serializer_context()).data,
-                'refresh': str(refresh),
-                'access': access_token,
-                'session_id': session_id,
-                'message': 'OTP resent. User already exists but not yet verified.'
-            }, status=status.HTTP_200_OK)
+            # return Response({
+            #     'user': CustomUserSerializer(existing_user, context=self.get_serializer_context()).data,
+            #     'refresh': str(refresh),
+            #     'access': access_token,
+            #     'session_id': session_id,
+            #     'message': 'OTP resent. User already exists but not yet verified.'
+            # }, status=status.HTTP_200_OK)
 
         # If user does not exist, proceed with fresh registration
         serializer = self.get_serializer(data=data)
@@ -2894,7 +2911,7 @@ class SendVerificationOTP(APIView):
                     'message': 'New email is same as old email.',
                     'data': {}
                 }, status=status.HTTP_400_BAD_REQUEST)
-                
+
             otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
             cache.set(email, otp, timeout=600)
             sent = send_email_via_mailgun(email, otp)
@@ -2952,12 +2969,18 @@ class VerifyOTPViewV2(APIView):
                     }, status=status.HTTP_200_OK)
                 if original_otp == otp:     
                     user = CustomUser.objects.get(email=user.email)
+                    user.email = email
                     user.social_id = None
                     user.save()
                     return Response({
                         'message': 'OTP has been verified.',
                         'data': {}
                     }, status=status.HTTP_200_OK)
+                else:
+                    return Response({
+                        'message': 'OTP didn\'t match. Please try again.',
+                        'data': {}
+                    }, status=status.HTTP_400_BAD_REQUEST)
             
             elif verification_type == 'phone':
                 phone = request.data.get('phone')
@@ -2970,6 +2993,7 @@ class VerifyOTPViewV2(APIView):
                 if original_otp == otp:     
                     user = CustomUser.objects.get(phone_number=user.phone_number)
                     user.otp_verified = True
+                    user.phone_number = phone
                     user.save()
                     return Response({
                         'message': 'OTP has been verified.',
@@ -2980,3 +3004,32 @@ class VerifyOTPViewV2(APIView):
                 'message': 'OTP cannot be verified.',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class UpdatePasswordAPI(APIView):
+    """
+    Post() ---> Update the password of an User.
+    """
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        user = request.user
+        password = request.data.get('password')
+        confirm_password = request.data.get('confirm_password')
+
+        if not password or not confirm_password:
+            return Response({
+                'message': 'Password or Confirm Password is missing.',
+                'data': {}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if password != confirm_password:
+            return Response({
+                'message': 'Passwords do not match.',
+                'data': {}
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(password)
+        user.save()
+        return Response({
+            'message': 'Password has been updated successfully.',
+            'data': {}
+        }, status=status.HTTP_200_OK)
