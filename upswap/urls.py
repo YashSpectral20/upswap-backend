@@ -81,6 +81,7 @@ urlpatterns = [
     # Include app URLs
     path('api/', include('main.urls')),
     path('api/chat/', include('upswap_chat.urls')),
+    path('api/appointments/', include('appointments.urls')),
 
     # Swagger Endpoints
     path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),

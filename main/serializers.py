@@ -1717,3 +1717,20 @@ class ServiceCreateSerializer(serializers.Serializer):
 
 #         data['user'] = user
 #         return data
+
+
+from appointments.serializers import ServiceNameSerializer
+class GetVendorSerializer(serializers.ModelSerializer):
+    # full_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
+    # vendor_id = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
+    # country = serializers.CharField(source='vendor_kyc.country', read_only=True)
+    profile_pic = serializers.SerializerMethodField()
+    ven_services = ServiceNameSerializer(many=True, read_only=True)
+    addresses = AddressSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = VendorKYC
+        fields = ['full_name', 'vendor_id', 'business_description', 'profile_pic', 'ven_services', 'addresses']
+    
+    def get_profile_pic(self, obj):
+        return obj.profile_pic if obj.profile_pic else ""
