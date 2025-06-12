@@ -377,20 +377,16 @@ class Address(models.Model):
 
 class CreateDeal(models.Model):
     vendor_kyc = models.ForeignKey('VendorKYC', on_delete=models.CASCADE, related_name='deal')
-    
     deal_post_time = models.DateTimeField(default=timezone.now)
     deal_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     deal_title = models.CharField(max_length=255)
     deal_description = models.TextField()
-
-    select_service = models.CharField(max_length=255, blank=True)
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, null=True, blank=True)
+    category = models.CharField(max_length=100, null=True, blank=True)
     uploaded_images = models.JSONField(default=list, blank=True)
 
-    start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-    start_time = models.TimeField(blank=True, null=True)
     end_time = models.TimeField(blank=True, null=True)
-    start_now = models.BooleanField(default=False)
     buy_now = models.BooleanField(default=True)
     view_count = models.IntegerField(default=0)
 
@@ -411,18 +407,6 @@ class CreateDeal(models.Model):
         if self.pk is None: 
             if not self.vendor_kyc.is_approved:
                 raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
-
-        # if self.select_service:
-        #     try:
-        #         service = self.vendor_kyc.services.get(item_name=self.select_service)
-        #         self.actual_price = service.item_price
-        #     except Service.DoesNotExist:
-        #         raise ValidationError(f"The service '{self.select_service}' does not exist.")
-
-        if self.start_now:
-            now = timezone.now()
-            self.start_date = now.date()
-            self.start_time = now.time().replace(microsecond=0)
             
         if self.pk is None and self.available_deals < 1:
             raise ValidationError("You must provide at least 1 deal while creating a deal.")

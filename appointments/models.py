@@ -12,10 +12,37 @@ class ServiceCategory(models.Model):
         return self.service_category
 
 class Service(models.Model):
+    SERVICE_CATEGORY_CHOICES = [
+        ("Automotive Services & Products", "Automotive Services & Products"),
+        ("Art, Crafts & Collectibles", "Art, Crafts & Collectibles"),
+        ("Baby Care", "Baby Care"),
+        ("Bakery", "Bakery"),
+        ("Books, Stationery & Toys", "Books, Stationery & Toys"),
+        ("Clothing", "Clothing"),
+        ("Clothing", "Clothing"),
+        ("Dentist", "Dentist"),
+        ("Electronics", "Electronics"),
+        ("Estate Agents", "Estate Agents"),
+        ("Fashion, Apparel & Accessories", "Fashion, Apparel & Accessories"),
+        ("Food", "Food"),
+        ("Furniture", "Furniture"),
+        ("Groceries", "Groceries"),
+        ("Health, Wellness & Fitness", "Health, Wellness & Fitness"),
+        ("Home, Living & Kitchen", "Home, Living & Kitchen"),
+        ("Others", "Others"),
+        ("Personal Care", "Personal Care"),
+        ("Pet Care Services & Supplies", "Pet Care Services & Supplies"),
+        ("Professional & Business Services", "Professional & Business Services"),
+        ("Rent & Hire", "Rent & Hire"),
+        ("Restaurants", "Restaurants"),
+        ("Sports & Outdoors", "Sports & Outdoors"),
+        ("Other Services & Consultations", "Other Services & Consultations"),
+    ]
     name = models.CharField(max_length=255)
     vendor = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='ven_services')
     description = models.TextField(blank=True, null=True)
-    category = models.ForeignKey(ServiceCategory, on_delete=models.CASCADE, related_name='cat_services')
+    # category = models.ForeignKey(ServiceCategory, on_delete=models.CASCADE, related_name='cat_services')
+    category = models.CharField(max_length=100, choices=SERVICE_CATEGORY_CHOICES)
     duration = models.PositiveIntegerField(help_text="Duration in minutes.")
     buffer_time = models.PositiveIntegerField(default=0, help_text="Buffer time in minutes.")
     price = models.DecimalField(max_digits=10, decimal_places=2)

@@ -45,7 +45,7 @@ from .serializers import (
     MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, AddressSerializer,
     ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer, GetVendorSerializer
 
-)    # ChatRoomSerializer, ChatMessageSerializer, ChatRequestSerializer,
+)
 from datetime import datetime
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
@@ -126,8 +126,8 @@ class RegisterView(generics.CreateAPIView):
 
         if existing_user:
             if existing_user:
-                if existing_user.type == 'Google':
-                     return Response({
+                if existing_user.type == 'Google' or existing_user.type == 'Apple':
+                    return Response({
                         'message': 'User exists, try google or apple login.'
                     }, status=status.HTTP_400_BAD_REQUEST) 
                 elif existing_user.email == data.get('email'):
@@ -145,32 +145,6 @@ class RegisterView(generics.CreateAPIView):
                 
                 return Response({'message': f"User already registered." }, status=status.HTTP_400_BAD_REQUEST)
 
-            # # If user exists but is not verified, update the data and resend OTP
-            # for attr, value in data.items():
-            #     setattr(existing_user, attr, value)
-            # existing_user.set_password(data['password'])
-            # existing_user.save()
-
-            # # Resend OTP
-            # generate_otp(existing_user)
-
-            # # Generate tokens
-            # refresh = RefreshToken.for_user(existing_user)
-            # access_token = str(refresh.access_token)
-
-            # # Create session manually
-            # request.session["registered_user_id"] = str(existing_user.id)
-            # if not request.session.session_key:
-            #     request.session.save()
-            # session_id = request.session.session_key
-
-            # return Response({
-            #     'user': CustomUserSerializer(existing_user, context=self.get_serializer_context()).data,
-            #     'refresh': str(refresh),
-            #     'access': access_token,
-            #     'session_id': session_id,
-            #     'message': 'OTP resent. User already exists but not yet verified.'
-            # }, status=status.HTTP_200_OK)
 
         # If user does not exist, proceed with fresh registration
         serializer = self.get_serializer(data=data)
@@ -429,105 +403,6 @@ class Distance(Func):
         )
 
 
-
-# class ChatRoomCreateView(APIView):
-#     """
-#     API view for creating chat rooms (requires authentication).
-#     """
-#     authentication_classes = [JWTAuthentication] 
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request, *args, **kwargs):
-#         serializer = ChatRoomSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response({'message': 'Chat room created successfully'}, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# class ChatRoomRetrieveView(APIView):
-#     """
-#     API view for retrieving a specific chat room (requires authentication).
-#     """
-#     authentication_classes = [JWTAuthentication] 
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request, pk, *args, **kwargs):
-#         chat_room = ChatRoom.objects.get(pk=pk)
-#         serializer = ChatRoomSerializer(chat_room)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-# class ChatMessageCreateView(APIView):
-#     """
-#     API view for creating chat messages (requires authentication).
-#     """
-#     authentication_classes = [JWTAuthentication] 
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request, *args, **kwargs):
-#         serializer = ChatMessageSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response({'message': 'Chat message created successfully'}, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# class ChatMessageListView(APIView):
-#     """
-#     API view for listing chat messages in a specific chat room (requires authentication).
-#     """
-#     authentication_classes = [JWTAuthentication] 
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request, chat_room_id, *args, **kwargs):
-#         chat_messages = ChatMessage.objects.filter(chat_room_id=chat_room_id)
-#         serializer = ChatMessageSerializer(chat_messages, many=True)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-# class ChatRequestCreateView(APIView):
-#     """
-#     API view for creating chat requests (requires authentication).
-#     """
-#     authentication_classes = [JWTAuthentication] 
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request, *args, **kwargs):
-#         serializer = ChatRequestSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response({'message': 'Chat request created successfully'}, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# class ChatRequestRetrieveView(APIView):
-#     """
-#     API view for retrieving a specific chat request (requires authentication).
-#     """
-#     authentication_classes = [JWTAuthentication] 
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request, pk, *args, **kwargs):
-#         chat_request = ChatRequest.objects.get(pk=pk)
-#         serializer = ChatRequestSerializer(chat_request)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-# class AcceptChatRequestView(APIView):
-#     """
-#     API view for accepting a chat request (requires authentication).
-#     """
-#     authentication_classes = [JWTAuthentication] 
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request, pk, *args, **kwargs):
-#         chat_request = ChatRequest.objects.get(pk=pk)
-#         chat_request.status = 'accepted'
-#         chat_request.save()
-#         return Response({'message': 'Chat request accepted'}, status=status.HTTP_200_OK)
-
-
 class VendorKYCCreateView(generics.CreateAPIView):
     queryset = VendorKYC.objects.all()
     serializer_class = VendorKYCSerializer
@@ -608,94 +483,6 @@ class VendorKYCStatusView(generics.RetrieveAPIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except VendorKYC.DoesNotExist:
             return Response({"message": "VendorKYC not found."}, status=status.HTTP_404_NOT_FOUND)
-
-
-# class VendorKYCListView(ListAPIView):
-#     serializer_class = VendorKYCListSerializer
-#     permission_classes = [AllowAny]
-
-#     def get_queryset(self):
-#         # Get the search keyword from query params
-#         search_keyword = self.request.query_params.get('address', None)
-
-#         # Base query for fetching all vendors
-#         queryset = VendorKYC.objects.all()
-
-#         if search_keyword:
-#             # Split the search keyword into individual terms
-#             search_terms = search_keyword.split(',')
-
-#             # Start with a Q object for the filtering conditions
-#             query = Q()
-
-#             if len(search_terms) == 1:
-#                 # If only one term, assume it's a country, state, or city
-#                 clean_term = search_terms[0].strip()
-
-#                 # If the term matches a country, filter by country
-#                 query |= Q(addresses__country__icontains=clean_term)
-                
-#                 # If the term matches a state, filter by state
-#                 query |= Q(addresses__state__icontains=clean_term)
-                
-#                 # If the term matches a city, filter by city
-#                 query |= Q(addresses__city__icontains=clean_term)
-
-#             elif len(search_terms) == 2:
-#                 # Two terms: Could be (city, state) or (city, country) or (state, country)
-#                 clean_first = search_terms[0].strip()
-#                 clean_second = search_terms[1].strip()
-
-#                 # Check for city, state (e.g., Mathura, Uttar Pradesh)
-#                 query |= (
-#                     Q(addresses__city__icontains=clean_first) & 
-#                     Q(addresses__state__icontains=clean_second)
-#                 )
-
-#                 # Check for city, country (e.g., Mathura, India)
-#                 query |= (
-#                     Q(addresses__city__icontains=clean_first) & 
-#                     Q(addresses__country__icontains=clean_second)
-#                 )
-
-#                 # Check for state, country (e.g., Uttar Pradesh, India)
-#                 query |= (
-#                     Q(addresses__state__icontains=clean_first) & 
-#                     Q(addresses__country__icontains=clean_second)
-#                 )
-
-#             elif len(search_terms) == 3:
-#                 # Three terms: Could be full address with house, road, city, state, country
-#                 clean_house = search_terms[0].strip()
-#                 clean_road = search_terms[1].strip()
-#                 clean_city = search_terms[2].strip()
-
-#                 query |= (
-#                     Q(addresses__house_no_building_name__icontains=clean_house) &
-#                     Q(addresses__road_name_area_colony__icontains=clean_road) &
-#                     Q(addresses__city__icontains=clean_city)
-#                 )
-
-#             # Apply the query filter
-#             queryset = queryset.filter(query).distinct()
-
-#         return queryset
-
-#     def list(self, request, *args, **kwargs):
-#         queryset = self.get_queryset()
-
-#         # Prepare response structure
-#         response_data = {
-#             "message": "No Vendor KYC entries available for the specified search keyword." if not queryset.exists() else "Lists of Vendors",
-#             "vendors": []
-#         }
-
-#         if queryset.exists():
-#             serializer = self.get_serializer(queryset, many=True)
-#             response_data["vendors"] = serializer.data
-
-#         return Response(response_data, status=status.HTTP_200_OK)
-
 
 
 class VendorKYCListView(ListAPIView):
@@ -779,120 +566,6 @@ class VendorKYCDetailView(generics.RetrieveAPIView):
         serializer = self.get_serializer(vendor_kyc)
         return Response(serializer.data)
     
-
-
-##########################################################################################################
-
-# class CreateDealView(generics.CreateAPIView):
-#     serializer_class = CreateDealSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request, *args, **kwargs):
-#         # Fetch the vendor's KYC details
-#         try:
-#             vendor_kyc = VendorKYC.objects.get(user=request.user)
-#         except VendorKYC.DoesNotExist:
-#             return Response({"message": "Vendor KYC not found for this user."}, status=status.HTTP_404_NOT_FOUND)
-
-#         if not vendor_kyc.is_approved:
-#             return Response({"message": "Vendor KYC is not approved."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Copy request data and add vendor KYC to the data
-#         data = request.data.copy()
-#         data['vendor_kyc'] = vendor_kyc.vendor_id
-
-#         # Create the deal using the serializer
-#         serializer = self.get_serializer(data=data)
-#         if serializer.is_valid():
-#             deal = serializer.save()
-#             response_data = serializer.data
-#             response_data['message'] = "Deal created successfully."
-#             return Response(response_data, status=status.HTTP_201_CREATED)
-
-#         # Handle errors and convert to the desired format
-#         error_message = self.format_errors(serializer.errors)
-#         return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
-
-#     def format_errors(self, errors):
-#         """
-#         Convert all validation errors to a single message format.
-#         """
-#         # If there are non-field-specific errors
-#         if 'non_field_errors' in errors:
-#             return errors['non_field_errors'][0]
-
-#         # If there are field-specific errors, pick the first error message
-#         for field, messages in errors.items():
-#             return messages[0]  # Take the first message for each field error
-
-
-###################################################################################################################
-
-# class CreateDealView(generics.CreateAPIView):
-#     serializer_class = CreateDealSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request, *args, **kwargs):
-#         # Fetch the vendor's KYC details
-#         try:
-#             vendor_kyc = VendorKYC.objects.get(user=request.user)
-#         except VendorKYC.DoesNotExist:
-#             return Response({"message": "Vendor KYC not found for this user."}, status=status.HTTP_404_NOT_FOUND)
-
-#         if not vendor_kyc.is_approved:
-#             return Response({"message": "Vendor KYC is not approved."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Copy request data and add vendor KYC to the data
-#         data = request.data.copy()
-#         data['vendor_kyc'] = vendor_kyc.vendor_id
-
-#         # Create the deal using the serializer
-#         serializer = self.get_serializer(data=data)
-#         if serializer.is_valid():
-#             deal = serializer.save()
-
-#             # Vendor location
-#             vendor_location = (vendor_kyc.latitude, vendor_kyc.longitude)
-
-#             # Notify nearby users
-#             users = CustomUser.objects.exclude(device_token=None)  # Users with device tokens
-#             notifications_sent = 0  # Track the number of notifications sent
-
-#             for user in users:
-#                 if user.latitude and user.longitude:
-#                     user_location = (user.latitude, user.longitude)
-#                     distance = geodesic(vendor_location, user_location).km
-
-#                     if distance <= 15:
-#                         send_fcm_notification(
-#                             device_token=user.device_token,
-#                             title=f"New Deal: {deal.deal_title}",
-#                             message=f"{vendor_kyc.user.username} has a new deal: {deal.deal_title}!"
-#                         )
-#                         notifications_sent += 1
-
-#             response_data = serializer.data
-#             response_data['message'] = f"Deal created successfully. {notifications_sent} notifications sent."
-#             return Response(response_data, status=status.HTTP_201_CREATED)
-
-#         # Handle errors and convert to the desired format
-#         error_message = self.format_errors(serializer.errors)
-#         return Response({"message": error_message}, status=status.HTTP_400_BAD_REQUEST)
-
-#     def format_errors(self, errors):
-#         """
-#         Convert all validation errors to a single message format.
-#         """
-#         # If there are non-field-specific errors
-#         if 'non_field_errors' in errors:
-#             return errors['non_field_errors'][0]
-
-#         # If there are field-specific errors, pick the first error message
-#         for field, messages in errors.items():
-#             return messages[0]  # Take the first message for each field error
-
-########################################################################################################
-
 # Helper function to calculate distance between two lat/lng points
 def calculate_distance(lat1, lon1, lat2, lon2):
     # convert decimal degrees to radians 
@@ -1013,91 +686,6 @@ class CreateDealView(generics.CreateAPIView):
 
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-#################################################################################################
-
-# class CreateDealView(generics.CreateAPIView):
-#     queryset = CreateDeal.objects.all()
-#     serializer_class = CreateDealSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def perform_create(self, serializer):
-#         vendor_kyc = self.request.user.vendorkyc_set.first()
-#         if not vendor_kyc:
-#             raise ValidationError("Vendor KYC not found for the user.")
-#         if not vendor_kyc.is_approved:
-#             raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
-
-#         serializer.save(vendor_kyc=vendor_kyc)
-
-#     def create(self, request, *args, **kwargs):
-#         uploaded_images = request.data.get('uploaded_images', [])
-
-#         if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
-#             return Response(
-#                 {"error": "uploaded_images must be a list of dictionaries."},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         serializer = self.get_serializer(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         self.perform_create(serializer)
-
-#         # Get the saved deal instance
-#         deal = serializer.instance
-#         vendor_kyc = deal.vendor_kyc  
-
-#         # Add uploaded images metadata to the deal
-#         deal.set_uploaded_images(uploaded_images)
-#         deal.save()
-
-#         # **Vendor Notification**
-#         vendor_notification_sent = False
-#         vendor_fcm_token = vendor_kyc.user.fcm_token
-#         if vendor_fcm_token:
-#             send_push_notification(
-#                 device_tokens=vendor_fcm_token,  # Pass the single token directly
-#                 title="Deal Created",
-#                 message=f"Your deal '{deal.deal_title}' has been created successfully."
-#             )
-#             vendor_notification_sent = True  # Confirm notification sent
-
-#         # **Nearby Users Notification**
-#         users_to_notify = []
-#         if vendor_kyc.latitude and vendor_kyc.longitude:
-#             users_within_radius = CustomUser.objects.filter(
-#                 Q(latitude__isnull=False) & Q(longitude__isnull=False)
-#             )
-#             for user in users_within_radius:
-#                 distance = calculate_distance(vendor_kyc.latitude, vendor_kyc.longitude, user.latitude, user.longitude)
-#                 if distance <= 15 and user.fcm_token:
-#                     users_to_notify.append(user.fcm_token)
-
-#             if users_to_notify:
-#                 send_push_notification(
-#                     device_tokens=users_to_notify,  # Pass the list of tokens
-#                     title="New Deal Nearby",
-#                     message=f"A new deal '{deal.deal_title}' has been created near you."
-#                 )
-
-#         users_notification_sent = len(users_to_notify) > 0  # Confirm users received notification
-
-#         headers = self.get_success_headers(serializer.data)
-#         return Response({
-#             "deal": serializer.data,
-#             "notifications": {
-#                 "vendor_notification_sent": vendor_notification_sent,
-#                 "users_notification_sent": users_notification_sent,
-#                 "users_notified_count": len(users_to_notify)
-#             }
-#         }, status=status.HTTP_201_CREATED, headers=headers)
-
-
-
-
-
-
-
 
 
 class CreateDealDetailView(generics.RetrieveAPIView):
@@ -1240,15 +828,11 @@ class CreateDeallistView(generics.ListAPIView):
         current_time = now.time()
 
         queryset = CreateDeal.objects.filter(
-            start_date__lte=today,  # Jo deals aaj ya pehle start ho chuki hain
+            # start_date__lte=today,  # Jo deals aaj ya pehle start ho chuki hain
             end_date__gte=today,  # Jo deals aaj ya uske baad tak valid hain
             available_deals__gt=0   # Sirf wo deals jinki available_deals 0 se zyada hai
         ).exclude(
             end_date=today, end_time__lte=current_time  # Aaj ki but end_time nikal chuka hai
-        ).exclude(
-            start_date__gt=today  # Jo future me start hone wali hain
-        ).exclude(
-            start_date=today, start_time__gt=current_time  # Aaj ki but future me start hone wali hain
         )
         
         
@@ -1659,143 +1243,6 @@ class SocialLogin(generics.GenericAPIView):
             "is_approved": is_approved,
             "message": "Login successful."
         }, status=status.HTTP_200_OK)
-
-
-
-
-
-
-
-
-
-    
-# class SocialLogin(generics.GenericAPIView):
-#     serializer_class = CustomUserSerializer
-#     permission_classes = [AllowAny]
-
-#     def post(self, request, *args, **kwargs):
-#         social_id = request.data.get("social_id")
-#         email = request.data.get("email")
-#         name = request.data.get("name")
-#         login_type = request.data.get("type")  # Google ya Apple
-
-#         if not social_id or not email or not login_type:
-#             return Response({"message": "social_id, email, and type (google/apple) are required."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         # Check if user exists with the same email
-#         user = CustomUser.objects.filter(email=email).first()
-
-#         if user:
-#             # Update social_id and type if blank
-#             if not user.social_id:
-#                 user.social_id = social_id
-#             if not user.type:
-#                 user.type = login_type
-#             user.save()
-#         else:
-#             # Create new user for social login
-#             user = CustomUser.objects.create(
-#                 social_id=social_id,
-#                 email=email,
-#                 name=name,
-#                 type=login_type,  # Set login type
-#             )
-
-#         # Generate JWT tokens
-#         refresh = RefreshToken.for_user(user)
-#         access_token = str(refresh.access_token)
-
-#         return Response({
-#             "user": CustomUserSerializer(user).data,
-#             "refresh": str(refresh),
-#             "access": access_token,
-#             "message": "Login successful.",
-#         }, status=status.HTTP_200_OK)
-
-    
-    
-    
-    
-# class NotificationView(APIView):
-#     permission_classes = [AllowAny]
-
-#     def post(self, request):
-#         user_location = request.data.get('location')  # {'latitude': 21.643640, 'longitude': 69.615650}
-#         if not user_location:
-#             return Response({"error": "Location is required"}, status=400)
-
-#         user_point = Point(user_location['longitude'], user_location['latitude'])
-
-#         # Fetch active deals within 15 KM radius
-#         deals = CreateDeal.objects.filter(
-#             location__distance_lte=(user_point, D(km=15))
-#         )
-
-#         # Send notifications to users
-#         notifications_sent = []
-#         for deal in deals:
-#             vendor_name = deal.vendor_kyc.full_name
-#             deal_title = deal.deal_title
-#             user_device_token = request.user.device_token
-
-#             if user_device_token:
-#                 send_notification(user_device_token, vendor_name, deal_title)
-#                 notifications_sent.append({"vendor_name": vendor_name, "deal_title": deal_title})
-
-#         return Response({"notifications": notifications_sent})    
-    
-
-# class SendOTPView(APIView):
-#     serializer_class = OTPRequestSerializer
-
-#     def post(self, request):
-#         serializer = self.serializer_class(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-
-#         email = serializer.validated_data['email']
-#         try:
-#             user = User.objects.get(email=email)
-#         except User.DoesNotExist:
-#             return Response({"error": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
-
-#         try:
-#             # Delete any existing OTP for the user
-#             existing_otp = PasswordResetOTP.objects.filter(user=user)
-#             if existing_otp.exists():
-#                 existing_otp.delete()
-#         except PasswordResetOTP.DoesNotExist:
-#             # This exception will not occur when using `filter()`
-#             # because `filter()` does not raise `DoesNotExist`.
-#             pass
-        
-
-#         # Generate a new OTP
-#         otp = str(random.randint(100000, 999999))
-#         try:
-#             PasswordResetOTP.objects.create(user=user, otp=otp)
-#         except Exception as e:
-#             # Handle unexpected errors during OTP creation
-#             return Response(
-#                 {"error": "An error occurred while generating a new OTP. Please try again later."},
-#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             )
-
-#         # Send the OTP via email
-#         try:
-#             send_mail(
-#                 'Password Reset OTP',
-#                 f'Your OTP for password reset is: {otp}',
-#                 'admin@example.com',  # From email
-#                 [email],
-#                 fail_silently=False,
-#             )
-#         except Exception as e:
-#             return Response(
-#                 {"error": "Failed to send OTP email. Please try again later."},
-#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-#             )
-
-#         return Response({"message": "OTP sent to your email."}, status=status.HTTP_200_OK)
 
 
 class SendOTPView(APIView):
@@ -2887,6 +2334,8 @@ class ServicesCreateView(APIView):
 
         return Response({"services": created_services}, status=status.HTTP_201_CREATED)
 
+##  New APIs by Rahul
+
 from appointments.serializers import (
     ProviderSerializer,
     ServiceSerializer,
@@ -3087,3 +2536,39 @@ class UpdatePasswordAPI(APIView):
             'message': 'Password has been updated successfully.',
             'data': {}
         }, status=status.HTTP_200_OK)
+
+class ActivityDeleteView(APIView):
+    """
+    Delete() ---> Delete the activity
+    """
+    def delete(self, request, activity_id, format=None):
+        try:
+            activity = Activity.objects.get(activity_id=activity_id)
+        except Activity.DoesNotExist:
+            return Response({
+                'message': 'Activity not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Optionally delete and return success
+        activity.delete()
+        return Response({
+            'message': 'Activity deleted successfully.'
+        }, status=status.HTTP_204_NO_CONTENT)
+
+class DealDeleteView(APIView):
+    """
+    Delete() ---> Delete the Deal.
+    """
+    def delete(self, request, deal_uuid, format=None):
+        try:
+            deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
+        except CreateDeal.DoesNotExist:
+            return Response({
+                'message': 'Activity not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Optionally delete and return success
+        deal.delete()
+        return Response({
+            'message': 'Activity deleted successfully.'
+        }, status=status.HTTP_204_NO_CONTENT)

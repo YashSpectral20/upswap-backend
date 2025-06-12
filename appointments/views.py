@@ -262,11 +262,12 @@ class ServiceCategoryAPIView(APIView):
 
 class ServiceAPIVIew(APIView):
     """
-    Get() ---> Retrieve all Servces for the vendor.
+    Get() ---> Retrieve all Services for the vendor.
     Post() ---> Create a new Service.
     """
 
     def get(self, request, format=None):
+        
         user = request.user
         vendor = VendorKYC.objects.filter(user=user).first()
         if not vendor:
@@ -282,6 +283,10 @@ class ServiceAPIVIew(APIView):
                     'message': 'Services found for the vendor.',
                     'data': serializer.data
                 }, status=status.HTTP_200_OK)
+            return Response({
+                'message': 'No services found for this vendor.',
+                'data': {}
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
                 'message': 'Error while fetching services.',

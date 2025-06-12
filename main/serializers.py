@@ -257,9 +257,6 @@ class ActivitySerializer(serializers.ModelSerializer):
                     "Each image must include 'thumbnail' and 'compressed' URLs."
                 )
         return value
-    
-
-
 
         
 class ActivityListsSerializer(serializers.ModelSerializer):
@@ -293,7 +290,7 @@ class ActivityListsSerializer(serializers.ModelSerializer):
 class ActivityDetailsSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source='created_by.id', read_only=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    activity_category = ActivityCategorySerializer(required=True)
+    activity_category = serializers.StringRelatedField(read_only=True) # ActivityCategorySerializer(required=True)
     uploaded_images = serializers.SerializerMethodField()
     
     class Meta:
@@ -324,49 +321,6 @@ class ActivityDetailsSerializer(serializers.ModelSerializer):
             # Return only compressed
             return compressed
 
-# class ChatRoomSerializer(serializers.ModelSerializer):
-#     participants = serializers.SlugRelatedField(
-#         many=True,
-#         slug_field='email',
-#         queryset=CustomUser.objects.all()
-#     )
-
-#     class Meta:
-#         model = ChatRoom
-#         fields = ['id', 'activity', 'participants', 'created_at']
-#         read_only_fields = ['id', 'created_at']
-
-#     def create(self, validated_data):
-#         participants_data = validated_data.pop('participants', [])
-        
-#         chat_room = ChatRoom.objects.create(**validated_data)
-#         chat_room.participants.set(participants_data)
-        
-#         return chat_room
-
-# class ChatMessageSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = ChatMessage
-#         fields = ['id', 'chat_room', 'sender', 'content', 'created_at']
-
-# class ChatRequestSerializer(serializers.ModelSerializer):
-#     activity = serializers.PrimaryKeyRelatedField(queryset=Activity.objects.all())
-#     from_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
-#     to_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
-
-#     class Meta:
-#         model = ChatRequest
-#         fields = ['id', 'activity', 'from_user', 'to_user', 'is_accepted', 'is_rejected', 'interested']
-
-#     def validate(self, attrs):
-#         if attrs.get('is_accepted') and attrs.get('is_rejected'):
-#             raise serializers.ValidationError("A chat request cannot be both accepted and rejected.")
-#         return attrs
-
-
-
-
-
 
 class AddressSerializer(serializers.ModelSerializer):
     class Meta:
@@ -377,25 +331,13 @@ class AddressSerializer(serializers.ModelSerializer):
 
 
 class ServiceSerializer(serializers.ModelSerializer):
-    service_category = serializers.CharField()  # Accept category name as a string
 
     class Meta:
         model = Service
-        fields = ['uuid', 'item_name', 'service_category', 'item_description', 'item_price']
+        fields = ['uuid', 'item_name', 'item_description', 'item_price']
         read_only_fields = ['uuid']
 
-    def validate_service_category(self, value):
-        """
-        Validate and convert the string input to a ServiceCategory instance.
-        """
-        if isinstance(value, str):
-            # Get or create the ServiceCategory instance by name
-            service_category, created = ServiceCategory.objects.get_or_create(serv_category=value)
-            return service_category
-        raise serializers.ValidationError("Invalid value for service_category. Expected a string.")
-
     def create(self, validated_data):
-        # `service_category` is now a `ServiceCategory` instance
         return super().create(validated_data)
         
         
@@ -415,7 +357,6 @@ class VendorKYCSerializer(serializers.ModelSerializer):
     )
     business_hours = serializers.JSONField(required=False, allow_null=True)
     addresses = AddressSerializer(many=True, required=False)
-    # services = ServiceSerializer(many=True, required=True)
 
     class Meta:
         model = VendorKYC
@@ -429,8 +370,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             'bank_account_number', 
             'retype_bank_account_number', 'bank_name', 'ifsc_code', 
             'business_hours', 'is_approved', 'latitude', 'longitude'
-        ]   # 'services',
-
+        ]
     def validate_business_hours(self, value):
         if not isinstance(value, list):
             raise serializers.ValidationError("Business hours must be a list.")
@@ -450,13 +390,11 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 
         # If no existing VendorKYC, create a new one
         addresses_data = validated_data.pop('addresses', [])
-        # services_data = validated_data.pop('services', [])
         uploaded_documents = validated_data.pop('uploaded_business_documents', [])
 
         vendor_kyc = VendorKYC.objects.create(**validated_data)
 
-        self.handle_addresses(vendor_kyc, addresses_data) # , services_data
-
+        self.handle_addresses(vendor_kyc, addresses_data) 
         if uploaded_documents:
             vendor_kyc.uploaded_business_documents = uploaded_documents
             vendor_kyc.save()
@@ -465,7 +403,6 @@ class VendorKYCSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         addresses_data = validated_data.pop('addresses', None)
-        # services_data = validated_data.pop('services', None)
         uploaded_documents = validated_data.pop('uploaded_business_documents', [])
         profile_pic = validated_data.pop('profile_pic', None)
 
@@ -481,30 +418,22 @@ class VendorKYCSerializer(serializers.ModelSerializer):
             instance.profile_pic = profile_pic
 
         # Handle addresses and services
-        self.handle_addresses(instance, addresses_data)  # , services_data
+        self.handle_addresses(instance, addresses_data)
 
         instance.save()
         return instance
 
-    def handle_addresses(self, vendor_kyc, addresses_data):  # _and_services
+    def handle_addresses(self, vendor_kyc, addresses_data):
         """Helper method to update addresses"""
         if addresses_data is not None:
             vendor_kyc.addresses.all().delete()
             for address in addresses_data:
                 Address.objects.create(vendor=vendor_kyc, **address)
-
-        # if services_data is not None:
-        #     vendor_kyc.services.all().delete()
-        #     for service in services_data:
-        #         Service.objects.create(vendor_kyc=vendor_kyc, **service)
-
-    
     
 
 class VendorKYCListSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='user.name', read_only=True)
     user = serializers.UUIDField(source='user.id', read_only=True)
-    # services = serializers.SerializerMethodField()
     addresses = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
@@ -513,11 +442,6 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     class Meta:
         model = VendorKYC
         fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'addresses', 'is_favorite', 'average_rating']
-
-    # def get_services(self, obj):
-    #     # Assuming 'services' is a related field in the VendorKYC model
-    #     services = obj.services.all()  # Fetch related services
-    #     return ServiceSerializer(services, many=True).data
 
     def get_addresses(self, obj):
         # Assuming 'addresses' is a related field in the VendorKYC model
@@ -655,9 +579,9 @@ class CreateDealSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreateDeal
         fields = [
-            'deal_uuid', 'deal_title', 'deal_description', 'select_service',
-            'uploaded_images', 'start_date', 'end_date', 'start_time', 'end_time',
-            'start_now', 'buy_now', 'actual_price', 'deal_price', 'available_deals',
+            'deal_uuid', 'deal_title', 'deal_description', 'category', 'service',
+            'uploaded_images', 'end_date', 'end_time',
+            'buy_now', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
             'vendor_name', 'vendor_uuid', 'vendor_email', 'vendor_number',
@@ -680,18 +604,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """ Validate select_service and address fields, ensure they are provided manually. """
         vendor_kyc = data.get('vendor_kyc')
-        select_service = data.get('select_service')
-
-        # Check if the 'select_service' field is provided
-        if not select_service:
-            raise serializers.ValidationError("First provide Select Service.")
-
-        # Fetch the service corresponding to 'select_service' and retrieve the item_price
-        try:
-            service = vendor_kyc.services.get(item_name=select_service)
-            data['actual_price'] = service.item_price  # Fetch the price from the Service model
-        except Service.DoesNotExist:
-            raise serializers.ValidationError("Selected service does not exist for the vendor.")
+        category = data.get('category')
 
         # Ensure that all address-related fields are provided manually by the vendor
         address_fields = [
@@ -759,13 +672,12 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     discount_percentage = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
-    service_category = serializers.SerializerMethodField()
-
+    
     class Meta:
         model = CreateDeal
         fields = [
-            'deal_uuid', 'deal_post_time', 'deal_title', 'select_service', 'service_category',
-            'uploaded_images', 'start_date', 'end_date', 'start_time', 'end_time',
+            'deal_uuid', 'deal_post_time', 'deal_title',
+            'uploaded_images', 'end_date', 'end_time',
             'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
@@ -805,13 +717,6 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         
         return round(average, 1) if average else 0.0
     
-    def get_service_category(self, obj):
-        try:
-            service = obj.vendor_kyc.services.get(item_name=obj.select_service)
-            return service.service_category.serv_category if service.service_category else None
-        except Service.DoesNotExist:
-            return None
-        
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
@@ -829,7 +734,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
         fields = [
             'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
             'deal_uuid','uploaded_images', 'deal_post_time', 'deal_title', 'deal_description',
-            'select_service', 'start_date', 'end_date', 'start_time',
+            'end_date',
             'end_time', 'buy_now', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
@@ -1117,88 +1022,6 @@ class OTPRequestSerializer(serializers.Serializer):
         if not CustomUser.objects.filter(phone_number=value).exists():
             raise serializers.ValidationError("No user found with this phone number.")
         return value
-    
-# class OTPResetPasswordSerializer(serializers.Serializer):
-#     email = serializers.EmailField()
-#     otp = serializers.CharField(max_length=6)
-#     new_password = serializers.CharField(write_only=True, validators=[validate_password_strength])
-#     confirm_password = serializers.CharField(write_only=True)
-
-#     def validate(self, data):
-#         if data['new_password'] != data['confirm_password']:
-#             # raise serializers.ValidationError("Passwords do not match.")
-#             data['message'] = "Passwords do not match."
-#         return data
-
-#     def save(self):
-#         email = self.validated_data['email']
-#         otp = self.validated_data['otp']
-#         new_password = self.validated_data['new_password']
-
-#         try:
-#             user = User.objects.get(email=email)
-#         except User.DoesNotExist:
-#             # raise serializers.ValidationError("User with this email does not exist.")
-#             data['message'] = "User with this email does not exist."
-#             return data
-
-#         try:
-#             otp_entry = PasswordResetOTP.objects.get(user=user, otp=otp)
-#         except PasswordResetOTP.DoesNotExist:
-#             # raise serializers.ValidationError("Invalid OTP.")
-#             data['message'] = "Invalid OTP."
-#             return data
-
-#         if otp_entry.is_expired():
-#             # raise serializers.ValidationError("OTP has expired.")
-#             data['message'] = "OTP has expired."
-#             return data
-        
-#         user.set_password(new_password)
-#         user.save()
-#         otp_entry.delete()
- 
-# class OTPResetPasswordSerializer(serializers.Serializer):
-#     email = serializers.EmailField()
-#     otp = serializers.CharField(max_length=6)
-#     new_password = serializers.CharField(write_only=True, validators=[validate_password_strength])
-#     confirm_password = serializers.CharField(write_only=True)
-
-#     def validate(self, data):
-#         # Check if passwords match
-#         if data['new_password'] != data['confirm_password']:
-#             raise serializers.ValidationError({"message": "Passwords do not match."})
-#         return data
-
-#     def save(self):
-#         email = self.validated_data['email']
-#         otp = self.validated_data['otp']
-#         new_password = self.validated_data['new_password']
-
-#         # Check if the user exists
-#         try:
-#             user = User.objects.get(email=email)
-#         except User.DoesNotExist:
-#             raise serializers.ValidationError({"message": "User with this email does not exist."})
-
-#         # Check if OTP is valid
-#         try:
-#             otp_entry = PasswordResetOTP.objects.get(user=user, otp=otp)
-#         except PasswordResetOTP.DoesNotExist:
-#             raise serializers.ValidationError({"message": "Invalid OTP."})
-
-#         # Check if OTP has expired
-#         if otp_entry.is_expired():
-#             raise serializers.ValidationError({"message": "OTP has expired."})
-
-#         # Save the new password
-#         user.set_password(new_password)
-#         user.save()
-
-#         # Mark OTP as used
-#         otp_entry.delete()
-
-#         return {"message": "Password has been reset successfully."}
 
 class OTPResetPasswordSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=15)
@@ -1240,46 +1063,6 @@ class OTPResetPasswordSerializer(serializers.Serializer):
 
         otp_entry.delete()
 
-           
-# class OTPValidationSerializer(serializers.Serializer):
-#     email = serializers.EmailField()
-#     otp = serializers.CharField(max_length=6)
-
-#     def validate(self, data):
-#         email = data.get('email')
-#         otp = data.get('otp')
-        
-#         # Validate email format explicitly
-#         try:
-#             validate_email(email)
-#         except DjangoValidationError:
-#             data['message'] = "Invalid email address format."
-#             return data
-        
-
-#         try:
-#             user = User.objects.get(email=email)
-#         except User.DoesNotExist:
-#             # raise serializers.ValidationError({"message": "User with this email does not exist."})
-#             data['message'] = "User with this email does not exist."
-#             return data
-#         try:
-#             otp_entry = PasswordResetOTP.objects.get(user=user, otp=otp)
-#         except PasswordResetOTP.DoesNotExist:
-#             # raise serializers.ValidationError({"message": "Invalid OTP."})
-#             data['message'] = "Invalid OTP."
-#             return data
-
-#         if otp_entry.is_expired() or otp_entry.used == True:
-#             # raise serializers.ValidationError({"message": "OTP has expired."})
-#             data['message'] = "OTP has expired."
-#             return data
-
-#         otp_entry.used = True
-#         otp_entry.save()
-        
-#         data['message'] = "OTP is valid. Proceed to reset your password."
-#         return data
 
 class OTPValidationSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=15)
@@ -1385,8 +1168,8 @@ class MyDealSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreateDeal
         fields = [
-            'deal_uuid', 'deal_post_time', 'deal_title', 'select_service',
-            'uploaded_images', 'start_date', 'end_date', 'start_time', 'end_time',
+            'deal_uuid', 'deal_post_time', 'deal_title',
+            'uploaded_images', 'end_date', 'end_time',
             'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
@@ -1702,28 +1485,9 @@ class ServiceCreateSerializer(serializers.Serializer):
             service_category=category_obj,
             **validated_data
         )
-    
-# class ResendOTPSerializer(serializers.Serializer):
-#     phone_number = serializers.CharField()
-
-#     def validate(self, data):
-#         phone_number = data.get('phone_number')
-
-#         # Check if user with this phone number exists
-#         try:
-#             user = CustomUser.objects.get(phone_number=phone_number)
-#         except CustomUser.DoesNotExist:
-#             raise serializers.ValidationError("User with this phone number does not exist.")
-
-#         data['user'] = user
-#         return data
-
 
 from appointments.serializers import ServiceNameSerializer
 class GetVendorSerializer(serializers.ModelSerializer):
-    # full_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
-    # vendor_id = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
-    # country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     profile_pic = serializers.SerializerMethodField()
     ven_services = ServiceNameSerializer(many=True, read_only=True)
     addresses = AddressSerializer(many=True, read_only=True)

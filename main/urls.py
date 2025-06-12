@@ -125,7 +125,7 @@ from .views import (
     ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, CheckVendorStatusView, SendPhoneVerificationOTP, 
     GetAllVendors, GetVendorServiceAndProviders,
     VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification,
-    SendVerificationOTP, VerifyOTPViewV2, UpdatePasswordAPI
+    SendVerificationOTP, VerifyOTPViewV2, UpdatePasswordAPI, DealDeleteView, ActivityDeleteView
 )
 
 # Swagger Schema View
@@ -282,6 +282,8 @@ urlpatterns = [
     path('send-verification-otp/', SendVerificationOTP.as_view(), name='send-verification-otp'),
     path('verify-otp/v2/', VerifyOTPViewV2.as_view(), name='verify-otp-v2'),
     path('update-password/v2/', UpdatePasswordAPI.as_view(), name='update-password-v2'),
+    path('delete-activity/', ActivityDeleteView.as_view(), name='delete-activity'),
+    path('delete-deal/', DealDeleteView.as_view(), name='delete-deal'),
 ]
 
 if settings.DEBUG:

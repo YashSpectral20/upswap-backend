@@ -83,7 +83,7 @@ def send_otp_via_sms(dial_code, phone_number, otp):
             to=f"{dial_code}{phone_number}"
         )
         err, err_code = message.error_message, message.error_code
-        print(f"OTP sent: {message.sid}")
+        print(f"OTP {otp} sent: {message.sid}")
         return err, err_code
     except Exception as e:
         print(f"Failed to send OTP: {str(e)}")
