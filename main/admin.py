@@ -144,10 +144,10 @@ class AddressAdmin(admin.ModelAdmin):
     list_display = ['vendor', 'house_no_building_name', 'road_name_area_colony', 'city', 'state', 'pincode', 'country', 'latitude', 'longitude']
     search_fields = ['vendor__full_name', 'city', 'state']
 
-@admin.register(Service)
-class ServiceAdmin(admin.ModelAdmin):
-    list_display = ['vendor_kyc', 'item_name', 'item_description', 'item_price']
-    search_fields = ['vendor_kyc__full_name', 'item_name']
+# @admin.register(Service)
+# class ServiceAdmin(admin.ModelAdmin):
+#     list_display = ['vendor_kyc', 'item_name', 'item_description', 'item_price']
+#     search_fields = ['vendor_kyc__full_name', 'item_name']
     
     
 @admin.register(CreateDeal)

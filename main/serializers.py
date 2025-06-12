@@ -558,7 +558,7 @@ class VendorKYCStatusSerializer(serializers.ModelSerializer):
         fields = ['vendor_id', 'is_approved']
     
     
-
+from appointments.models import Service as AppService
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
@@ -599,6 +599,13 @@ class CreateDealSerializer(serializers.ModelSerializer):
         available_deals = data.get('available_deals', 0)
         if available_deals < 1:
             raise serializers.ValidationError({'available_deals': "You must provide at least 1 deal."})
+        print(data.get('service'))
+        serv = AppService.objects.filter(id=service_id).first()
+        if not serv:
+            raise serializers.ValidationError({'service': f"Invalid service ID: {service_id}"})
+        print(serv)
+        print(data.get('service'))
+        data['service'] = serv
         return data
 
     def validate(self, data):

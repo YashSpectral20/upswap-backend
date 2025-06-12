@@ -374,7 +374,7 @@ class Address(models.Model):
     def __str__(self):
         return f"{self.house_no_building_name}, {self.road_name_area_colony}, {self.city}, {self.state}, {self.country}, {self.pincode}"
 
-
+from appointments.models import Service
 class CreateDeal(models.Model):
     vendor_kyc = models.ForeignKey('VendorKYC', on_delete=models.CASCADE, related_name='deal')
     deal_post_time = models.DateTimeField(default=timezone.now)

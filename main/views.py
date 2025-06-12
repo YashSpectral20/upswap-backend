@@ -608,7 +608,6 @@ class CreateDealView(generics.CreateAPIView):
                     {"message": "uploaded_images must be a list of dictionaries."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
