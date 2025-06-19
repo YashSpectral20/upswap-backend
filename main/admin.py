@@ -27,16 +27,16 @@ admin.site.register(CustomUser, CustomUserAdmin)
 class ActivityAdmin(admin.ModelAdmin):
     list_display = [
         'activity_id', 'created_by_display', 'activity_title',
-        'activity_category_display', 'user_participation', 'max_participations_display',
-        'start_date', 'end_date', 'start_time', 'end_time', 'infinite_time', 'set_current_datetime',
+        'user_participation', 'max_participations_display',
+        'end_date', 'end_time', 'infinite_time',
         'location', 'latitude', 'longitude', 'created_at'
     ]
     readonly_fields = ['activity_id', 'created_by']
-    list_filter = ('activity_category', 'infinite_time')  # Use activity_category for filtering
+    list_filter = ['infinite_time']  # Use activity_category for filtering
 
-    def activity_category_display(self, obj):
-        return obj.activity_category.actv_category if obj.activity_category else 'N/A'
-    activity_category_display.short_description = 'Activity Category'
+    # def activity_category_display(self, obj):
+    #     return obj.activity_category.actv_category if obj.activity_category else 'N/A'
+    # activity_category_display.short_description = 'Activity Category'
 
     def created_by_display(self, obj):
         return obj.created_by.username if obj.created_by_id else 'N/A'

@@ -9,7 +9,12 @@ from main.models import (
 from main.utils import create_notification
 
 class ChatRequest(models.Model):
-    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
+    PARTICIPATION_STATUSES = [
+        ('PENDING', 'pending'),
+        ('ACCEPTED', 'accepted'),
+        ('REJECTED', 'rejected')
+    ]
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE, related_name='chat_requests')
     from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
     is_accepted = models.BooleanField(default=False, help_text="True if the request is accepted")
     is_clicked = models.BooleanField(default=False, help_text="True if request was interacted with")
@@ -17,6 +22,7 @@ class ChatRequest(models.Model):
     is_rejected = models.BooleanField(default=False, help_text="True if the request is rejected")
     initial_message = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
+    participation_status = models.CharField(default='PENDING', choices=PARTICIPATION_STATUSES)
 
     def accept(self):
         self.is_accepted = True
@@ -54,7 +60,7 @@ class ChatRequest(models.Model):
 
 class ChatRoom(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
+    activity = models.ForeignKey(Activity, on_delete=models.CASCADE)   # SET_NULL
     participants = models.ManyToManyField(CustomUser)
     created_at = models.DateTimeField(auto_now_add=True)
     

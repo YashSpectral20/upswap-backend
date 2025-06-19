@@ -127,8 +127,9 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    # 'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -140,12 +141,14 @@ CORS_ALLOWED_ORIGINS = [
     "https://api.upswap.app",
     "http://api.upswap.app", # Include if testing locally with HTTP
     "http://localhost:5173",
-    "https://web.upswap.app",
+    "http://localhost:3000",
+    "https://upswap.app",
 ]
  
 CSRF_TRUSTED_ORIGINS = [
     "https://api.upswap.app",
-    "https://web.upswap.app",
+    "https://upswap.app",
+    "http://localhost:3000",
 ]
  
 CORS_ALLOW_ALL_ORIGINS = True

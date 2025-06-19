@@ -269,11 +269,11 @@ class ServiceAPIVIew(APIView):
     def get(self, request, format=None):
         
         user = request.user
-        vendor = VendorKYC.objects.filter(user=user).first()
+        vendor = VendorKYC.objects.filter(user=user.id).first()
         if not vendor:
             return Response({
                 'message': 'You must be a vendor to add a service.',
-                'data': {}
+                'data': []
             }, status=status.HTTP_401_UNAUTHORIZED)
         try:
             services = vendor.ven_services.all()
@@ -285,7 +285,7 @@ class ServiceAPIVIew(APIView):
                 }, status=status.HTTP_200_OK)
             return Response({
                 'message': 'No services found for this vendor.',
-                'data': {}
+                'data': []
             }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
@@ -304,7 +304,9 @@ class ServiceAPIVIew(APIView):
             }, status=status.HTTP_401_UNAUTHORIZED)
 
         data = request.data.copy()
+        print(data)
         images = request.FILES.getlist('images')
+        uploaded_image_urls = request.data.get('uploaded_image_urls', [])
         providers = data.pop('providers', [])
         data['vendor'] = vendor.vendor_id
         
@@ -316,22 +318,45 @@ class ServiceAPIVIew(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         if images:
-            image_urls = []
+            # image_urls = []
+            uploaded_images = []
             for image in images:
-                image_url = upload_to_s3(
-                    image,
-                    f'service-images/{vendor.vendor_id}',
-                    image.name
-                )
-                image_urls.append(image_url)
-                serializer.validated_data['image'] = image_urls
-        service_intance = serializer.save()
+            #     image_url = upload_to_s3(
+            #         image,
+            #         f'service-images/{vendor.vendor_id}',
+            #         image.name
+            #     )
+            #     image_urls.append(image_url)
+            #     serializer.validated_data['image'] = image_urls
+                asset_uuid = generate_asset_uuid()
+                base_file_name = f"asset_{asset_uuid}.webp"
+
+                # Process and upload thumbnail
+                thumbnail = process_image(image, (160, 130))
+                thumbnail_url = upload_to_s3(thumbnail, 'service-images', f"thumbnail_{base_file_name}")
+
+                # Process and upload compressed image
+                compressed = process_image(image, (600, 250))
+                compressed_url = upload_to_s3(compressed, 'service-images', base_file_name)
+
+                original_image = process_image(image, None)   # Only changing format to WEBP
+                original_url = upload_to_s3(original_image, f"original_{folder_name}", f"original_{base_file_name}")
+
+                uploaded_images.append({
+                    "thumbnail": thumbnail_url,
+                    "compressed": compressed_url,
+                    "original": original_url
+                })
+            serializer.validated_data['image'] = uploaded_images
+        elif uploaded_image_urls:
+            serializer.validated_data['image'] = uploaded_image_urls
+        service_instance = serializer.save()
         provider_names = []
         if providers:
             for provider_id in providers:
                 try:
                     provider = Provider.objects.get(id=provider_id)
-                    service_intance.providers.add(provider)
+                    service_instance.providers.add(provider)
                     provider_names.append(provider.name)
                 except Provider.DoesNotExist:
                     return Response({

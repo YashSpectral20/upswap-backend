@@ -41,6 +41,7 @@ from django.db.models import Avg
 from .exceptions import PhoneNumberNotVerified
 
 from activity_log.models import ActivityLog
+from appointments.serializers import ServiceSerializer
 
 User = get_user_model()
 
@@ -142,7 +143,6 @@ class ActivityCategorySerializer(serializers.ModelSerializer):
         fields = ['actv_category']
     
 class ActivitySerializer(serializers.ModelSerializer):
-    set_current_datetime = serializers.BooleanField(write_only=True, required=False, default=False)
     infinite_time = serializers.BooleanField(write_only=True, required=False, default=False)  # Updated default to False
     location = serializers.CharField(required=False, allow_blank=True)
     latitude = serializers.FloatField(required=False, allow_null=True)
@@ -154,41 +154,31 @@ class ActivitySerializer(serializers.ModelSerializer):
         ),
         required=False
     )
-    activity_category = serializers.CharField(required=False)
+    end_date = serializers.DateField(required=False, allow_null=True)
+    end_time = serializers.TimeField(required=False, allow_null=True)
+
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
 
     class Meta:
         model = Activity
         fields = [
             'activity_id', 'activity_title', 'activity_description',
-            'activity_category', 'uploaded_images', 'user_participation', 'maximum_participants',
-            'start_date', 'end_date', 'start_time', 'end_time', 'created_at',
-            'created_by', 'set_current_datetime', 'infinite_time',
+            'uploaded_images', 'user_participation', 'maximum_participants',
+            'end_date', 'end_time', 'created_at', 'category',
+            'created_by', 'infinite_time',
             'location', 'latitude', 'longitude'
         ]
         read_only_fields = ['created_by', 'created_at']
-
-    def validate_activity_category(self, value):
-        try:
-            return ActivityCategory.objects.get(actv_category__iexact=value)
-        except ActivityCategory.DoesNotExist:
-            raise serializers.ValidationError(f"Activity category '{value}' does not exist.")
 
     def validate(self, data):
         now = timezone.now().date()
         data['user_participation'] = data.get('user_participation', True)
 
-        set_current_datetime = data.get('set_current_datetime', False)
         infinite_time = data.get('infinite_time', False)
 
-        if not set_current_datetime and not infinite_time:
+        if not infinite_time:
             if data.get('end_date') and data['end_date'] < now:
                 raise serializers.ValidationError({"end_date": "End date cannot be in the past."})
-            if data.get('start_date') and data.get('end_date') and data['end_date'] < data['start_date']:
-                raise serializers.ValidationError({"end_date": "End date must be after start date."})
-            if data.get('start_date') == data.get('end_date'):  # Sirf jab dono date same ho
-                if data.get('start_time') and data.get('end_time') and data['end_time'] <= data['start_time']:
-                    raise serializers.ValidationError({"end_time": "End time must be after start time when start and end dates are the same."})
 
         if data.get('maximum_participants') and data['maximum_participants'] > 1000:
             raise serializers.ValidationError({"maximum_participants": "Maximum participants cannot exceed 1000."})
@@ -205,12 +195,7 @@ class ActivitySerializer(serializers.ModelSerializer):
         set_current_datetime = validated_data.get('set_current_datetime', False)
         infinite_time = validated_data.get('infinite_time', False)
 
-        if set_current_datetime and not (validated_data.get('start_date') or validated_data.get('start_time')):
-            current_datetime = timezone.now()
-            validated_data['start_date'] = current_datetime.date()
-            validated_data['start_time'] = current_datetime.time()
-
-        if infinite_time and not (validated_data.get('end_date') or validated_data.get('end_time')):
+        if infinite_time:
             future_date = timezone.now() + timezone.timedelta(days=365 * 999)
             validated_data['end_date'] = future_date.date()
             validated_data['end_time'] = future_date.time()
@@ -228,12 +213,6 @@ class ActivitySerializer(serializers.ModelSerializer):
 
 
     def update(self, instance, validated_data):
-        # Handle updates for datetime and infinite time
-        if validated_data.pop('set_current_datetime', False):
-            current_datetime = timezone.now()
-            validated_data['start_date'] = current_datetime.date()
-            validated_data['start_time'] = current_datetime.time()
-
         if validated_data.pop('infinite_time', False):
             future_date = timezone.now() + timezone.timedelta(days=365 * 999)  # 999 years from now
             validated_data['end_date'] = future_date.date()
@@ -258,18 +237,39 @@ class ActivitySerializer(serializers.ModelSerializer):
                 )
         return value
 
-        
+class ParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id', 'username', 'profile_pic'
+        ]
+    
 class ActivityListsSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source='created_by.id', read_only=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    activity_category = serializers.CharField(source='activity_category.actv_category', read_only=True)
+    # activity_category = serializers.CharField(source='activity_category.actv_category', read_only=True)
     uploaded_images = serializers.SerializerMethodField()
+    original_images = serializers.SerializerMethodField()
+    participants_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
-        fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'created_by', 'user_participation', 'infinite_time',
-                  'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude',
-                  'location']
+        fields = [
+            'activity_id', 'user_id', 'activity_title','uploaded_images', 
+            'original_images','created_by', 'user_participation', 'infinite_time', 
+            'category',
+            'end_date', 'end_time', 'latitude', 'longitude',
+            'location', 'participants_count',
+        ]
+
+    def get_original_images(self, obj):
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
+
+        # Return only the thumbnail of the first image in the uploaded_images list
+        first_image = obj.uploaded_images[0]  # Get the first image
+        original = first_image.get("original") if first_image else None 
+        return [original]
         
     def get_uploaded_images(self, obj):
         """
@@ -283,43 +283,66 @@ class ActivityListsSerializer(serializers.ModelSerializer):
         # Return only the thumbnail of the first image in the uploaded_images list
         first_image = obj.uploaded_images[0]  # Get the first image
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
-        return [thumbnail] if thumbnail else []
+        # original = first_image.get("original") if first_image else None
+        return [thumbnail]
+
+    def get_participants_count(self, obj):
+        participants_count = obj.participants.count()
+        return participants_count # ParticipantSerializer(participants, many=True).data # if participants else []
 
 
 
 class ActivityDetailsSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source='created_by.id', read_only=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    activity_category = serializers.StringRelatedField(read_only=True) # ActivityCategorySerializer(required=True)
+    # activity_category = serializers.StringRelatedField(read_only=True) # ActivityCategorySerializer(required=True)
     uploaded_images = serializers.SerializerMethodField()
+    original_images = serializers.SerializerMethodField()
+    organizer_profile_picture = serializers.CharField(source='created_by.profile_pic', read_only=True)
+    participants = serializers.SerializerMethodField()
     
     class Meta:
         model = Activity
         fields = [
-            'activity_id', 'user_id', 'activity_title', 'activity_description',
-            'activity_category', 'uploaded_images', 'user_participation', 'maximum_participants',
-            'start_date', 'end_date', 'start_time', 'end_time', 'created_at',
-            'created_by', 'set_current_datetime', 'infinite_time',
-            'location', 'latitude', 'longitude'
+            'activity_id', 'user_id', 'organizer_profile_picture', 'activity_title', 'activity_description', 'category',
+            'uploaded_images', 'original_images', 'user_participation', 'maximum_participants',
+            'end_date', 'end_time', 'created_at',
+            'created_by', 'infinite_time', 'participants',
+            'location', 'latitude', 'longitude', 'is_deleted',
         ]
-        read_only_fields = ['created_by', 'created_at']
+        read_only_fields = ['created_by', 'created_at', 'is_deleted']
+
+    def get_original_images(self, obj):
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
+
+        original = [
+            image.get("original") for image in obj.uploaded_images if image.get("original")
+        ]
+
+        # Return only compressed
+        return original
         
     def get_uploaded_images(self, obj):
-            """
-            Fetch only the uploaded image compressed served via S3/CDN URLs.
-            The compressed URLs are directly mapped based on uploaded images.
-            """
-            # Ensure uploaded_images field is valid
-            if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
-                return []
+        """
+        Fetch only the uploaded image compressed served via S3/CDN URLs.
+        The compressed URLs are directly mapped based on uploaded images.
+        """
+        # Ensure uploaded_images field is valid
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
 
-            # Extract only the 'compressed' key from each image entry
-            compressed = [
-                image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
-            ]
+        # Extract only the 'compressed' key from each image entry
+        compressed = [
+            image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
+        ]
 
-            # Return only compressed
-            return compressed
+        # Return only compressed
+        return compressed
+    
+    def get_participants(self, obj):
+        participants = obj.participants.all()
+        return ParticipantSerializer(participants, many=True).data 
 
 
 class AddressSerializer(serializers.ModelSerializer):
@@ -330,15 +353,15 @@ class AddressSerializer(serializers.ModelSerializer):
         read_only_fields = ['uuid']
 
 
-class ServiceSerializer(serializers.ModelSerializer):
+# class ServiceSerializer(serializers.ModelSerializer):
 
-    class Meta:
-        model = Service
-        fields = ['uuid', 'item_name', 'item_description', 'item_price']
-        read_only_fields = ['uuid']
+#     class Meta:
+#         model = Service
+#         fields = ['uuid', 'item_name', 'item_description', 'item_price']
+#         read_only_fields = ['uuid']
 
-    def create(self, validated_data):
-        return super().create(validated_data)
+#     def create(self, validated_data):
+#         return super().create(validated_data)
         
         
 class VendorKYCSerializer(serializers.ModelSerializer):
@@ -438,10 +461,11 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     uploaded_images = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
+    services = serializers.SerializerMethodField()
     
     class Meta:
         model = VendorKYC
-        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'addresses', 'is_favorite', 'average_rating']
+        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'addresses', 'is_favorite', 'average_rating', 'services']
 
     def get_addresses(self, obj):
         # Assuming 'addresses' is a related field in the VendorKYC model
@@ -468,6 +492,10 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         ]
 
         return images
+
+    def get_services(self, obj):
+        services = obj.ven_services.all()
+        return ServiceSerializer(services, many=True).data
     
     def get_is_favorite(self, obj):
         user = self.context.get('request').user
@@ -487,26 +515,24 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
 class VendorKYCDetailSerializer(serializers.ModelSerializer):
     # Include related fields for addresses, services, business documents, and photos
     addresses = AddressSerializer(many=True, read_only=True)
-    # services = ServiceSerializer(many=True, read_only=True)
-
-    # Handling the business related documents and photos as lists of strings
     uploaded_business_documents = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
     
     business_hours = serializers.JSONField(required=False, allow_null=True)
     average_rating = serializers.SerializerMethodField()
+    services = serializers.SerializerMethodField()
 
     class Meta:
         model = VendorKYC
         fields = [
             'vendor_id', 'profile_pic', 'user', 'full_name', 'phone_number', 'business_email_id',
             'business_establishment_year', 'business_description', 'uploaded_business_documents',
-            'uploaded_images', 'same_as_personal_phone_number', 
+            'uploaded_images', 'same_as_personal_phone_number', 'services',
             'same_as_personal_email_id', 'addresses', 'country_code', 'dial_code', 
             'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
             'business_hours', 'is_approved', 'average_rating'
         ]
-        read_only_fields = ['user', 'is_approved']  # Keep read-only fields to avoid updates during detail fetching
+        read_only_fields = ['user', 'is_approved']
 
     def to_representation(self, instance):
         """
@@ -515,8 +541,6 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         and business-related documents and photos.
         """
         representation = super().to_representation(instance)
-        # Format services and addresses for response
-        # representation['services'] = ServiceSerializer(instance.services.all(), many=True).data
         representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
 
         return representation
@@ -532,11 +556,10 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         Fetch 'compressed' and 'thumbnail' URLs for uploaded images.
         Each image entry in the list contains these two keys.
         """
-        # Ensure uploaded_images field is valid
+
         if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
             return []
 
-        # Extract both 'compressed' and 'thumbnail' keys for each image
         images = [
             {
                 "compressed": image.get("compressed"),
@@ -551,6 +574,11 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
     def get_average_rating(self, obj):
         average = VendorRating.objects.filter(vendor=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
         return round(average, 1) if average else 0.0   
+
+    def get_services(self, obj):
+        services = obj.ven_services.all()
+        return ServiceSerializer(services, many=True).data
+
         
 class VendorKYCStatusSerializer(serializers.ModelSerializer):
     class Meta:
@@ -562,7 +590,6 @@ from appointments.models import Service as AppService
 class CreateDealSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
-    # actual_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     vendor_email = serializers.EmailField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
@@ -600,12 +627,12 @@ class CreateDealSerializer(serializers.ModelSerializer):
         if available_deals < 1:
             raise serializers.ValidationError({'available_deals': "You must provide at least 1 deal."})
         print(data.get('service'))
-        serv = AppService.objects.filter(id=service_id).first()
-        if not serv:
-            raise serializers.ValidationError({'service': f"Invalid service ID: {service_id}"})
-        print(serv)
-        print(data.get('service'))
-        data['service'] = serv
+        # serv = AppService.objects.filter(id=service_id).first()
+        # if not serv:
+        #     raise serializers.ValidationError({'service': f"Invalid service ID: {service_id}"})
+        # print(serv)
+        # print(data.get('service'))
+        # data['service'] = serv
         return data
 
     def validate(self, data):
@@ -669,22 +696,20 @@ class CreateDealSerializer(serializers.ModelSerializer):
         return data
 
     
-
-    
-    
 class CreateDeallistSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
     country = serializers.CharField(source='vendor_kyc.country', read_only=True)
     discount_percentage = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
+    original_images = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     
     class Meta:
         model = CreateDeal
         fields = [
             'deal_uuid', 'deal_post_time', 'deal_title',
-            'uploaded_images', 'end_date', 'end_time',
+            'uploaded_images', 'original_images', 'end_date', 'end_time',
             'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
@@ -699,6 +724,14 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
             return round(discount, 2)
         return 0     
 
+    def get_original_images(self, obj):
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
+
+        first_image = obj.uploaded_images[0] 
+        original = first_image.get("original")
+        return [original]
+
     def get_uploaded_images(self, obj):
         """
         Fetch only the first image thumbnail from uploaded_images.
@@ -708,10 +741,9 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
             return []
 
-        # Return only the thumbnail of the first image in the uploaded_images list
-        first_image = obj.uploaded_images[0]  # Get the first image
-        thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
-        return [thumbnail] if thumbnail else []
+        first_image = obj.uploaded_images[0] 
+        thumbnail = first_image.get("thumbnail")
+        return [thumbnail]
     
     def get_average_rating(self, obj):
         """
@@ -727,6 +759,8 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     
 class CreateDealDetailSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor_kyc.full_name', read_only=True)
+    vendor_profile_picture = serializers.CharField(source='vendor_kyc.profile_pic', read_only=True)
+    vendor_description = serializers.CharField(source='vendor_kyc.business_description', read_only=True)
     vendor_uuid = serializers.UUIDField(source='vendor_kyc.vendor_id', read_only=True)
     vendor_email = serializers.CharField(source='vendor_kyc.business_email_id', read_only=True)
     vendor_phone_number = serializers.CharField(source='vendor_kyc.phone_number', read_only=True)
@@ -734,14 +768,14 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     discount_percentage = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
-    # uploaded_images = CreateDealImageSerializer(many=True, source='deals_assets')   # , source='deals_assets'
+    original_images = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
         fields = [
             'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
-            'deal_uuid','uploaded_images', 'deal_post_time', 'deal_title', 'deal_description',
-            'end_date',
+            'deal_uuid','uploaded_images', 'original_images', 'deal_post_time', 
+            'deal_title', 'deal_description', 'end_date', 'vendor_profile_picture', 'vendor_description',
             'end_time', 'buy_now', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
@@ -755,23 +789,33 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             discount = ((obj.actual_price - obj.deal_price) / obj.actual_price) * 100
             return round(discount, 2)
         return 0
+
+    def get_original_images(self, obj):
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
+
+        compressed = [
+            image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
+        ]
+
+        return compressed
     
     def get_uploaded_images(self, obj):
-            """
-            Fetch only the uploaded image compressed served via S3/CDN URLs.
-            The compressed URLs are directly mapped based on uploaded images.
-            """
-            # Ensure uploaded_images field is valid
-            if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
-                return []
+        """
+        Fetch only the uploaded image compressed served via S3/CDN URLs.
+        The compressed URLs are directly mapped based on uploaded images.
+        """
+        # Ensure uploaded_images field is valid
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
 
-            # Extract only the 'compressed' key from each image entry
-            compressed = [
-                image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
-            ]
+        # Extract only the 'compressed' key from each image entry
+        compressed = [
+            image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
+        ]
 
-            # Return only compressed
-            return compressed
+        # Return only compressed
+        return compressed
 
     def get_average_rating(self, obj):
         """
@@ -970,12 +1014,12 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Username must be at least 6 characters long.")
         return value
 
-    def validate_phone_number(self, value):
-        user = self.instance
-        if user.phone_number != value:
-            if not OTP.objects.filter(user=user, phone_number=value, is_verified=True).exists():
-                raise PhoneNumberNotVerified()
-        return value
+    # def validate_phone_number(self, value):
+    #     user = self.instance
+    #     if user.phone_number != value:
+    #         if not OTP.objects.filter(user=user, phone_number=value, is_verified=True).exists():
+    #             raise PhoneNumberNotVerified()
+    #     return value
 
     def validate_email(self, value):
         user = self.context['request'].user
@@ -1101,7 +1145,7 @@ class OTPValidationSerializer(serializers.Serializer):
 class MyActivitysSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source='created_by.id', read_only=True)
     created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    activity_category = ActivityCategorySerializer(required=True)
+    # activity_category = ActivityCategorySerializer(required=True)
     uploaded_images = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
     is_accepted = serializers.SerializerMethodField()
@@ -1110,8 +1154,8 @@ class MyActivitysSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Activity
-        fields = ['activity_id', 'user_id', 'activity_title','uploaded_images','activity_category', 'activity_description', 'created_by', 'user_participation', 'maximum_participants', 'infinite_time', 'activity_category',
-                  'start_date', 'start_time', 'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
+        fields = ['activity_id', 'user_id', 'activity_title','uploaded_images', 'activity_description', 'created_by', 'user_participation', 'maximum_participants', 'infinite_time', 'category',
+                  'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
                   'location', 'created_at', 'is_accepted', 'is_rejected', 'chat_room_id']
         
     def get_created_at(self, obj):

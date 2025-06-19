@@ -124,13 +124,22 @@ class RegisterView(generics.CreateAPIView):
             Q(username=username) | Q(email=data.get('email')) | Q(phone_number=data.get('phone_number'))
         ).first()
 
+        matched_by = None
+        if existing_user:
+            if existing_user.username == username:
+                matched_by = 'username'
+            elif existing_user.email == data.get('email'):
+                matched_by = 'email'
+            elif existing_user.phone_number == data.get('phone_number'):
+                matched_by = 'phone_number'
+
         if existing_user:
             if existing_user:
-                if existing_user.type == 'Google' or existing_user.type == 'Apple':
-                    return Response({
-                        'message': 'User exists, try google or apple login.'
-                    }, status=status.HTTP_400_BAD_REQUEST) 
-                elif existing_user.email == data.get('email'):
+                # if existing_user.type == 'Google' or existing_user.type == 'Apple':
+                #     return Response({
+                #         'message': 'User exists, try google or apple login.'
+                #     }, status=status.HTTP_400_BAD_REQUEST) 
+                if existing_user.email == data.get('email'):
                     return Response({
                         'message': 'User with this email already exists.'
                     }, status=status.HTTP_400_BAD_REQUEST) 
@@ -230,13 +239,6 @@ class LoginView(generics.GenericAPIView):
             request.session.save()
         session_id = request.session.session_key
 
-        # try:
-        #     otp_instance = OTP.objects.filter(user=user).order_by('-created_at').first()
-        #     if not otp_instance or not otp_instance.is_verified:
-        #         return Response({"message": "OTP not verified. Please verify your OTP first."}, status=status.HTTP_403_FORBIDDEN)
-        # except Exception as e:
-        #     return Response({"message": "Unexpected error while checking OTP."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
 
@@ -293,7 +295,11 @@ class ActivityCreateView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         try:
-            serializer = self.get_serializer(data=request.data)
+            data = request.data.copy()
+            if not data['user_participation']:
+                data['maximum_participants'] = 0
+
+            serializer = self.get_serializer(data=data)
             if serializer.is_valid():
                 if 'user_participation' not in serializer.validated_data:
                     serializer.validated_data['user_participation'] = True
@@ -351,18 +357,14 @@ class ActivityCreateView(generics.CreateAPIView):
                         "activity_id": str(activity.activity_id),
                         "activity_title": activity.activity_title,
                         "activity_description": activity.activity_description,
-                        "activity_category": activity.activity_category.actv_category if activity.activity_category else None,
                         "uploaded_images": activity.uploaded_images,
                         "user_participation": activity.user_participation,
                         "maximum_participants": activity.maximum_participants,
-                        "start_date": activity.start_date,
                         "end_date": activity.end_date,
-                        "start_time": activity.start_time,
                         "end_time": activity.end_time,
                         "created_at": activity.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                         "created_by": str(activity.created_by.id),
                         "infinite_time": activity.infinite_time,
-                        "set_current_datetime": activity.set_current_datetime,
                         "location": activity.location,
                         "latitude": activity.latitude,
                         "longitude": activity.longitude,
@@ -589,19 +591,21 @@ class CreateDealView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
-        vendor_kyc = self.request.user.vendorkyc_set.first()
-        if not vendor_kyc:
-            raise ValidationError("VendorKYC for this user does not exist.")
-        if not vendor_kyc.is_approved:
-            raise ValidationError("Cannot create a deal because Vendor KYC is not approved.")
-
         serializer.save()
 
     def create(self, request, *args, **kwargs):
         try:
             # Extract uploaded images metadata from the request if provided
             uploaded_images = request.data.get('uploaded_images', [])
-
+            vendor_kyc = self.request.user.vendorkyc_set.first()
+            if not vendor_kyc:
+                return Response({
+                    'error': 'You do not have any vendor KYC.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            if not vendor_kyc.is_approved:
+                return Response({
+                    'error': 'You vendor KYC is not approved yet.'
+                }, status=status.HTTP_400_BAD_REQUEST)
             # Ensure the metadata is a list of dictionaries
             if not isinstance(uploaded_images, list) or not all(isinstance(img, dict) for img in uploaded_images):
                 return Response(
@@ -718,6 +722,7 @@ class UploadImagesAPI(APIView):
         folder_mapping = {
             "Activity": "activity",
             "VendorKYC": "vendor_kyc",
+            "Service": "service-images",
             "CreateDeal": "create_deal",
             "RaiseAnIssueMyOrders": "raise_an_issue_my_orders",
             "RaiseAnIssueVendors": "raise_an_issue_vendors",
@@ -742,9 +747,13 @@ class UploadImagesAPI(APIView):
             compressed = process_image(image, (600, 250))
             compressed_url = upload_to_s3(compressed, f"{folder_name}", base_file_name)
 
+            original_image = process_image(image, None)   # Only changing format to WEBP
+            original_url = upload_to_s3(original_image, f"original_{folder_name}", f"original_{base_file_name}")
+
             uploaded_images.append({
                 "thumbnail": thumbnail_url,
                 "compressed": compressed_url,
+                "original": original_url
             })
 
         return Response({
@@ -798,8 +807,9 @@ class UploadProfileImageAPI(APIView):
         # Validate the file extension
         file_extension = file.name.split('.')[-1].lower()
         if file_extension not in ['jpg', 'jpeg', 'png', 'webp']:
-            return Response({"error": "Unsupported file type. Only jpg, jpeg, png, or webp are allowed."}, 
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": "Unsupported file type. Only jpg, jpeg, png, or webp are allowed."
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             # Define folder path for upload
@@ -898,37 +908,62 @@ class ActivityListsView(generics.ListAPIView):
     serializer_class = ActivityListsSerializer
     permission_classes = [AllowAny]
 
+    # def get_queryset(self):
+    #     current_time = make_aware(datetime.now())  # Timezone aware datetime
+    #     search_keyword = self.request.query_params.get('address', None)
+
+    #     # Base queryset jo sirf live activities ko filter karega
+    #     queryset = Activity.objects.all()
+
+    #     live_activities = []
+    #     for activity in queryset:
+    #         end_date = activity.end_date or current_time.date()
+    #         end_time = activity.end_time or time(23, 59)
+
+    #         activity_end_datetime = make_aware(datetime.combine(end_date, end_time))
+
+    #         if current_time <= activity_end_datetime:
+    #             live_activities.append(activity)
+
+    #     # Agar search filter diya hai toh location ko bhi filter karein
+    #     if search_keyword:
+    #         search_terms = [term.strip().lower() for term in search_keyword.split(',')]
+    #         filtered_activities = []
+    #         for activity in live_activities:
+    #             activity_location = activity.location.lower() if activity.location else ''
+    #             if any(term in activity_location for term in search_terms):
+    #                 filtered_activities.append(activity)
+    #         return filtered_activities
+
+    #     return live_activities
+
     def get_queryset(self):
-        current_time = make_aware(datetime.now())  # Timezone aware datetime
+        current_time = make_aware(datetime.now())
         search_keyword = self.request.query_params.get('address', None)
 
-        # Base queryset jo sirf live activities ko filter karega
-        queryset = Activity.objects.all()
+        # Pre-filter queryset: is_deleted=False and activity is still live
+        queryset = Activity.objects.filter(
+            is_deleted=False
+        ).filter(
+            Q(end_date__gt=current_time.date()) |
+            Q(end_date=current_time.date(), end_time__gte=current_time.time()) |
+            Q(end_date__isnull=True, end_time__gte=current_time.time()) |
+            Q(end_date__gte=current_time.date(), end_time__isnull=True) |
+            Q(end_date__isnull=True, end_time__isnull=True)
+        )
 
-        live_activities = []
-        for activity in queryset:
-            start_date = activity.start_date or current_time.date()
-            start_time = activity.start_time or time(0, 0)
-            end_date = activity.end_date or current_time.date()
-            end_time = activity.end_time or time(23, 59)
-
-            activity_start_datetime = make_aware(datetime.combine(start_date, start_time))
-            activity_end_datetime = make_aware(datetime.combine(end_date, end_time))
-
-            if activity_start_datetime <= current_time <= activity_end_datetime:
-                live_activities.append(activity)
-
-        # Agar search filter diya hai toh location ko bhi filter karein
         if search_keyword:
             search_terms = [term.strip().lower() for term in search_keyword.split(',')]
-            filtered_activities = []
-            for activity in live_activities:
-                activity_location = activity.location.lower() if activity.location else ''
-                if any(term in activity_location for term in search_terms):
-                    filtered_activities.append(activity)
-            return filtered_activities
+            queryset = queryset.filter(
+                reduce(
+                    lambda q, term: q | Q(location__icontains=term),
+                    search_terms,
+                    Q()
+                )
+            )
 
-        return live_activities
+        return queryset
+
 
     
 class ActivityDetailsView(generics.RetrieveAPIView):
@@ -1089,18 +1124,48 @@ class PlaceOrderDetailsView(generics.RetrieveAPIView):
             
 class CategoriesView(APIView):
     def get(self, request):
-        # Fetch activity categories and serialize them
-        activity_categories = ActivityCategory.objects.all()
-        activity_data = ActivityCategorySerializer(activity_categories, many=True).data
+        SERVICE_CATEGORIES = [
+            "Automotive Services & Products",
+            "Art, Crafts & Collectibles",
+            "Baby Care",
+            "Bakery",
+            "Books, Stationery & Toys",
+            "Clothing",
+            "Consultants",
+            "Dentist",
+            "Electronics",
+            "Estate Agents",
+            "Fashion, Apparel & Accessories",
+            "Food",
+            "Furniture",
+            "Groceries",
+            "Health, Wellness & Fitness",
+            "Home, Living & Kitchen",
+            "Others",
+            "Personal Care",
+            "Pet Care Services & Supplies",
+            "Professional & Business Services",
+            "Rent & Hire",
+            "Restaurants",
+            "Sports & Outdoors",
+            "Other Services & Consultations",
+        ]
 
-        # Fetch service categories and serialize them
-        service_categories = ServiceCategory.objects.all()
-        service_data = ServiceCategorySerializer(service_categories, many=True).data
-
-        # Format the response
+        ACTIVITY_CATEGORIES = [
+            "Tech and Gaming",
+            "Volunteer Opportunities",
+            "Cultural Exchanges",
+            "Intellectual Pursuits",
+            "Sports and Recreation",
+            "Arts and Crafts",
+            "Social Gatherings",
+            "Educational Workshops",
+            "Music and Entertainment",
+            "Others",
+        ]
         response_data = {
-            "activity_category": activity_data,
-            "service_category": service_data,
+            "activity_category": ACTIVITY_CATEGORIES,
+            "service_category": SERVICE_CATEGORIES,
         }
 
         return Response(response_data)
@@ -1127,6 +1192,13 @@ class CustomUserEditView(APIView):
 
     def put(self, request, *args, **kwargs):
         user = request.user
+        if not user.otp_verified or user.phone_number != request.data.get('phone_number'):
+            return Response({
+                'error': 'This phone number is not verified via OTP.'
+            }, status=status.HTTP_200_OK)
+        
+        
+            
         serializer = CustomUserEditSerializer(user, data=request.data, partial=True, context={'request': request})  # Pass the request
         if serializer.is_valid():
             serializer.save()
@@ -1145,10 +1217,10 @@ class CustomUserEditView(APIView):
             )
         else:
             # Extract the first error message from serializer.errors
-            error_message = next(iter(serializer.errors.values()))[0]
+            # error_message = next(iter(serializer.errors.values()))[0]
             return Response(
                 {
-                    "message": error_message
+                    "errors": serializer.errors
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
@@ -1284,20 +1356,6 @@ class SendOTPView(APIView):
         return Response({"message": "OTP sent successfully to your phone number."}, status=status.HTTP_200_OK)
 
 
-   
-# class ValidateOTPView(APIView):
-#     serializer_class = OTPValidationSerializer
-
-#     def post(self, request):
-#         serializer = self.serializer_class(data=request.data)
-#         if serializer.is_valid():
-#             message = serializer.validated_data.get('message')
-#             if message == "OTP is valid. Proceed to reset your password.":
-#                 return Response({"message": message}, status=status.HTTP_200_OK)
-#             else:
-#                 return Response({"message": message}, status=status.HTTP_400_BAD_REQUEST)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 class ValidateOTPView(APIView):
     serializer_class = OTPValidationSerializer
 
@@ -1314,37 +1372,6 @@ class ValidateOTPView(APIView):
         status_code = status.HTTP_200_OK if message == "OTP is valid. Proceed to reset your password." else status.HTTP_400_BAD_REQUEST
         return Response({"message": message}, status=status_code)
 
-            
-# class OTPResetPasswordView(APIView):
-#     serializer_class = OTPResetPasswordSerializer
-
-#     def post(self, request):
-#         serializer = self.serializer_class(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-
-#         return Response({"message": "Password has been reset successfully."}, status=status.HTTP_200_OK)
-
-# class OTPResetPasswordView(APIView):
-#     serializer_class = OTPResetPasswordSerializer
-
-#     def post(self, request):
-#         serializer = self.serializer_class(data=request.data)
-#         if serializer.is_valid():
-#             # Handle successful validation and save logic
-#             serializer.save()
-#             return Response(
-#                 {"message": "Password has been reset successfully."},
-#                 status=status.HTTP_200_OK
-#             )
-#         else:
-#             # Return custom error messages from the serializer
-#             errors = serializer.errors
-#             custom_message = errors.get('message', "Invalid data provided.")
-#             return Response(
-#                 {"message": custom_message},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
 
 class OTPResetPasswordView(APIView):
     serializer_class = OTPResetPasswordSerializer
@@ -1380,7 +1407,7 @@ class MyActivityView(APIView):
         user = request.user
 
         # Authenticated user ki activities filter karna
-        activities = Activity.objects.filter(created_by=request.user)
+        activities = Activity.objects.filter(created_by=request.user, is_deleted=False)
 
         live_activities = []
         scheduled_activities = []
@@ -1388,27 +1415,26 @@ class MyActivityView(APIView):
 
         for activity in activities:
             # Agar start_date ya start_time missing hai, toh default values set karte hain
-            start_date = activity.start_date or current_time.date()
-            start_time = activity.start_time or time(0, 0)
+            # start_date = activity.start_date or current_time.date()
+            # start_time = activity.start_time or time(0, 0)
             end_date = activity.end_date or current_time.date()
             end_time = activity.end_time or time(23, 59)
 
-            activity_start_datetime = make_aware(datetime.combine(start_date, start_time))
+            # activity_start_datetime = make_aware(datetime.combine(start_date, start_time))
             activity_end_datetime = make_aware(datetime.combine(end_date, end_time))
 
-            if activity_start_datetime <= current_time <= activity_end_datetime:
+            if current_time <= activity_end_datetime:
                 live_activities.append(activity)
-            elif current_time < activity_start_datetime:
-                scheduled_activities.append(activity)
+            # elif current_time < activity_start_datetime:
+            #     scheduled_activities.append(activity)
             elif current_time > activity_end_datetime:
                 history_activities.append(activity)
                 
         # Participation tab: user ne doosron ke activity mein participate kiya
         participated_activities = Activity.objects.filter(
-            chatrequest__from_user=user
+            chat_requests__from_user=user
         ).exclude(created_by=user).distinct()
 
-        # Context zaroori hai serializer ke get_is_accepted & get_chat_room_id ke liye
         # Context zaroori hai serializer ke get_is_accepted & get_chat_room_id ke liye
         context = {'request': request}
 
@@ -1449,14 +1475,11 @@ class MyDealView(APIView):
 
             for deal in deals:
                 # ⚠️ Skip if date or time is missing
-                if not all([deal.start_date, deal.start_time, deal.end_date, deal.end_time]):
+                if not all([deal.end_date, deal.end_time]):
                     # Optional: You can move such deals to history or skip
                     history_deals.append(deal)
                     continue
 
-                deal_start_datetime = timezone.make_aware(
-                    datetime.combine(deal.start_date, deal.start_time)
-                )
                 deal_end_datetime = timezone.make_aware(
                     datetime.combine(deal.end_date, deal.end_time)
                 )
@@ -1464,18 +1487,14 @@ class MyDealView(APIView):
                 # ✅ Check for available_deals
                 if deal.available_deals is not None and deal.available_deals <= 0:
                     # ✅ Expire the deal
-                    deal.start_date = current_time.date()
-                    deal.start_time = current_time.time()
                     deal.end_date = current_time.date()
                     deal.end_time = current_time.time()
                     deal.save()
                     history_deals.append(deal)
                 else:
                     # ✅ Classify deals based on time
-                    if deal_start_datetime <= current_time <= deal_end_datetime:
+                    if current_time <= deal_end_datetime:
                         live_deals.append(deal)
-                    elif current_time < deal_start_datetime:
-                        scheduled_deals.append(deal)
                     elif current_time > deal_end_datetime:
                         history_deals.append(deal)
 
@@ -2405,13 +2424,20 @@ class SendVerificationOTP(APIView):
             if not email:
                 return Response({
                     'message': 'Email is required.',
-                    'data': {}
+                    'data': []
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             if email == request.user.email:
                 return Response({
                     'message': 'New email is same as old email.',
-                    'data': {}
+                    'data': []
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            email_exists = CustomUser.objects.filter(email=email).exists()
+            if email_exists:
+                return Response({
+                    'message': 'User with this email already exists.',
+                    'data': []
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
@@ -2436,6 +2462,19 @@ class SendVerificationOTP(APIView):
                     'data': {}
                 }, status=status.HTTP_400_BAD_REQUEST)
 
+            if phone == request.user.phone_number:
+                return Response({
+                    'message': 'New Phone number is same as old number.',
+                    'data': []
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            phone_exists = CustomUser.objects.filter(phone_number=phone).exists()
+            if phone_exists:
+                return Response({
+                    'message': 'User with this phone number already exists.',
+                    'data': []
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             dial_code = request.data.get('dial_code')
             otp = ''.join(str(random.randint(0, 9)) for _ in range(6))
             cache.set(phone, otp, timeout=600)
@@ -2452,7 +2491,9 @@ class SendVerificationOTP(APIView):
 
 class VerifyOTPViewV2(APIView):
     """
-    Post() ---> verify the OTP
+    Post() ---> verify the OTP &
+        verification_type: email - set updated email & socail id to None.
+        verification_tyoe: phone - set updated phone number & otp_verified to True.
     """
     permission_classes = [IsAuthenticated]
     def post(self, request):
@@ -2470,7 +2511,7 @@ class VerifyOTPViewV2(APIView):
                         'data': {}
                     }, status=status.HTTP_200_OK)
                 if original_otp == otp:     
-                    user = CustomUser.objects.get(email=user.email)
+                    # user = CustomUser.objects.get(email=user.email)
                     user.email = email
                     user.social_id = None
                     user.save()
@@ -2493,7 +2534,7 @@ class VerifyOTPViewV2(APIView):
                         'data': {}
                     }, status=status.HTTP_200_OK)
                 if original_otp == otp:     
-                    user = CustomUser.objects.get(phone_number=user.phone_number)
+                    # user = CustomUser.objects.get(phone_number=user.phone_number)
                     user.otp_verified = True
                     user.phone_number = phone
                     user.save()
@@ -2548,8 +2589,8 @@ class ActivityDeleteView(APIView):
                 'message': 'Activity not found.'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        # Optionally delete and return success
-        activity.delete()
+        activity.is_deleted = True
+        activity.save()
         return Response({
             'message': 'Activity deleted successfully.'
         }, status=status.HTTP_204_NO_CONTENT)
@@ -2571,3 +2612,143 @@ class DealDeleteView(APIView):
         return Response({
             'message': 'Activity deleted successfully.'
         }, status=status.HTTP_204_NO_CONTENT)
+
+
+class SendOTPToEmail(APIView):
+    """
+    Post() ---> Send OTP to email 
+        Used for - Forgot Password, (more usecases can be added...)
+    """
+
+    def post(self, request, format=None):
+        email = request.data.get('email')
+        if not email:
+            return Response({
+                'message': 'Email is required.',
+                'data': []
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        user = CustomUser.objects.filter(email=email).exists()
+
+        if not user:
+            return Response({
+                'message': 'No user exist with this email.',
+                'data': []
+            }, status=status.HTTP_400_BAD_REQUEST)
+        otp = ''.join(random.choices(string.digits, k=6))
+        try:
+            sent = send_email_via_mailgun(email, otp)
+            if not sent:
+                return Response({
+                'message': 'OTP couldn\'t be sent, please try again later.',
+                'data': []
+            }, status=status.HTTP_400_BAD_REQUEST)
+            cache.set(email, otp, timeout=300)
+            return Response({
+                'message': 'OTP sent at your email.',
+                'data': []
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'message': 'Something went wrong while sending OTP.',
+                'data': []
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class VerifyOTPForPassword(APIView):
+    """
+    Post() ---> Verify OTP and set the password for the user
+    """
+
+    def post(self, request):
+        email = request.data.get('email')
+        otp = request.data.get('otp')
+
+        if not email or not otp:
+            return Response({
+                'message': 'Email, OTP, or password is missing.',
+                'data': []
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        original_otp = cache.get(email)
+        if not original_otp:
+            return Response({
+                'message': 'OTP expired.',
+                'data': []
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if original_otp == otp:
+            return Response({
+                'message': 'OTP verified successfully.',
+                'data': {'email': email}
+            }, status=status.HTTP_200_OK)
+        return Response({
+            'message': 'OTP cannot be verified.',
+            'data': []
+        }, status=status.HTTP_200_OK)
+
+
+class SetPasswordAPI(APIView):
+    """
+    Post() ---> Reset password
+    """
+
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        password2 = request.data.get('password2')
+
+        if password != password2:
+            return Response({
+                'message': 'Passwords do not match.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        user = CustomUser.objects.get(email=email)
+        user.set_password(password)
+        user.save()
+        return Response({
+            'message': 'Password has been set successfully.'
+        }, status=status.HTTP_204_NO_CONTENT)
+
+
+class ConfirmRejectActivityPartcipation(APIView):
+    """
+    Post() ---> Accept or Reject a participation.
+    """
+
+    def post(self, request, activity_id):
+        participation_status = request.data.get('status') # accept, reject
+        user_id = request.data.get('user_id')
+        try:
+            print(activity_id)
+            activity = Activity.objects.filter(activity_id=activity_id).first()
+            curr_participant_count = activity.participants.count()
+            if participation_status == 'accept':
+                if curr_participant_count < activity.maximum_participants:
+                    activity.participants.add(user_id)
+                    chat_request = activity.chat_requests.filter(from_user=user_id).first()
+                    chat_request.participation_status = 'ACCEPTED'
+                chat_request.save()
+                activity.save()
+
+                return Response({
+                    'message': 'Participant confirmed.',
+                }, status=status.HTTP_200_OK)
+            elif participation_status == 'reject':
+                chat_request = activity.chat_requests.filter(from_user=user_id)
+                chat_request.participation_status = 'REJECTED'
+                chat_request.save()
+
+                return Response({
+                    'message': 'Participant Rejected.'
+                }, status=status.HTTP_200_OK)
+        except Activity.DoesNotExist as e:
+            return Response({
+                'error': 'No activity found.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'message': 'Error occured while accepting/rejecting participation.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

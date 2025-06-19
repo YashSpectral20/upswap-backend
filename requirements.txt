@@ -19,7 +19,6 @@ django-storages[boto3]
 python-dotenv
 boto3
 drf-yasg
-django-cors-headers
 pytz
 pyfcm>=1.5.6
 requests

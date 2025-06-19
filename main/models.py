@@ -18,10 +18,6 @@ from django.utils.timezone import now
 from decimal import Decimal
 from datetime import timedelta
 
-#from django.contrib.auth import get_user_model
-
-#User = get_user_model()
-
 # Custom User Models
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, name, phone_number, date_of_birth, gender, country_code='', dial_code='', country='', password=None, fcm_token=None, latitude=None, longitude=None):
@@ -105,11 +101,9 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     fcm_token = models.CharField(max_length=255, blank=True, null=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
-
     
     objects = CustomUserManager()
     
-
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username', 'name', 'phone_number', 'date_of_birth', 'gender']
 
@@ -143,54 +137,53 @@ class ActivityCategory(models.Model):
         return self.actv_category
 
 class Activity(models.Model):
+    ACTIVITY_CATEGORIES = [
+        ("Tech and Gaming", "Tech and Gaming"),
+        ("Volunteer Opportunities", "Volunteer Opportunities"),
+        ("Cultural Exchanges", "Cultural Exchanges"),
+        ("Intellectual Pursuits", "Intellectual Pursuits"),
+        ("Sports and Recreation", "Sports and Recreation"),
+        ("Arts and Crafts", "Arts and Crafts"),
+        ("Social Gatherings", "Social Gatherings"),
+        ("Educational Workshops", "Educational Workshops"),
+        ("Music and Entertainment", "Music and Entertainment"),
+        ("Others", "Others"),
+    ]
     activity_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    activity_title = models.CharField(max_length=50)
+    activity_title = models.CharField(max_length=100)
     activity_description = models.TextField()
     uploaded_images = models.JSONField(default=list, blank=True)
-    activity_category = models.ForeignKey(ActivityCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    category = models.CharField(max_length=100, choices=ACTIVITY_CATEGORIES)
     user_participation = models.BooleanField(default=True)
     maximum_participants = models.IntegerField(default=0)
-    start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-    start_time = models.TimeField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     infinite_time = models.BooleanField(default=False)  # Updated to False
-    set_current_datetime = models.BooleanField(default=False)
     images = models.JSONField(default=list, blank=True, help_text="List of image paths")
     location = models.CharField(max_length=255, blank=True, null=True, help_text="Optional description of the location")
     latitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True, help_text="Latitude of the location")
     longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True, help_text="Longitude of the location")
-
+    is_deleted = models.BooleanField(default=False)   # set to true, don't delete the activity.
+    participants = models.ManyToManyField(CustomUser, related_name='participants', blank=True)
+    
     def clean(self):
         now = timezone.now().date()
         if self.end_date and self.end_date < now:
             raise ValidationError("End date cannot be in the past.")
-        if self.start_date and self.end_date and self.end_date < self.start_date:
-            raise ValidationError("End date must be after start date.")
-        if self.start_date == self.end_date:
-            if self.start_time and self.end_time and self.end_time <= self.start_time:
-                raise ValidationError("End time must be after start time")
-        
+
         if self.maximum_participants > 1000:
             raise ValidationError("Maximum participants cannot exceed 1000.")
 
     def save(self, *args, **kwargs):
-        if self.infinite_time and not (self.start_date or self.start_time or self.end_date or self.end_time):
+        if self.infinite_time and not (self.end_date or self.end_time):
             future_date = timezone.now() + timezone.timedelta(days=365 * 999)  
             self.end_date = future_date.date()
             self.end_time = future_date.time()
 
-        if self.set_current_datetime and not (self.start_date or self.start_time):
-            current_datetime = timezone.now()
-            self.start_date = current_datetime.date()
-            self.start_time = current_datetime.time()
-
-        if self.infinite_time and self.set_current_datetime and not (self.start_date or self.start_time or self.end_date or self.end_time):
-            self.start_date = None
-            self.start_time = None
+        if self.infinite_time and not (self.end_date or self.end_time):
             self.end_date = None
             self.end_time = None
 
@@ -202,54 +195,6 @@ class Activity(models.Model):
 
     def __str__(self):
         return self.activity_title
-
-
-
-
-    
-# class ChatRequest(models.Model):
-#     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
-#     from_user = models.ForeignKey(CustomUser, related_name='sent_requests', on_delete=models.CASCADE)
-#     to_user = models.ForeignKey(CustomUser, related_name='received_requests', on_delete=models.CASCADE)
-#     is_accepted = models.BooleanField(default=False)
-#     is_rejected = models.BooleanField(default=False)
-#     interested = models.BooleanField(default=False)
-#     created_at = models.DateTimeField(default=timezone.now)
-    
-#     def accept(self):
-#         if not self.is_rejected:
-#             self.is_accepted = True
-#             self.interested = True
-#             chat_room, created = ChatRoom.objects.get_or_create(activity=self.activity)
-#             chat_room.participants.add(self.from_user, self.to_user)
-#             chat_room.save()
-#             self.save()
-
-#     def reject(self):
-#         if not self.is_accepted:
-#             self.is_rejected = True
-#             self.save()
-
-#     def __str__(self):
-#         return f"Request from {self.from_user} to {self.to_user} for {self.activity}"
-
-# class ChatRoom(models.Model):
-#     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-#     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)
-#     participants = models.ManyToManyField(CustomUser)
-#     created_at = models.DateTimeField(auto_now_add=True)
-    
-#     def __str__(self):
-#         return f"ChatRoom {self.id} for Activity {self.activity.activity_title}"
-
-# class ChatMessage(models.Model):
-#     chat_room = models.ForeignKey(ChatRoom, related_name='messages', on_delete=models.CASCADE)
-#     sender = models.ForeignKey(CustomUser, related_name='sent_messages', on_delete=models.CASCADE)
-#     content = models.TextField()
-#     created_at = models.DateTimeField(auto_now_add=True)
-
-#     def __str__(self):
-#         return f"Message {self.id} from {self.sender.email}"
 
 
 def validate_file_type(file):
@@ -402,6 +347,8 @@ class CreateDeal(models.Model):
     location_pincode = models.CharField(max_length=20, blank=True)
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
+
+    # is_deleted = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         if self.pk is None: 

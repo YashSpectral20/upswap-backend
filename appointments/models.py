@@ -41,7 +41,6 @@ class Service(models.Model):
     name = models.CharField(max_length=255)
     vendor = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='ven_services')
     description = models.TextField(blank=True, null=True)
-    # category = models.ForeignKey(ServiceCategory, on_delete=models.CASCADE, related_name='cat_services')
     category = models.CharField(max_length=100, choices=SERVICE_CATEGORY_CHOICES)
     duration = models.PositiveIntegerField(help_text="Duration in minutes.")
     buffer_time = models.PositiveIntegerField(default=0, help_text="Buffer time in minutes.")

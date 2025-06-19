@@ -32,6 +32,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
         await self.accept()
 
+        # participants = await database_sync_to_async(list)(self.chat_room.participants.all())
+        # # Prepare participant data
+        # participant_data = [
+        #     {
+        #         "id": str(participant.id),
+        #         "username": participant.username
+        #     }
+        #     for participant in participants
+        # ]
+
+        # # Send participant data to the group
+        # await self.channel_layer.group_send(
+        #     self.room_group_name,
+        #     {
+        #         'type': 'user_info',
+        #         'participants': participant_data
+        #     }
+        # )
+
     @database_sync_to_async
     def get_user_from_session(self, session_id):
         try:
@@ -84,6 +103,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'sent_at': event['sent_at']
         }))
 
+    # async def user_info(self, event):
+    #         # Send participant data to WebSocket client
+    #         await self.send(text_data=json.dumps({
+    #             'type': 'user_info',
+    #             'participants': event['participants']
+    #         }))
 
 
 

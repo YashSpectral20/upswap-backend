@@ -76,7 +76,6 @@ def send_otp_via_sms(dial_code, phone_number, otp):
         client = Client(account_sid, auth_token)
 
         message_body = f"Please verify your email/phone number with this OTP - {otp}\n{app_hash}"
-
         message = client.messages.create(
             body=message_body,
             from_=from_phone,
@@ -111,12 +110,12 @@ def generate_asset_uuid():
 def process_image(image_file, size):
     img = Image.open(image_file)
     img = img.convert("RGB")  # Ensure it's RGB
-    img.thumbnail(size)  # Resize image
+    if size:
+        img.thumbnail(size)  # Resize image
     img_io = BytesIO()
     img.save(img_io, format="WEBP", quality=85)
     img_io.seek(0)
     return img_io
-
 
 def upload_to_s3(file_obj, folder_name, file_name):
     s3_client = boto3.client(

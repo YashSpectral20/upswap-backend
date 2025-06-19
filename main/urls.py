@@ -125,7 +125,8 @@ from .views import (
     ResendOTPView, NotificationListView, MarkNotificationAsReadView, RegisterDeviceView, VendorAddressListView, SendVendorWhatsAppMessage, CreateDealHackathonView, CheckVendorStatusView, SendPhoneVerificationOTP, 
     GetAllVendors, GetVendorServiceAndProviders,
     VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification,
-    SendVerificationOTP, VerifyOTPViewV2, UpdatePasswordAPI, DealDeleteView, ActivityDeleteView
+    SendVerificationOTP, VerifyOTPViewV2, UpdatePasswordAPI, DealDeleteView, ActivityDeleteView,
+    SendOTPToEmail, VerifyOTPForPassword, SetPasswordAPI,ConfirmRejectActivityPartcipation
 )
 
 # Swagger Schema View
@@ -282,8 +283,13 @@ urlpatterns = [
     path('send-verification-otp/', SendVerificationOTP.as_view(), name='send-verification-otp'),
     path('verify-otp/v2/', VerifyOTPViewV2.as_view(), name='verify-otp-v2'),
     path('update-password/v2/', UpdatePasswordAPI.as_view(), name='update-password-v2'),
-    path('delete-activity/', ActivityDeleteView.as_view(), name='delete-activity'),
-    path('delete-deal/', DealDeleteView.as_view(), name='delete-deal'),
+    path('delete-activity/<uuid:activity_id>/', ActivityDeleteView.as_view(), name='delete-activity'),
+    path('delete-deal/<uuid:deal_uuid>/', DealDeleteView.as_view(), name='delete-deal'),
+
+    path('send/email/forgot-password/', SendOTPToEmail.as_view(), name='send-email-forgot-password'),
+    path('verify/otp/forgot-password/', VerifyOTPForPassword.as_view(), name='verify-otp-forgot-password'),
+    path('reset-password/v2/', SetPasswordAPI.as_view(), name='reset-password-v2'),
+    path('activity/confirm-reject/participation/<uuid:activity_id>/', ConfirmRejectActivityPartcipation.as_view(), name='confirm-reject-activity-participation'),
 ]
 
 if settings.DEBUG:

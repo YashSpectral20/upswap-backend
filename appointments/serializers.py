@@ -62,7 +62,6 @@ class ServiceCategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ServiceSerializer(serializers.ModelSerializer):
-    service_category = serializers.CharField(source='category.service_category', read_only=True)
     providers = ProviderNameSerializer(many=True, read_only=True)
 
     class Meta:
@@ -70,7 +69,7 @@ class ServiceSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'vendor', 'description', 'category', 'duration',
             'buffer_time', 'price', 'color_code',
-            'image', 'service_category', 'providers'
+            'image', 'providers'
         ]
 
     def update(self, instance, validated_data):
