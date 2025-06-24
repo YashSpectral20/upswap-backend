@@ -126,7 +126,8 @@ from .views import (
     GetAllVendors, GetVendorServiceAndProviders,
     VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification,
     SendVerificationOTP, VerifyOTPViewV2, UpdatePasswordAPI, DealDeleteView, ActivityDeleteView,
-    SendOTPToEmail, VerifyOTPForPassword, SetPasswordAPI,ConfirmRejectActivityPartcipation
+    SendOTPToEmail, VerifyOTPForPassword, SetPasswordAPI,ConfirmRejectActivityPartcipation, VerifyOTPAPIViewV2, RegisterAPIViewV2,
+    RegisterResendOTP, RegisterAPIViewV3, VerifyOTPAPIViewV3, CreateUserInDB, LoginWithOTP, LoginAPIViewV2, LoginResendOTP
 )
 
 # Swagger Schema View
@@ -290,6 +291,16 @@ urlpatterns = [
     path('verify/otp/forgot-password/', VerifyOTPForPassword.as_view(), name='verify-otp-forgot-password'),
     path('reset-password/v2/', SetPasswordAPI.as_view(), name='reset-password-v2'),
     path('activity/confirm-reject/participation/<uuid:activity_id>/', ConfirmRejectActivityPartcipation.as_view(), name='confirm-reject-activity-participation'),
+    path('register/v2/', RegisterAPIViewV2.as_view(), name='register-v2'),
+    path('verify/create/v2/', VerifyOTPAPIViewV2.as_view(), name='verify-v2'),
+    path('resend/register/otp/', RegisterResendOTP.as_view(), name='resend-register-otp'),
+
+    path('register/v3/', RegisterAPIViewV3.as_view(), name='register-v3'),
+    path('verify/register/otp/v3/', VerifyOTPAPIViewV3.as_view(), name='verify-register-otp-v3'),
+    path('create-user/', CreateUserInDB.as_view(), name='create-user'),
+    path('login/v2/', LoginAPIViewV2.as_view(), name='login-v2'),
+    path('login-otp/', LoginWithOTP.as_view(), name='login-otp'),
+    path('resend/login/otp/', LoginResendOTP.as_view(), name='resend-login-otp'),
 ]
 
 if settings.DEBUG:

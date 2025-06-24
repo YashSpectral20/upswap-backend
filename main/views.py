@@ -43,7 +43,7 @@ from .serializers import (
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
     MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, AddressSerializer,
-    ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer, GetVendorSerializer
+    ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer, GetVendorSerializer, RegisterSerializerV2,
 
 )
 from datetime import datetime
@@ -124,21 +124,8 @@ class RegisterView(generics.CreateAPIView):
             Q(username=username) | Q(email=data.get('email')) | Q(phone_number=data.get('phone_number'))
         ).first()
 
-        matched_by = None
-        if existing_user:
-            if existing_user.username == username:
-                matched_by = 'username'
-            elif existing_user.email == data.get('email'):
-                matched_by = 'email'
-            elif existing_user.phone_number == data.get('phone_number'):
-                matched_by = 'phone_number'
-
         if existing_user:
             if existing_user:
-                # if existing_user.type == 'Google' or existing_user.type == 'Apple':
-                #     return Response({
-                #         'message': 'User exists, try google or apple login.'
-                #     }, status=status.HTTP_400_BAD_REQUEST) 
                 if existing_user.email == data.get('email'):
                     return Response({
                         'message': 'User with this email already exists.'
@@ -207,6 +194,8 @@ class RegisterView(generics.CreateAPIView):
             return Response({
                 'message': list(error_message.values())[0][0] if error_message else "Validation error occurred."
             }, status=status.HTTP_400_BAD_REQUEST)
+
+
             
 
 class VerifyOTPView(generics.GenericAPIView):
@@ -227,11 +216,22 @@ class LoginView(generics.GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         from django.contrib.auth import login
-        serializer = self.get_serializer(data=request.data)
+        try:
+            user = CustomUser.objects.get(email=request.data.get('email').lower())
+        except CustomUser.DoesNotExist as e:
+            return Response({
+                'error': 'No user exist with this email.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(data=request.data, context={'username': user.username})
         if not serializer.is_valid():
-            return Response({"message": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+            return Response({"error": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
         user = serializer.validated_data['user']
+        if not user.otp_verified and not user.email_verified:
+            return Response({
+                'error': 'Your OTP is not verified.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         login(request, user)
         
         # ✅ Save session and fetch session ID
@@ -373,9 +373,9 @@ class ActivityCreateView(generics.CreateAPIView):
                 )
             else:
                 # Validation error
-                error_message = next(iter(serializer.errors.values()))[0]
+                # error_message = next(iter(serializer.errors.values()))[0]
                 return Response(
-                    {"message": error_message},
+                    {"message": serializer.errors},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         except Exception as e:
@@ -736,6 +736,15 @@ class UploadImagesAPI(APIView):
         uploaded_images = []
 
         for image in images:
+            allowed_extensions = {'.jpg', '.jpeg', '.png', '.webp'}
+            ext = os.path.splitext(image.name)[1].lower()
+            allowed = ext in allowed_extensions
+            if not allowed:
+                return Response({
+                    'error': f"Please upload only .jpg, .jpeg, .png, or .webp"
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        for image in images:
             asset_uuid = generate_asset_uuid()
             base_file_name = f"asset_{asset_uuid}.webp"
 
@@ -748,7 +757,7 @@ class UploadImagesAPI(APIView):
             compressed_url = upload_to_s3(compressed, f"{folder_name}", base_file_name)
 
             original_image = process_image(image, None)   # Only changing format to WEBP
-            original_url = upload_to_s3(original_image, f"original_{folder_name}", f"original_{base_file_name}")
+            original_url = upload_to_s3(original_image, f"{folder_name}", f"original_{base_file_name}")
 
             uploaded_images.append({
                 "thumbnail": thumbnail_url,
@@ -1192,11 +1201,10 @@ class CustomUserEditView(APIView):
 
     def put(self, request, *args, **kwargs):
         user = request.user
-        if not user.otp_verified or user.phone_number != request.data.get('phone_number'):
+        if (not user.otp_verified or user.phone_number != request.data.get('phone_number')) and request.data.get('phone_number'):
             return Response({
                 'error': 'This phone number is not verified via OTP.'
             }, status=status.HTTP_200_OK)
-        
         
             
         serializer = CustomUserEditSerializer(user, data=request.data, partial=True, context={'request': request})  # Pass the request
@@ -1266,6 +1274,7 @@ class SocialLogin(generics.GenericAPIView):
             user.fcm_token = fcm_token or user.fcm_token
             user.latitude = latitude or user.latitude
             user.longitude = longitude or user.longitude
+            user.email_verified = True
             user.save()
         else:
             user = CustomUser.objects.create(
@@ -2462,13 +2471,13 @@ class SendVerificationOTP(APIView):
                     'data': {}
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            if phone == request.user.phone_number:
+            if phone == request.user.phone_number and request.user.otp_verified:
                 return Response({
                     'message': 'New Phone number is same as old number.',
                     'data': []
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            phone_exists = CustomUser.objects.filter(phone_number=phone).exists()
+            phone_exists = CustomUser.objects.filter(phone_number=phone).exclude(id=request.user.id).exists()
             if phone_exists:
                 return Response({
                     'message': 'User with this phone number already exists.',
@@ -2667,15 +2676,13 @@ class VerifyOTPForPassword(APIView):
 
         if not email or not otp:
             return Response({
-                'message': 'Email, OTP, or password is missing.',
-                'data': []
+                'error': 'Email, OTP, or password is missing.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         original_otp = cache.get(email)
         if not original_otp:
             return Response({
-                'message': 'OTP expired.',
-                'data': []
+                'error': 'OTP expired.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
         if original_otp == otp:
@@ -2684,9 +2691,8 @@ class VerifyOTPForPassword(APIView):
                 'data': {'email': email}
             }, status=status.HTTP_200_OK)
         return Response({
-            'message': 'OTP cannot be verified.',
-            'data': []
-        }, status=status.HTTP_200_OK)
+            'error': 'OTP cannot be verified.'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class SetPasswordAPI(APIView):
@@ -2736,7 +2742,7 @@ class ConfirmRejectActivityPartcipation(APIView):
                     'message': 'Participant confirmed.',
                 }, status=status.HTTP_200_OK)
             elif participation_status == 'reject':
-                chat_request = activity.chat_requests.filter(from_user=user_id)
+                chat_request = activity.chat_requests.filter(from_user=user_id).first()
                 chat_request.participation_status = 'REJECTED'
                 chat_request.save()
 
@@ -2752,3 +2758,428 @@ class ConfirmRejectActivityPartcipation(APIView):
                 'message': 'Error occured while accepting/rejecting participation.',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RegisterAPIViewV2(APIView):
+    def post(self, request):
+        data1 = request.data.copy()
+        username = data1.get('username', '')
+        password = data1.get('password', '')
+
+        if not re.match(USERNAME_REGEX, username):
+            return Response({
+                'message': 'Username does not meet the required format. It should be at least 6 characters long and can include only small letters, numbers'},status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not re.match(PASSWORD_REGEX, password):
+            return Response({
+                'message': 'Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a digit, and a special character.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+        existing_user = CustomUser.objects.filter(
+            Q(username=username) | Q(email=data1.get('email')) | Q(phone_number=data1.get('phone_number'))
+        ).first()
+
+        if existing_user:
+            if existing_user.email == data1.get('email'):
+                return Response({
+                    'message': 'User with this email already exists.'
+                }, status=status.HTTP_400_BAD_REQUEST) 
+            elif existing_user.username == data1.get('username'):
+                return Response({
+                    'message': 'User with this username already exists.'
+                }, status=status.HTTP_400_BAD_REQUEST) 
+            elif existing_user.phone_number == data1.get('phone_number'):
+                return Response({
+                    'message': 'User with this phone number already exists.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response({'message': f"User already registered." }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not data1['longitude']:
+            data1['longitude'] = None
+        if not data1['latitude']:
+            data1['latitude'] = None
+        serializer = RegisterSerializerV2(data=data1)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            email = data["email"]
+            dial_code = data["dial_code"]
+            phone = data["phone_number"]
+
+            otp = ''.join(random.choices(string.digits, k=6)) 
+            err, err_code = send_otp_via_sms(dial_code, phone, otp)
+
+            if err or err_code:
+                return Response({
+                    'error': f'Couldn\'t send OTP to your number {phone}.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            cache.set(f"otp:{email}", otp, timeout=300)  # 5 mins
+            cache.set(f"user_data:{email}", data, timeout=300)
+
+            return Response({
+                "message": "OTP sent successfully.",
+                "email": email
+            }, status=status.HTTP_200_OK)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class VerifyOTPAPIViewV2(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        otp_input = request.data.get('otp')
+
+        if not email or not otp_input:
+            return Response({"error": "Email and OTP required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        real_otp = cache.get(f"otp:{email}")
+        if real_otp != otp_input:
+            return Response({"error": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_data = cache.get(f"user_data:{email}")
+        user_data.pop('confirm_password')
+        if not user_data:
+            return Response({"error": "User data expired or missing."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user_data['email'] = user_data['email'].lower()
+        
+        user = CustomUser.objects.create_user(**user_data)
+        user.otp_verified = True
+        user.save()
+
+        cache.delete(f"otp:{email}")
+        cache.delete(f"user_data:{email}")
+
+        return Response({"message": "User registered successfully."}, status=status.HTTP_201_CREATED)
+
+class RegisterResendOTP(APIView):
+
+    def post(self, request):
+        resend_type = request.data.get('resend_type')
+        otp = ''.join(random.choices(string.digits, k=6))
+
+        if resend_type == 'email':
+            email = request.data.get('email')
+
+            if not email:
+                return Response({
+                    'error': 'Email is missing.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            sent = send_email_via_mailgun(email, otp)
+            if not sent:
+                return Response({
+                    'error': 'OTP couldn\'t be sent to your email. Please try again later.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            cache.set(f"otp:{email}", otp, timeout=300)
+
+            return Response({
+                'message': 'OTP resent on your Email.',
+                'data': {'email': email, 'phone': '', 'dial_code': ''}
+            }, status.HTTP_200_OK)
+
+        if resend_type == 'phone':
+            phone = request.data.get('phone')
+            dial_code = request.data.get('dial_code')
+
+            if not phone or not dial_code:
+                return Response({
+                    'error': 'Phone number or dial code is missing.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            err, err_code = send_otp_via_sms(dial_code, phone, otp)
+            if err or err_code:
+                return Response({
+                    'error': 'OTP couldn\'t be sent to your Phone number. Please try again later.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            cache.set(f"otp:{phone}", otp, timeout=300)
+
+            return Response({
+                'message': 'OTP resent on your Number.',
+                'data': {'email': '', 'phone': phone, 'dial_code': dial_code}
+            }, status.HTTP_200_OK)
+
+
+class LoginResendOTP(APIView):
+    def post(self, request):
+        phone = request.data.get('phone')
+        dial_code = request.data.get('dial_code')
+
+        if not phone or not dial_code:
+            return Response({
+                'error': 'Phone number or dial code is missing.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        otp = ''.join(random.choices(string.digits, k=6))
+        err, err_code = send_otp_via_sms(dial_code, phone, otp)
+        if err or err_code:
+            return Response({
+                'error': 'Couldn\'t send OTP to phone number.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        cache.set(f"otp:{phone}", otp, timeout=300)
+        return Response({
+            'message': 'OTP resent to your phone number.',
+            'data': {'phone': phone, 'dial_code': dial_code}
+        }, status=status.HTTP_200_OK)
+
+
+# ==================== Register v3 =================== #
+
+class RegisterAPIViewV3(APIView):
+
+    def post(self, request):
+        data = request.data.copy()
+        registration_type = data.get('registration_type')
+        otp = ''.join(random.choices(string.digits, k=6))
+
+        if registration_type == 'email':
+            email = data.get('email')
+            if not email:
+                return Response({
+                    'error': 'Email is missing.'
+                }, status=status.HTTP_400_BAD_REQUEST
+                )
+
+            email_exists = CustomUser.objects.filter(email=email).exists()
+            if email_exists:
+                return Response({
+                    'error': 'User with Email already exists.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            sent = send_email_via_mailgun(email, otp)
+            if not sent:
+                return Response({
+                    'error': 'Couldn\'t send OTP to your email. Please try again later.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            cache.set(f"otp:{email}", otp, timeout=300)
+            return Response({
+                'message': 'Verification OTP has been sent to your email.',
+                'data': {"email": email}
+            }, status=status.HTTP_200_OK)
+
+        elif registration_type == 'phone':
+            phone = data.get('phone')
+            dial_code = data.get('dial_code')
+            if not phone or not dial_code:
+                return Response({
+                    'error': 'Phone number or dial code is missing.'
+                }, status=status.HTTP_400_BAD_REQUEST
+                )
+
+            phone_exists = CustomUser.objects.filter(phone_number=phone).exists()
+            if phone_exists:
+                return Response({
+                    'error': 'User with Phone number already exists.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            err, err_code = send_otp_via_sms(dial_code, phone, otp)
+            if err or err_code:
+                return Response({
+                    'error': 'Couldn\'t send OTP to your Phone number. Please try again later.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            cache.set(f"otp:{phone}", otp, timeout=300)
+            return Response({
+                'message': 'Verification OTP has been sent to your Phone number.',
+                'data': {"phone": phone, "dial_code": dial_code}
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'error': 'Registration type is required.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+class VerifyOTPAPIViewV3(APIView):
+
+    def post(self, request):
+        data = request.data.copy()
+        registration_type = data.get('registration_type')
+
+        if registration_type == 'email':
+            email = data.get('email')
+
+            otp_input = data.get('otp')
+            original_otp = cache.get(f"otp:{email}")
+            err_msg = None
+            if not otp_input:
+                err_msg = 'OTP is missing.'
+            elif not email:
+                err_msg = 'Email is missing.'
+            elif not original_otp:
+                err_msg = 'OTP expired. Try again.'
+            elif otp_input != original_otp:
+                err_msg = 'OTP does not match.'
+        
+            if err_msg:
+                return Response({
+                    'error': err_msg
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({
+                'message': 'OTP verified successfully.',
+                'data': {'email': email}
+            }, status=status.HTTP_200_OK)
+            
+        elif registration_type == 'phone':
+            phone = data.get('phone')
+            dial_code = data.get('dial_code')
+            input_otp = data.get('otp')
+
+            if not phone or not dial_code:
+                return Response({
+                    'error': 'Phone number or dial code is missing.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            original_otp = cache.get(f"otp:{phone}")
+            err_msg = None
+            if not original_otp:
+                err_msg = 'OTP expired. Please try again.'
+            
+            if original_otp != input_otp:
+                err_msg = 'OTP does not match.'
+            
+            if err_msg:
+                return Response({
+                    'error': err_msg
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({
+                'message': 'OTP verified successfully.',
+                'data': {'phone': phone, 'dial_code': dial_code}
+            }, status=status.HTTP_200_OK)
+
+class CreateUserInDB(APIView):
+    def post(self, request):
+        data = request.data.copy()
+        registration_type = data.get('registration_type')
+
+        if registration_type == 'email':
+            user = CustomUser.objects.filter(email=data.get('email')).first()
+            if user and user.email == data.get('email'):
+                return Response({
+                    'error': 'User already exists with this email.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            user = CustomUser.objects.create(
+                email=data.get('email'),
+                username=CustomUser.generate_unique_username(),
+                name=data.get('full_name')
+            )
+            user.set_password(data.get('password'))
+            user.save()
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+
+            return Response({
+                'message': 'User registered successfully.',
+                'user': CustomUserSerializer(user).data,
+                'refresh': str(refresh),
+                'access': access_token,
+                'is_approved': '',
+                'vendor_id': '',
+            })
+
+        elif registration_type == 'phone':
+            user = CustomUser.objects.create(
+                phone_number=data.get('phone'),
+                dial_code=data.get('dial_code'),
+                username=CustomUser.generate_unique_username(),
+                name=data.get('full_name')
+            )
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            return Response({
+                'message': 'User registered successfully.',
+                'user': CustomUserSerializer(user).data,
+                'refresh': str(refresh),
+                'access': access_token,
+                'is_approved': '',
+                'vendor_id': '',
+            })
+
+
+class LoginAPIViewV2(APIView):
+    
+    def post(self, request):
+        data = request.data.copy()
+        login_type = data.get('login_type')
+
+        if login_type == 'email':
+            email = data.get('email')
+            password = data.get('password')
+            user = CustomUser.objects.filter(email=email).first()
+            if not user:
+                return Response({
+                    'error': 'User does not exist with this email.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            username = user.username
+            user = authenticate(username=username, password=password)
+            if not user:
+                return Response({
+                    'error': 'Invalid credentials.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            vendor = VendorKYC.objects.filter(user=user).first()
+
+            return Response({
+                'message': 'Logged in successfully.',
+                'user': CustomUserSerializer(user).data,
+                'refresh': str(refresh),
+                'access': access_token,
+                'is_approved': vendor.is_approved if vendor else '',
+                'vendor_id': vendor.vendor_id if vendor else '',
+            }, status=status.HTTP_200_OK)
+
+        elif login_type == 'phone': 
+            dial_code = data.get('dial_code')
+            phone = data.get('phone')
+            if not dial_code or not phone:
+                return Response({
+                    'error': 'Dial code or phone number is missing.',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            user = CustomUser.objects.filter(phone_number=phone).exists()
+            if not user:
+                return Response({
+                    'error': 'No user exists with this Phone number.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            otp = ''.join(random.choices(string.digits, k=6))
+            err, err_code = send_otp_via_sms(dial_code, phone, otp)
+            if err or err_code:
+                return Response({
+                    'error': 'Couldn\'t send OTP to your number.',
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            cache.set(f"otp:{phone}", otp, timeout=300)
+            return Response({
+                'message': 'OTP is sent to your number.'
+            }, status=status.HTTP_200_OK)
+
+
+class LoginWithOTP(APIView):
+    def post(self, request):
+        data = request.data.copy()
+        phone = data.get('phone')
+        input_otp = data.get('otp')
+        original_otp = cache.get(f"otp:{phone}")
+
+        if original_otp != input_otp:
+            return Response({
+                'error': 'OTP does not match.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        user = CustomUser.objects.filter(phone_number=phone).first()
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        vendor = VendorKYC.objects.filter(user=user).first()
+
+        return Response({
+            'message': 'Logged in successfully.',
+            'user': CustomUserSerializer(user).data,
+            'refresh': str(refresh),
+            'access': access_token,
+            'is_approved': vendor.is_approved if vendor else '',
+            'vendor_id': vendor.vendor_id if vendor else '',
+        },status=status.HTTP_200_OK)

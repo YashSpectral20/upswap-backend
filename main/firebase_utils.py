@@ -55,7 +55,7 @@ def send_notification_to_user(user, title, body, data=None):
         print(f"⚠️ No devices registered for user {user.email}")
         return
     
-     # Ensure user ID is added in the data payload
+    # Ensure user ID is added in the data payload
     if data is None:
         data = {}
     data['user_id'] = str(user.id)  # UUID ko string me convert karo

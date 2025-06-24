@@ -3,6 +3,8 @@ from io import BytesIO
 from django.core.files.base import ContentFile
 import os
 import random
+import string
+from django.utils.text import slugify
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
 import json
@@ -20,14 +22,14 @@ from datetime import timedelta
 
 # Custom User Models
 class CustomUserManager(BaseUserManager):
-    def create_user(self, email, username, name, phone_number, date_of_birth, gender, country_code='', dial_code='', country='', password=None, fcm_token=None, latitude=None, longitude=None):
-        if not email:
-            raise ValueError('The Email field is required')
+    def create_user(self, username, email=None, name=None, phone_number=None, date_of_birth=None, gender=None, country_code='', dial_code='', country='', password=None, fcm_token=None, latitude=None, longitude=None):
+        # if not email:
+        #     raise ValueError('The Email field is required')
         if not username:
             raise ValueError('The Username field is required')
 
         user = self.model(
-            email=self.normalize_email(email),
+            email=email, # self.normalize_email(email),
             username=username,
             name=name,
             phone_number=phone_number,
@@ -44,7 +46,7 @@ class CustomUserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, username, name, phone_number, date_of_birth, gender, country_code='', dial_code='', country='', password=None, fcm_token=None, latitude=None, longitude=None):
+    def create_superuser(self, username, email=None, name=None, phone_number=None, date_of_birth=None, gender=None, country_code='', dial_code='', country='', password=None, fcm_token=None, latitude=None, longitude=None):
         user = self.create_user(
             email=email,
             username=username,
@@ -66,6 +68,20 @@ class CustomUserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
+    # def create_superuser(self, username, password=None, **extra_fields):
+    #     if not username:
+    #         raise ValueError("Superuser must have a username")
+
+    #     extra_fields.setdefault('is_staff', True)
+    #     extra_fields.setdefault('is_admin', True)
+    #     extra_fields.setdefault('is_superuser', True)
+
+    #     return self.create_user(
+    #         username=username,
+    #         password=password,
+    #         **extra_fields
+    #     )
+
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     GENDER_CHOICES = [
         ('M', 'Male'),
@@ -77,44 +93,89 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
         ('apple', 'Apple'),
     ]
 
+    # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # username = models.CharField(max_length=150, unique=True)
+    # email = models.EmailField(max_length=255, unique=True)
+    # name = models.CharField(max_length=255)
+    # phone_number = models.CharField(max_length=15)
+    # country_code = models.CharField(max_length=10, blank=True, default='')
+    # dial_code = models.CharField(max_length=10, blank=True, default='')
+    # country = models.CharField(max_length=100, blank=True, default='')
+    # date_of_birth = models.DateField(null=True, blank=True)
+    # gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
+    # is_active = models.BooleanField(default=True)
+    # is_staff = models.BooleanField(default=False)
+    # is_admin = models.BooleanField(default=False)
+    # otp_verified = models.BooleanField(default=False)
+    # email_verified = models.BooleanField(default=False)
+    
+    # social_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    # type = models.CharField(max_length=10, choices=LOGIN_TYPE_CHOICES, blank=True, null=True)
+    
+    # bio = models.TextField(blank=True, null=True)
+    # user_type = models.CharField(max_length=50, blank=True, default='')
+    # profile_pic = models.JSONField(default=list, blank=True, null=True)
+    # fcm_token = models.CharField(max_length=255, blank=True, null=True)
+    # latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
+    # longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
+    
+    objects = CustomUserManager()
+    
+    # USERNAME_FIELD = 'email'
+    # REQUIRED_FIELDS = ['username', 'name', 'phone_number', 'date_of_birth', 'gender']
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    username = models.CharField(max_length=150, unique=True)
-    email = models.EmailField(max_length=255, unique=True)
-    name = models.CharField(max_length=255)
-    phone_number = models.CharField(max_length=15)
-    country_code = models.CharField(max_length=10, blank=True, default='')
-    dial_code = models.CharField(max_length=10, blank=True, default='')
-    country = models.CharField(max_length=100, blank=True, default='')
+    email = models.EmailField(max_length=255, null=True, blank=True)
+    phone_number = models.CharField(max_length=15, null=True, blank=True)
+    username = models.CharField(max_length=100, unique=True, null=True, blank=True) # removed unique true because unqiue contraint fails when field is empty if someone logins with phone their email will be empty and vice versa
+
+    name = models.CharField(max_length=255, blank=True, null=True)
+    country_code = models.CharField(max_length=10, blank=True, null=True)
+    dial_code = models.CharField(max_length=10, blank=True, null=True)
+    country = models.CharField(max_length=100, blank=True, null=True)
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
+    
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     is_admin = models.BooleanField(default=False)
     otp_verified = models.BooleanField(default=False)
-    
+    email_verified = models.BooleanField(default=False)
+
     social_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     type = models.CharField(max_length=10, choices=LOGIN_TYPE_CHOICES, blank=True, null=True)
-    
+
     bio = models.TextField(blank=True, null=True)
-    user_type = models.CharField(max_length=50, blank=True, default='')
+    user_type = models.CharField(max_length=50, blank=True, null=True)
     profile_pic = models.JSONField(default=list, blank=True, null=True)
     fcm_token = models.CharField(max_length=255, blank=True, null=True)
-    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
-    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
-    
-    objects = CustomUserManager()
-    
-    USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username', 'name', 'phone_number', 'date_of_birth', 'gender']
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+
+    # objects = CustomUserManager()
+
+    USERNAME_FIELD = 'username'
+    REQUIRED_FIELDS = []
 
     def __str__(self):
-        return self.email
+        return self.email if self.email else self.username
 
     def get_full_name(self):
         return self.name
 
     def get_short_name(self):
         return self.username
+
+    def generate_unique_username(prefix="user", length=10):
+        """
+        Generate a unique alphanumeric username like 'user_x7k2bq'.
+        Ensures no duplicates in the CustomUser table.
+        """
+        while True:
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
+            username = slugify(f"{prefix}_{random_suffix}")
+            if not CustomUser.objects.filter(username=username).exists():
+                return username
     
 class OTP(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)

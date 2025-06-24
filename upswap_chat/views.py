@@ -1,5 +1,5 @@
 from .models import ChatRoom, ChatRequest, ChatMessage
-from .serializers import ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer, MyInterestedActivitySerializer
+from .serializers import ChatRequestSerializer, ChatRoomSerializer, ChatMessageSerializer, MyInterestedActivitySerializer, GetChatRoomSerializer
 from main.serializers import CustomUserSerializer
 
 from main.paginations import CustomPagination
@@ -32,8 +32,8 @@ class ChatRequestAPIView(APIView):
             else:
                 return Response({
                     'message': 'No chat requests found for this activity.',
-                    'data': {}
-                }, status=status.HTTP_404_NOT_FOUND)
+                    'data': []
+                }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
                 'error': str(e),
@@ -66,20 +66,20 @@ class ChatRequestAPIView(APIView):
                         }
                     )
 
-            # ✅ Save notification to the database
-            create_notification(
-                user=activity_admin,
-                notification_type="activity",  # or use "chat_request" if you want to separate it
-                title="New Chat Request",
-                body=f"{from_user.name} has sent you a chat request for {chat_request.activity.activity_title}.",
-                reference_instance=chat_request.activity,
-                data={
-                    "chat_request_id": str(chat_request.id),
-                    "activity_id": str(chat_request.activity.activity_id),
-                    "from_user_id": str(from_user.id),
-                    "from_user_name": from_user.name
-                }
-            )
+                # ✅ Save notification to the database
+                create_notification(
+                    user=activity_admin,
+                    notification_type="activity",  # or use "chat_request" if you want to separate it
+                    title="New Chat Request",
+                    body=f"{from_user.name} has sent you a chat request for {chat_request.activity.activity_title}.",
+                    reference_instance=chat_request.activity,
+                    data={
+                        "chat_request_id": str(chat_request.id),
+                        "activity_id": str(chat_request.activity.activity_id),
+                        "from_user_id": str(from_user.id),
+                        "from_user_name": from_user.name
+                    }
+                )
 
             return Response({
                 'message': 'Chat request has been sent.',
@@ -94,10 +94,10 @@ class ChatRequestAPIView(APIView):
         
     def patch(self, request, format=None):
         data = request.data
-        if not isinstance(data, list):
-            return Response({
-                'error': 'Data must be a list of chat requests.'
-            }, status=status.HTTP_400_BAD_REQUEST)
+        # if not isinstance(data, list):
+        #     return Response({
+        #         'error': 'Data must be a list of chat requests.'
+        #     }, status=status.HTTP_400_BAD_REQUEST)
  
         response_data = []
         errors = []
@@ -321,3 +321,18 @@ class UnseenMessagesAPIView(APIView):
             return Response({
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class GetChatRoomsAPIView(APIView):
+
+    def get(self, request, activity_id):
+        chat_rooms = ChatRoom.objects.filter(activity=activity_id)
+        if not chat_rooms:
+            return Response({
+            'message': 'No chat rooms found for this activity.',
+            'data': []
+        }, status=status.HTTP_200_OK)
+        serializer = GetChatRoomSerializer(chat_rooms, many=True)
+        return Response({
+            'message': 'Chat Rooms retrieved successfully.',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)

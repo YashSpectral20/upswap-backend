@@ -3,6 +3,8 @@ import os
 import math
 import random
 import string
+import time
+import threading
 import boto3
 import uuid
 import requests
@@ -67,6 +69,36 @@ def send_email(from_email_address, to_email_address, subject, body, api_key=None
         "headers": dict(response.headers),
     }
 
+def poll_twilio_message_status(phone, message_sid, client, max_tries=10, interval=10):
+    """
+    Polls the status of a Twilio message until it's delivered or until max tries.
+    
+    Args:
+        message_sid (str): The SID of the Twilio message.
+        max_tries (int): Maximum number of polling attempts.
+        interval (int): Seconds to wait between each poll.
+
+    Returns:
+        str: Final message status.
+    """
+    # account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+    # auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    # from_phone = os.getenv("FROM_PHONE_NUMBER")
+    # app_hash = os.getenv("APP_HASH")
+    # client = Client(account_sid, auth_token)
+    for attempt in range(1, max_tries + 1):
+        message = client.messages(message_sid).fetch()
+        print(f"Attempt {attempt} for phone {phone}: Status = {message.status}")
+
+        if message.status == 'delivered':
+            print(f"Message was delivered successfully on {phone}.")
+            return message.status
+
+        time.sleep(interval)
+
+    print("Max attempts reached. Final status:", message.status)
+    return message.status
+
 def send_otp_via_sms(dial_code, phone_number, otp):
     try:
         account_sid = os.getenv("TWILIO_ACCOUNT_SID")
@@ -82,7 +114,13 @@ def send_otp_via_sms(dial_code, phone_number, otp):
             to=f"{dial_code}{phone_number}"
         )
         err, err_code = message.error_message, message.error_code
-        print(f"OTP {otp} sent: {message.sid}")
+        print(f"OTP {otp} sent: {phone_number} {message.sid}")
+        # poll_twilio_message_status(phone=f"{dial_code}{phone_number}", message_sid=message.sid)
+        threading.Thread(
+            target=poll_twilio_message_status,
+            args=(f"{dial_code}{phone_number}", message.sid, client), 
+            daemon=True
+        ).start()
         return err, err_code
     except Exception as e:
         print(f"Failed to send OTP: {str(e)}")
@@ -260,3 +298,4 @@ def send_email_via_mailgun(email, otp):
     else:
         print(response.text)
         return False
+

@@ -122,11 +122,11 @@ class LoginSerializer(serializers.Serializer):
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
 
     def validate(self, data):
-        email = data.get('email')
+        email = data.get('email').lower()
         password = data.get('password')
-        user = authenticate(email=email, password=password)
+        user = authenticate(username=self.context.get('username'), password=password)
         if user is None:
-            raise serializers.ValidationError('Invalid credentials')
+            raise serializers.ValidationError({'error': 'Invalid credentials'})
         
         # Update fcm_token, latitude, longitude if provided
         user.fcm_token = data.get('fcm_token', user.fcm_token)
@@ -713,7 +713,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
             'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
-            'vendor_name', 'vendor_uuid', 'country',
+            'vendor_name', 'vendor_uuid', 'country', 'category',
             'discount_percentage', 'latitude', 'longitude', 'average_rating', 'buy_now'
         ]
         read_only_fields = ['deal_uuid', 'discount_percentage']
@@ -775,7 +775,7 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
         fields = [
             'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
             'deal_uuid','uploaded_images', 'original_images', 'deal_post_time', 
-            'deal_title', 'deal_description', 'end_date', 'vendor_profile_picture', 'vendor_description',
+            'deal_title', 'deal_description', 'end_date', 'vendor_profile_picture', 'vendor_description', 'category',
             'end_time', 'buy_now', 'actual_price', 'deal_price', 'available_deals',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
@@ -1549,3 +1549,44 @@ class GetVendorSerializer(serializers.ModelSerializer):
     
     def get_profile_pic(self, obj):
         return obj.profile_pic if obj.profile_pic else ""
+
+class RegisterSerializerV2(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    name = serializers.CharField(max_length=255)
+    phone_number = serializers.CharField(max_length=15)
+    password = serializers.CharField(write_only=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, min_length=8)
+
+    country_code = serializers.CharField(max_length=10, required=False, allow_blank=True)
+    dial_code = serializers.CharField(max_length=10, required=False, allow_blank=True)
+    country = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    date_of_birth = serializers.DateField()
+    gender = serializers.ChoiceField(choices=CustomUser.GENDER_CHOICES)
+
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
+
+    # def validate_email(self, email):
+    #     if CustomUser.objects.filter(email=email).exists():
+    #         raise serializers.ValidationError("User with this email already exists.")
+    #     return email
+
+    # def validate_phone_number(self, phone_number):
+    #     if CustomUser.objects.filter(phone_number=phone_number).exists():
+    #         raise serializers.ValidationError("User with this phone number already exists.")
+    #     return phone_number
+
+    # def validate_username(self, username):
+    #     if CustomUser.objects.filter(username=username).exists():
+    #         raise serializers.ValidationError("User with this username already exists.")
+    #     return username
+
+    def validate(self, data):
+        if data.get('password') != data.get('confirm_password'):
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        return data
+
+    def create(self, validated_data):
+        validated_data.pop('confirm_password')  # remove before saving
+        return validated_data  # just return cleaned data for caching

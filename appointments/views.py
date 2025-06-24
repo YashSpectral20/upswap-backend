@@ -9,7 +9,7 @@ from rest_framework import status
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
-from main.utils import upload_to_s3
+from main.utils import upload_to_s3, generate_asset_uuid, process_image
 
 from .utils.generate_slots import generate_timeslots
 from .serializers import (
@@ -304,7 +304,6 @@ class ServiceAPIVIew(APIView):
             }, status=status.HTTP_401_UNAUTHORIZED)
 
         data = request.data.copy()
-        print(data)
         images = request.FILES.getlist('images')
         uploaded_image_urls = request.data.get('uploaded_image_urls', [])
         providers = data.pop('providers', [])
@@ -340,7 +339,7 @@ class ServiceAPIVIew(APIView):
                 compressed_url = upload_to_s3(compressed, 'service-images', base_file_name)
 
                 original_image = process_image(image, None)   # Only changing format to WEBP
-                original_url = upload_to_s3(original_image, f"original_{folder_name}", f"original_{base_file_name}")
+                original_url = upload_to_s3(original_image, 'service-images', f"original_{base_file_name}")
 
                 uploaded_images.append({
                     "thumbnail": thumbnail_url,

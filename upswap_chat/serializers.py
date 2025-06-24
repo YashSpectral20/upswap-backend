@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import ChatRoom, ChatRequest, ChatMessage
 from django.utils.timezone import localtime
+from main.models import CustomUser
 
 class ChatRequestSerializer(serializers.ModelSerializer):
     from_user_name = serializers.CharField(source='from_user.name', read_only=True)
@@ -81,7 +82,42 @@ class ChatRequestSerializer(serializers.ModelSerializer):
                     }
         return None
 
+class CustomUserSerializer(serializers.ModelSerializer):
+    profile_pic = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CustomUser
+        fields = ('id', 'name', 'profile_pic')
+
+    def get_profile_pic(self, obj):
+        if not obj.profile_pic:
+            return ""
+        return obj.profile_pic
+
+class LastMessageSerializer(serializers.ModelSerializer):
+    sender_id = serializers.UUIDField(source='sender.id')
+
+    class Meta:
+        model = ChatMessage
+        fields = ('id', 'sender_id', 'content', 'created_at')
+
+class GetChatRoomSerializer(serializers.ModelSerializer):
+    participants = CustomUserSerializer(many=True, read_only=True)
+    last_message = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChatRoom
+        fields = ('id', 'activity', 'participants', 'created_at', 'last_message')
+
+    def get_last_message(self, obj):
+        last_msg = obj.messages.first()  # due to ordering = ('-created_at',)
+        if last_msg:
+            return LastMessageSerializer(last_msg).data
+        return None
+
+
 class ChatRoomSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = ChatRoom
         fields = '__all__'
