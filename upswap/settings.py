@@ -13,13 +13,59 @@ import os
 import dj_database_url
 from datetime import timedelta
 from pathlib import Path
+from dotenv import load_dotenv
+from datetime import date
+import pytz
+from logging import Formatter
+from datetime import datetime
+import sendgrid
+from sendgrid.helpers.mail import Mail, Email, To, Content
+import firebase_admin
+from firebase_admin import credentials
+
+load_dotenv()
+
+FCM_API_KEY = os.getenv("FCM_API_KEY")
 
 # Build paths inside the project likessh this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Define the environment (local or production)
+ENVIRONMENT = os.getenv('DJANGO_ENVIRONMENT', 'development')
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
+# Local development settings (unchanged)
+if ENVIRONMENT == 'development':
+    STATIC_URL = '/static/'
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    # MEDIA_URL = '/media/'
+    # MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    MEDIA_URL = "https://upswap-assets.b-cdn.net/"
+elif ENVIRONMENT == 'production':
+    STATIC_URL = os.getenv('STATIC_URL', 'https://upswap-assets.s3.amazonaws.com/static/')
+    #MEDIA_URL = os.getenv('MEDIA_URL', 'https://upswap-assets.s3.amazonaws.com/media/')
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+    #MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+    MEDIA_URL = "https://upswap-assets.b-cdn.net/"
+
+# AWS S3 Configuration
+
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('AWS_STORAGE_BUCKET_NAME')
+AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+AWS_QUERYSTRING_AUTH = False
+AWS_S3_FILE_OVERWRITE = False
+
+
+# AWS S3 Static and Media File Storage settings
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+AWS_S3_REGION_NAME = os.getenv('AWS_S3_REGION_NAME', 'us-east-1')  # Update to your region
+AWS_S3_SIGNATURE_VERSION = os.getenv('AWS_S3_SIGNATURE_VERSION', 's3v4')
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+
+AWS_DEFAULT_ACL = None
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-v4a0((y^y7j@8n-5mzsco8v%^hsr+z%om((7z8+#ppg6-g)j!#'
@@ -29,9 +75,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-
 # Application definition
-
 INSTALLED_APPS = [
     'daphne',
     'django.contrib.admin',
@@ -41,10 +85,17 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'main',
+    'upswap_chat',
+    'activity_log',
+    'appointments',
+    'storages',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'channels',
+    'corsheaders',
+    'drf_yasg',
+    'deals_agent',
     ]
 
 # Define the ASGI application
@@ -61,17 +112,61 @@ CHANNEL_LAYERS = {
     },
 }
 
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://redis:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    # 'corsheaders.middleware.CorsMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+CORS_ALLOWED_ORIGINS = [
+    "https://api.upswap.app",
+    "http://api.upswap.app", # Include if testing locally with HTTP
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://upswap.app",
+]
+ 
+CSRF_TRUSTED_ORIGINS = [
+    "https://api.upswap.app",
+    "https://upswap.app",
+    "http://localhost:3000",
+]
+ 
+CORS_ALLOW_ALL_ORIGINS = True
+ 
+# Optional: Allow credentials (cookies, authorization headers)
+CORS_ALLOW_CREDENTIALS = True
+ 
+# Allow specific headers if needed
+CORS_ALLOW_HEADERS = [
+    'content-type',
+    'authorization',
+    'accept',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-session-id',
+]
+
+CORS_EXPOSE_HEADERS = ["Set-Cookie", "Content-Type", "X-CSRFToken"]
 
 ROOT_URLCONF = 'upswap.urls'
 
@@ -108,10 +203,10 @@ DATABASES = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mydatabase',
-        'USER': 'myuser',
-        'PASSWORD': 'mypassword',
-        'HOST': 'db',  # The hostname of the PostgreSQL service in Docker Compose
+        'NAME': 'upswap-db',
+        'USER': 'upswap',
+        'PASSWORD': 'upswapDBadmin',
+        'HOST': 'upswap-db.cno04mc4gmpt.us-east-1.rds.amazonaws.com',  # The hostname of the PostgreSQL service in Docker Compose
         'PORT': '5432',
     }
 }
@@ -151,20 +246,26 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
 
+
+"""
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+"""
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 AUTH_USER_MODEL = 'main.CustomUser'
 
 REST_FRAMEWORK = {
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
              
@@ -172,6 +273,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',
     ),
+    # 'EXCEPTION_HANDLER': 'main.utils.custom_exception_handler',
 }
 
 SIMPLE_JWT = {
@@ -193,9 +295,71 @@ SIMPLE_JWT = {
 }
 
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'upswapapp@gmail.com'
-EMAIL_HOST_PASSWORD = 'vfxu rhrb yjzq duvk'
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtp.gmail.com'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'upswapapp@gmail.com'
+# EMAIL_HOST_PASSWORD = 'vfxu rhrb yjzq duvk'
+
+
+
+
+# Custom formatter class to handle IST timezone
+class ISTFormatter(Formatter):
+    def formatTime(self, record, datefmt=None):
+        # Convert the epoch time to a datetime object in UTC
+        utc_time = datetime.utcfromtimestamp(record.created)
+        # Convert the UTC time to IST
+        ist = pytz.timezone("Asia/Kolkata")
+        ist_time = utc_time.replace(tzinfo=pytz.utc).astimezone(ist)
+        # Format the IST time
+        return ist_time.strftime(datefmt or "%Y-%m-%d %H:%M:%S %Z")
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            '()': ISTFormatter,  # Use the custom IST formatter
+            'format': '{levelname} {asctime} {module} {message}',
+            'datefmt': '%Y-%m-%d %H:%M:%S %Z',  # IST format
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join('/usr/src/app/logs', f"{date.today().strftime('%Y%m%d')}_django.log"),
+            'maxBytes': 1024 * 1024 * 5,  # 5 MB
+            'backupCount': 3,  # Keep 3 old log files
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
+
+FILE_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 20
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1024 * 1024 * 30
+
+FCM_API_KEY = 'AAAAd_w70I0:APA91bG9l53D7NMaURfpgLEN-wEYUygZ-WmHtcHtjjjFfl-MYWETco3qiRtQTPXRQbe6fQar3YtDguW4Ejz-tqesftyEOzdm6Ce_hgRO7zFffIyvuJPBmPWcs1wZS_bfCgorVFKw6co3'
+
+YOUR_PROJECT_ID = 'ittdealsapp'
+FIREBASE_CREDENTIALS = "/usr/src/app/creds.json"
+firebase_admin.initialize_app(credentials.Certificate(FIREBASE_CREDENTIALS))
+
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER")
+TWILIO_CONTENT_SID = os.getenv("TWILIO_CONTENT_SID")

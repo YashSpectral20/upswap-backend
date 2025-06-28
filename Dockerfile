@@ -10,7 +10,9 @@ WORKDIR /usr/src/app
 
 # Install dependencies
 COPY requirements.txt /usr/src/app/
+COPY creds.json /usr/src/app/
 RUN pip install --upgrade pip
+RUN pip install --upgrade pip setuptools wheel
 RUN pip install -r requirements.txt
 
 # Copy project files into the container

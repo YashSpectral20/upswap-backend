@@ -1,0 +1,64 @@
+
+
+
+# Upswap user activity logs 
+
+events = [
+    # users 
+    "sign_up",
+    "logins",
+    "logouts",
+    "edit_profile",
+    "place_order",
+    "reset_password",
+    "verify_otp",
+    "favorite_vendor",
+    "rate_vendor",
+    "raise_issue",
+
+    # activity
+    "create_activity",
+    "disable_activity",
+    "repost_activity",
+    "show_interest_in_activity",
+
+    # chat
+    "chat_request",
+    "accept_chat_req",
+    "rejet_chat_req", 
+
+    # vendor
+    "apply_kyc",
+    "upload_deal",
+    "end_deal",
+    "create_deal",
+    "edit_deal",
+    "disable_deal",
+    "kyc_approved",
+
+    "notification_fired_for_event",
+
+    # other events
+]
+
+# example metadata for a sign_up event.
+# metadata = {
+#     "user_id": "1234",
+#     "long_lats": "22.35353_35.23455",
+#     "sign_up_at": datetime(),
+#     # other fields
+# }
+
+# example metadata for a create_activity event
+# metadata = {
+#     "activity_id": "1234",
+#     "user_id": "4567",
+#     "activity_created_at": activity.now(),
+#     # other fields
+# }
+
+# id = unique id
+# user_id = upswap user id
+# event = event from the events list
+# metadata = metadata about the event (JSON)
+# created_at = event.now() (When the event occured)
