@@ -311,8 +311,10 @@ class ServiceAPIVIew(APIView):
         
         serializer = ServiceSerializer(data=data)
         if not serializer.is_valid():
+            errors = serializer.errors
+            error_list = [f"{field} {str(msg)}" for field, messages in errors.items() for msg in messages]
             return Response({
-                'message': 'Failed to add provider.',
+                'message': error_list[0],
                 'error': serializer.errors
             }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -375,20 +377,49 @@ class ServiceAPIVIew(APIView):
             data = request.data.copy()
             images = request.FILES.getlist('images')
             providers = data.pop('providers', [])
-            existing_images = request.data.getlist('existing_images', [])
+            existing_images = request.data.getlist('existing_images', []) 
+            uploaded_image_urls = request.data.get('uploaded_image_urls', [])
             data['vendor'] = service.vendor.vendor_id
             image_urls = []
             if images:
+                # uploaded_images = []
                 for image in images:
-                    image_url = upload_to_s3(
-                        image,
-                        f'service-images/{service.vendor.vendor_id}',
-                        image.name
-                    )
-                    image_urls.append(image_url)
-            if existing_images:
-                image_urls.extend(existing_images)
+                    asset_uuid = generate_asset_uuid()
+                    base_file_name = f"asset_{asset_uuid}.webp"
 
+                    # Process and upload thumbnail
+                    thumbnail = process_image(image, (160, 130))
+                    thumbnail_url = upload_to_s3(thumbnail, 'service-images', f"thumbnail_{base_file_name}")
+
+                    # Process and upload compressed image
+                    compressed = process_image(image, (600, 250))
+                    compressed_url = upload_to_s3(compressed, 'service-images', base_file_name)
+
+                    original_image = process_image(image, None)   # Only changing format to WEBP
+                    original_url = upload_to_s3(original_image, 'service-images', f"original_{base_file_name}")
+
+                    image_urls.append({
+                        "thumbnail": thumbnail_url,
+                        "compressed": compressed_url,
+                        "original": original_url
+                    })
+            if existing_images:
+                for img in existing_images:
+                    if isinstance(img, str):
+                        try:
+                            img_dict = json.loads(img)
+                            image_urls.append(img_dict)
+                        except json.JSONDecodeError:
+                            print("Failed to decode image JSON:", img)
+                    elif isinstance(img, dict):
+                        image_urls.append(img)
+                    else:
+                        print("Unknown image format:", img)
+            print("existing images ---> ", existing_images)
+            if uploaded_image_urls:
+                image_urls.extend(uploaded_image_urls)
+
+            print("image urls ---> ", image_urls)
             serializer = ServiceSerializer(service, data=data, partial=True, context={'images': image_urls})
             if serializer.is_valid():
                 service_instance = serializer.update(service, serializer.validated_data)
@@ -429,12 +460,10 @@ class ServiceAPIVIew(APIView):
             service.delete()
             return Response({
                 'message': 'Service deleted successfully.',
-                'data': {}
-            }, status=status.HTTP_204_NO_CONTENT)
+            }, status=status.HTTP_200_OK)
         except Service.DoesNotExist:
             return Response({
                 'message': 'Service not found.',
-                'data': {}
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({

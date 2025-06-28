@@ -30,7 +30,7 @@ class ChatRequest(models.Model):
         self.is_rejected = False
 
         # Create new chat room if it doesn't exist
-        chat_room = ChatRoom.objects.create(activity=self.activity)
+        chat_room = ChatRoom.objects.create(activity=self.activity, chat_request = self)
         chat_room.participants.add(self.from_user, self.activity.created_by)
         chat_room.save()
         self.save()
@@ -63,6 +63,7 @@ class ChatRoom(models.Model):
     activity = models.ForeignKey(Activity, on_delete=models.CASCADE)   # SET_NULL
     participants = models.ManyToManyField(CustomUser)
     created_at = models.DateTimeField(auto_now_add=True)
+    chat_request = models.ForeignKey(ChatRequest, on_delete=models.SET_NULL, null=True, blank=True, related_name='chat_room')
     
     def __str__(self):
         return f"ChatRoom {self.id} for Activity {self.activity.activity_title}"

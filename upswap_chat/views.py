@@ -94,10 +94,6 @@ class ChatRequestAPIView(APIView):
         
     def patch(self, request, format=None):
         data = request.data
-        # if not isinstance(data, list):
-        #     return Response({
-        #         'error': 'Data must be a list of chat requests.'
-        #     }, status=status.HTTP_400_BAD_REQUEST)
  
         response_data = []
         errors = []
@@ -108,6 +104,7 @@ class ChatRequestAPIView(APIView):
                 if chat_request:
                     is_undo = item.get('is_undo', False)
                     is_accepted = item.get('is_accepted', False)
+                    is_rejected = item.get('is_rejected', False)
  
                     if is_undo:
                         # ✅ Undo logic: reset the status
@@ -126,56 +123,81 @@ class ChatRequestAPIView(APIView):
                         chat_request.is_undo = False
                         chat_request.is_rejected = False
                         chat_request.save()
-                       
-                    # After accepting, send notification to the user
-                    user = chat_request.from_user
-                    devices = Device.objects.filter(user=user)
-                    chat_room_serializer = ChatRoomSerializer(chat_room)
- 
-                    if devices.exists():
-                        for device in devices:
-                            send_single_fcm_message(
-                                registration_token=device.device_token,
-                                title="Chat Request Accepted",
-                                body=f"Your chat request for {chat_request.activity.activity_title} has been accepted.",
-                                data={
-                                    "type": "chat_request_accepted",
-                                    "activity_id": str(chat_request.activity.activity_id),
-                                    "chat_room_id": str(chat_room.id),
-                                }
-                            )
-                        # serializer = ChatRoomSerializer(chat_room)
-                        response_data.append({
-                            'id': chat_request.id,
+                        chat_room_serializer = ChatRoomSerializer(chat_room)
+                        user = chat_request.from_user
+                        devices = Device.objects.filter(user=user)
+                        chat_room_serializer = ChatRoomSerializer(chat_room)
+    
+                        if devices.exists():
+                            for device in devices:
+                                send_single_fcm_message(
+                                    registration_token=device.device_token,
+                                    title="Chat Request Accepted",
+                                    body=f"Your chat request for {chat_request.activity.activity_title} has been accepted.",
+                                    data={
+                                        "type": "chat_request_accepted",
+                                        "activity_id": str(chat_request.activity.activity_id),
+                                        "chat_room_id": str(chat_room.id),
+                                    }
+                                )
+                        return Response({
+                            'message': 'Chat request accepted.',
+                            'id': chat_room.id,
                             'chat_room': chat_room_serializer.data
-                        })
-                    else:
+                        }, status=status.HTTP_200_OK)
+                    elif is_rejected:
                         # ✅ Reject logic
-                        chat_request.is_accepted = True
+                        chat_request.is_accepted = False
                         chat_request.is_clicked = True
                         chat_request.is_undo = False
-                        chat_request.is_rejected = False
+                        chat_request.is_rejected = True
                         chat_request.save()
-                        response_data.append({
-                            'note': 'Chat request accepted but no notification sent.',
+                        return Response({
+                            'message': 'Chat request rejected.',
                             'id': chat_request.id,
-                            'chat_room': chat_room_serializer.data
-                        })
+                        }, status=status.HTTP_200_OK)
+                       
+                    # After accepting, send notification to the user
+                    # user = chat_request.from_user
+                    # devices = Device.objects.filter(user=user)
+                    # chat_room_serializer = ChatRoomSerializer(chat_room)
+ 
+                    # if devices.exists():
+                    #     for device in devices:
+                    #         send_single_fcm_message(
+                    #             registration_token=device.device_token,
+                    #             title="Chat Request Accepted",
+                    #             body=f"Your chat request for {chat_request.activity.activity_title} has been accepted.",
+                    #             data={
+                    #                 "type": "chat_request_accepted",
+                    #                 "activity_id": str(chat_request.activity.activity_id),
+                    #                 "chat_room_id": str(chat_room.id),
+                    #             }
+                    #         )
+                        # serializer = ChatRoomSerializer(chat_room)
+                        # response_data.append({
+                        #     'id': chat_request.id,
+                        #     'chat_room': chat_room_serializer.data
+                        # })
+                    
             except Exception as e:
-                errors.append({
-                    'id': item.get('id'),
+                # errors.append({
+                #     'id': item.get('id'),
+                #     'error': str(e)
+                # })
+                return Response({
                     'error': str(e)
-                })
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
  
-        response = {
-            'message': 'Processed chat requests.',
-            'accepted': response_data,
-        }
+        # response = {
+        #     'message': 'Processed chat requests.',
+        #     'accepted': response_data,
+        # }
  
-        if errors:
-            response['errors'] = errors
+        # if errors:
+        #     response['errors'] = errors
  
-        return Response(response, status=status.HTTP_200_OK)
+        # return Response(response, status=status.HTTP_200_OK)
 
 
 class ChatMessageAPIView(APIView, CustomPagination):

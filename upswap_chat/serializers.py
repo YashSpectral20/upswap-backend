@@ -87,7 +87,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CustomUser
-        fields = ('id', 'name', 'profile_pic')
+        fields = ('id', 'name', 'username', 'profile_pic')
 
     def get_profile_pic(self, obj):
         if not obj.profile_pic:
@@ -104,15 +104,23 @@ class LastMessageSerializer(serializers.ModelSerializer):
 class GetChatRoomSerializer(serializers.ModelSerializer):
     participants = CustomUserSerializer(many=True, read_only=True)
     last_message = serializers.SerializerMethodField()
+    participation_status = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatRoom
-        fields = ('id', 'activity', 'participants', 'created_at', 'last_message')
+        fields = ('id', 'activity', 'participants', 'created_at', 'last_message',
+            'participation_status'
+        )
 
     def get_last_message(self, obj):
         last_msg = obj.messages.first()  # due to ordering = ('-created_at',)
         if last_msg:
             return LastMessageSerializer(last_msg).data
+        return None
+
+    def get_participation_status(self, obj):
+        if obj.chat_request:
+            return obj.chat_request.participation_status
         return None
 
 

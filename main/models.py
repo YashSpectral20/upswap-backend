@@ -20,16 +20,13 @@ from django.utils.timezone import now
 from decimal import Decimal
 from datetime import timedelta
 
-# Custom User Models
 class CustomUserManager(BaseUserManager):
     def create_user(self, username, email=None, name=None, phone_number=None, date_of_birth=None, gender=None, country_code='', dial_code='', country='', password=None, fcm_token=None, latitude=None, longitude=None):
-        # if not email:
-        #     raise ValueError('The Email field is required')
         if not username:
             raise ValueError('The Username field is required')
 
         user = self.model(
-            email=email, # self.normalize_email(email),
+            email=self.normalize_email(email),
             username=username,
             name=name,
             phone_number=phone_number,
@@ -68,20 +65,6 @@ class CustomUserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    # def create_superuser(self, username, password=None, **extra_fields):
-    #     if not username:
-    #         raise ValueError("Superuser must have a username")
-
-    #     extra_fields.setdefault('is_staff', True)
-    #     extra_fields.setdefault('is_admin', True)
-    #     extra_fields.setdefault('is_superuser', True)
-
-    #     return self.create_user(
-    #         username=username,
-    #         password=password,
-    #         **extra_fields
-    #     )
-
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     GENDER_CHOICES = [
         ('M', 'Male'),
@@ -91,38 +74,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     LOGIN_TYPE_CHOICES = [
         ('google', 'Google'),
         ('apple', 'Apple'),
+        ('facebook', 'Facebook'),
     ]
-
-    # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    # username = models.CharField(max_length=150, unique=True)
-    # email = models.EmailField(max_length=255, unique=True)
-    # name = models.CharField(max_length=255)
-    # phone_number = models.CharField(max_length=15)
-    # country_code = models.CharField(max_length=10, blank=True, default='')
-    # dial_code = models.CharField(max_length=10, blank=True, default='')
-    # country = models.CharField(max_length=100, blank=True, default='')
-    # date_of_birth = models.DateField(null=True, blank=True)
-    # gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)
-    # is_active = models.BooleanField(default=True)
-    # is_staff = models.BooleanField(default=False)
-    # is_admin = models.BooleanField(default=False)
-    # otp_verified = models.BooleanField(default=False)
-    # email_verified = models.BooleanField(default=False)
-    
-    # social_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
-    # type = models.CharField(max_length=10, choices=LOGIN_TYPE_CHOICES, blank=True, null=True)
-    
-    # bio = models.TextField(blank=True, null=True)
-    # user_type = models.CharField(max_length=50, blank=True, default='')
-    # profile_pic = models.JSONField(default=list, blank=True, null=True)
-    # fcm_token = models.CharField(max_length=255, blank=True, null=True)
-    # latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
-    # longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
-    
-    objects = CustomUserManager()
-    
-    # USERNAME_FIELD = 'email'
-    # REQUIRED_FIELDS = ['username', 'name', 'phone_number', 'date_of_birth', 'gender']
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(max_length=255, null=True, blank=True)
@@ -152,7 +105,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 
-    # objects = CustomUserManager()
+    objects = CustomUserManager()
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = []
@@ -388,7 +341,7 @@ class CreateDeal(models.Model):
     deal_title = models.CharField(max_length=255)
     deal_description = models.TextField()
     service = models.ForeignKey(Service, on_delete=models.CASCADE, null=True, blank=True)
-    category = models.CharField(max_length=100, null=True, blank=True)
+    category = models.CharField(max_length=100)
     uploaded_images = models.JSONField(default=list, blank=True)
 
     end_date = models.DateField(null=True, blank=True)
@@ -492,16 +445,16 @@ class PasswordResetOTP(models.Model):
     def is_expired(self):
         return now() > self.created_at + timedelta(minutes=10)
     
-class FavoriteVendor(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorite_vendors')
-    vendor = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='favorited_by')
-    added_at = models.DateTimeField(auto_now_add=True)
+# class FavoriteVendor(models.Model):
+#     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorite_vendors')
+#     vendor = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='favorited_by')
+#     added_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
-        unique_together = ('user', 'vendor')  # Same vendor ko ek user multiple baar favorite nahi kar sakta
+#     class Meta:
+#         unique_together = ('user', 'vendor')  # Same vendor ko ek user multiple baar favorite nahi kar sakta
 
-    def __str__(self):
-        return f"{self.user.email} favorited {self.vendor.full_name}"
+#     def __str__(self):
+#         return f"{self.user.email} favorited {self.vendor.full_name}"
     
 class VendorRating(models.Model):
     rating_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
@@ -595,3 +548,37 @@ class Device(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.device_type}"
+
+# ==================== Favorite Models ===================== # 
+
+class FavoriteBase(models.Model):
+    user       = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        abstract = True
+
+class FavoriteUser(FavoriteBase):
+    favorite_user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='favorited_by')
+    class Meta:
+        unique_together = ('user', 'favorite_user')
+        indexes = [
+            models.Index(fields=['user', 'favorite_user']),
+        ]
+
+class FavoriteService(FavoriteBase):
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name='favorited_by')
+    class Meta:
+        unique_together = ('user', 'service')
+        indexes = [
+            models.Index(fields=['user', 'service']),
+        ]
+
+class FavoriteVendor(FavoriteBase):
+    vendor = models.ForeignKey(VendorKYC, on_delete=models.CASCADE, related_name='favorited_by')
+    class Meta:
+        unique_together = ('user', 'vendor')
+        indexes = [
+            models.Index(fields=['user', 'vendor']),
+        ]
+
+# ==================== End Favorite Models ===================== # 

@@ -166,6 +166,7 @@ CORS_ALLOW_HEADERS = [
     'x-session-id',
 ]
 
+CORS_EXPOSE_HEADERS = ["Set-Cookie", "Content-Type", "X-CSRFToken"]
 
 ROOT_URLCONF = 'upswap.urls'
 

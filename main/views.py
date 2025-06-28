@@ -23,6 +23,8 @@ from django.db.models import F, Func, FloatField
 from math import radians, sin, cos, sqrt, atan2, asin
 from django.db.models import Sum
 from django.db import models
+from django.contrib.auth import login, logout
+from django.db import transaction
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken, TokenError
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
@@ -33,8 +35,10 @@ from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
-from .models import (CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, CreateDeal, PlaceOrder,
-                    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device)
+from .models import (
+    CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, CreateDeal, PlaceOrder,
+    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device, FavoriteUser, FavoriteService, FavoriteVendor,
+    )
 
 from .serializers import (
     CustomUserSerializer, OTPRequestSerializer, OTPResetPasswordSerializer, OTPValidationSerializer, VerifyOTPSerializer, LoginSerializer,
@@ -46,10 +50,11 @@ from .serializers import (
     ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer, GetVendorSerializer, RegisterSerializerV2,
 
 )
-from datetime import datetime
+
+from datetime import timezone as pytimezone
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification, send_whatsapp_message, send_email_via_mailgun
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification, send_whatsapp_message, send_email_via_mailgun, convert_to_utc_date_time
 from .firebase_utils import send_notification_to_user 
 from rest_framework.decorators import api_view
 from geopy.distance import geodesic
@@ -91,7 +96,7 @@ from activity_log.serializers import ActivityLogSerializer
 User = get_user_model()
 token_generator = PasswordResetTokenGenerator()
 
-USERNAME_REGEX = r'^[a-z0-9]{6,}$'  # Adjust the pattern as needed
+USERNAME_REGEX = r'^[a-z0-9._]{8,}$'  # r'^[a-z0-9]{6,}$'  # Adjust the pattern as needed
 PASSWORD_REGEX = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$'  # At least 8 characters, 1 letter and 1 number
 
 
@@ -296,9 +301,26 @@ class ActivityCreateView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         try:
             data = request.data.copy()
+            end_date_str = data.get('end_date')
+            end_time_str = data.get('end_time')
+            timezone_info = data.get('timezone') 
+            if not timezone_info:
+                return Response({
+                    'error': 'Timezone information is missing.',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            utc_end_date_str, utc_end_time_str, err = convert_to_utc_date_time(end_date_str, end_time_str, timezone_info)
+            if err:
+                return Response({
+                    'error': err
+                }, status=status.HTTP_200_OK)
+
             if not data['user_participation']:
                 data['maximum_participants'] = 0
 
+            # implement a past endtime check for activity. 
+            data['end_date'] = utc_end_date_str
+            data['end_time'] = utc_end_time_str
             serializer = self.get_serializer(data=data)
             if serializer.is_valid():
                 if 'user_participation' not in serializer.validated_data:
@@ -612,7 +634,27 @@ class CreateDealView(generics.CreateAPIView):
                     {"message": "uploaded_images must be a list of dictionaries."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            serializer = self.get_serializer(data=request.data)
+
+            data = request.data.copy()
+            end_date_str = data.get('end_date')
+            end_time_str = data.get('end_time')
+            timezone_info = data.get('timezone') 
+            if not timezone_info:
+                return Response({
+                    'error': 'Timezone information is missing.',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            utc_end_date_str, utc_end_time_str, err = convert_to_utc_date_time(end_date_str, end_time_str, timezone_info)
+            if err:
+                return Response({
+                    'error': err
+                }, status=status.HTTP_200_OK)
+
+            # implement a past endtime check for activity. 
+            data['end_date'] = utc_end_date_str
+            data['end_time'] = utc_end_time_str
+
+            serializer = self.get_serializer(data=data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
 
@@ -653,20 +695,20 @@ class CreateDealView(generics.CreateAPIView):
                         print(f"❌ Distance calc error for user {user.id}: {e}")
 
             # ✅ Notify users who favorited this vendor — regardless of location
-            vendor_kyc = get_object_or_404(VendorKYC, user=request.user)
-            favoriting_users = CustomUser.objects.filter(
-                favorite_vendors__vendor=vendor_kyc
-            ).exclude(id=request.user.id).distinct()
+            # vendor_kyc = get_object_or_404(VendorKYC, user=request.user)
+            # favoriting_users = CustomUser.objects.filter(
+            #     favorite_vendors__vendor=vendor_kyc
+            # ).exclude(id=request.user.id).distinct()
 
-            for user in favoriting_users:
-                create_notification(
-                    user=user,
-                    notification_type="deal",
-                    title="Your Favorite Vendor Posted a New Deal!",
-                    body=f"{request.user.name} posted a new deal: '{deal.deal_title}'. Check it out!",
-                    reference_instance=deal,
-                    data={"deal_id": str(deal.deal_uuid), "vendor_id": vendor_id,}
-                )
+            # for user in favoriting_users:
+            #     create_notification(
+            #         user=user,
+            #         notification_type="deal",
+            #         title="Your Favorite Vendor Posted a New Deal!",
+            #         body=f"{request.user.name} posted a new deal: '{deal.deal_title}'. Check it out!",
+            #         reference_instance=deal,
+            #         data={"deal_id": str(deal.deal_uuid), "vendor_id": vendor_id,}
+            #     )
             
             # activity log
             ActivityLog.objects.create(
@@ -846,11 +888,10 @@ class CreateDeallistView(generics.ListAPIView):
         current_time = now.time()
 
         queryset = CreateDeal.objects.filter(
-            # start_date__lte=today,  # Jo deals aaj ya pehle start ho chuki hain
-            end_date__gte=today,  # Jo deals aaj ya uske baad tak valid hain
-            available_deals__gt=0   # Sirf wo deals jinki available_deals 0 se zyada hai
+            end_date__gte=today, 
+            available_deals__gt=0
         ).exclude(
-            end_date=today, end_time__lte=current_time  # Aaj ki but end_time nikal chuka hai
+            end_date=today, end_time__lte=current_time
         )
         
         
@@ -886,7 +927,6 @@ class CreateDeallistView(generics.ListAPIView):
                 elif queryset.filter(location_country__icontains=search_terms[2]).exists():
                     query |= Q(location_country__icontains=search_terms[2])
 
-            # Agar 4 ya usse zyada terms hain to road name ya pincode ko priority denge
             elif len(search_terms) >= 4:
                 if queryset.filter(location_road_name__icontains=search_terms[0]).exists():
                     query |= Q(location_road_name__icontains=search_terms[0])
@@ -917,40 +957,10 @@ class ActivityListsView(generics.ListAPIView):
     serializer_class = ActivityListsSerializer
     permission_classes = [AllowAny]
 
-    # def get_queryset(self):
-    #     current_time = make_aware(datetime.now())  # Timezone aware datetime
-    #     search_keyword = self.request.query_params.get('address', None)
-
-    #     # Base queryset jo sirf live activities ko filter karega
-    #     queryset = Activity.objects.all()
-
-    #     live_activities = []
-    #     for activity in queryset:
-    #         end_date = activity.end_date or current_time.date()
-    #         end_time = activity.end_time or time(23, 59)
-
-    #         activity_end_datetime = make_aware(datetime.combine(end_date, end_time))
-
-    #         if current_time <= activity_end_datetime:
-    #             live_activities.append(activity)
-
-    #     # Agar search filter diya hai toh location ko bhi filter karein
-    #     if search_keyword:
-    #         search_terms = [term.strip().lower() for term in search_keyword.split(',')]
-    #         filtered_activities = []
-    #         for activity in live_activities:
-    #             activity_location = activity.location.lower() if activity.location else ''
-    #             if any(term in activity_location for term in search_terms):
-    #                 filtered_activities.append(activity)
-    #         return filtered_activities
-
-    #     return live_activities
-
     def get_queryset(self):
         current_time = make_aware(datetime.now())
         search_keyword = self.request.query_params.get('address', None)
 
-        # Pre-filter queryset: is_deleted=False and activity is still live
         queryset = Activity.objects.filter(
             is_deleted=False
         ).filter(
@@ -1226,9 +1236,12 @@ class CustomUserEditView(APIView):
         else:
             # Extract the first error message from serializer.errors
             # error_message = next(iter(serializer.errors.values()))[0]
+            errors = serializer.errors
+            error_list = [f"{field} {str(msg)}" for field, messages in errors.items() for msg in messages]
+
             return Response(
                 {
-                    "errors": serializer.errors
+                    "errors": error_list
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
@@ -1463,19 +1476,10 @@ class MyActivityView(APIView):
         }, status=status.HTTP_200_OK)
         
 class MyDealView(APIView):
-    permission_classes = [IsAuthenticated]
 
-    def permission_denied(self, request, message=None, code=None):
-        response = Response(
-            {"message": message or "Authentication credentials were not provided."},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
-        self.raise_exception = False
-        return response
-
-    def get(self, request):
+    def get(self, request, vendor_id):
         try:
-            vendor_kyc = VendorKYC.objects.get(user=request.user)
+            vendor_kyc = VendorKYC.objects.get(vendor_id=vendor_id)
             current_time = timezone.now()
 
             deals = CreateDeal.objects.filter(vendor_kyc=vendor_kyc)
@@ -2727,20 +2731,28 @@ class ConfirmRejectActivityPartcipation(APIView):
         participation_status = request.data.get('status') # accept, reject
         user_id = request.data.get('user_id')
         try:
-            print(activity_id)
             activity = Activity.objects.filter(activity_id=activity_id).first()
+            if not activity:
+                return Response({
+                    'error': 'Activity does not exists.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             curr_participant_count = activity.participants.count()
             if participation_status == 'accept':
                 if curr_participant_count < activity.maximum_participants:
                     activity.participants.add(user_id)
                     chat_request = activity.chat_requests.filter(from_user=user_id).first()
                     chat_request.participation_status = 'ACCEPTED'
-                chat_request.save()
-                activity.save()
+                    chat_request.save()
+                    activity.save()
 
-                return Response({
-                    'message': 'Participant confirmed.',
-                }, status=status.HTTP_200_OK)
+                    return Response({
+                        'message': 'Participant confirmed.',
+                    }, status=status.HTTP_200_OK)
+                else:
+                    return Response({
+                        'error': 'Maximum participation reached.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
             elif participation_status == 'reject':
                 chat_request = activity.chat_requests.filter(from_user=user_id).first()
                 chat_request.participation_status = 'REJECTED'
@@ -2749,6 +2761,9 @@ class ConfirmRejectActivityPartcipation(APIView):
                 return Response({
                     'message': 'Participant Rejected.'
                 }, status=status.HTTP_200_OK)
+            return Response({
+                'error': 'Participation status is required.',
+            }, status=status.HTTP_400_BAD_REQUEST)
         except Activity.DoesNotExist as e:
             return Response({
                 'error': 'No activity found.'
@@ -2756,6 +2771,41 @@ class ConfirmRejectActivityPartcipation(APIView):
         except Exception as e:
             return Response({
                 'message': 'Error occured while accepting/rejecting participation.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RemoveActivityParticipantView(APIView):
+
+    def post(self, request, activity_id):
+        try:
+            activity = Activity.objects.filter(activity_id=activity_id).first()
+            if not activity:
+                return Response({
+                    'error': 'Activity does not exist.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            user_id = request.data.get('user_id')
+            if not activity.participants.filter(id=user_id).exists():
+                return Response({'error': 'User is not a participant.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            activity.participants.remove(user_id)
+
+            chat_request = activity.chat_requests.filter(from_user=user_id).first()
+            if chat_request:
+                chat_request.participation_status = 'REJECTED'
+                chat_request.save()
+            else:
+                return Response({
+                    'error': 'No chat request found.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            return Response({
+                'message': 'User removed from participants.'
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'message': 'Error occurred while removing participant.',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -3069,7 +3119,10 @@ class CreateUserInDB(APIView):
             user.save()
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
-
+            login(request, user)
+            if not request.session.session_key:
+                request.session.save()
+            session_id = request.session.session_key
             return Response({
                 'message': 'User registered successfully.',
                 'user': CustomUserSerializer(user).data,
@@ -3077,6 +3130,7 @@ class CreateUserInDB(APIView):
                 'access': access_token,
                 'is_approved': '',
                 'vendor_id': '',
+                'sessionid': session_id,
             })
 
         elif registration_type == 'phone':
@@ -3084,10 +3138,15 @@ class CreateUserInDB(APIView):
                 phone_number=data.get('phone'),
                 dial_code=data.get('dial_code'),
                 username=CustomUser.generate_unique_username(),
-                name=data.get('full_name')
+                name=data.get('full_name'),
+                otp_verified=True
             )
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
+            if not request.session.session_key:
+                request.session.save()
+            session_id = request.session.session_key
+            login(request, user)
             return Response({
                 'message': 'User registered successfully.',
                 'user': CustomUserSerializer(user).data,
@@ -3095,6 +3154,7 @@ class CreateUserInDB(APIView):
                 'access': access_token,
                 'is_approved': '',
                 'vendor_id': '',
+                'sessionid': session_id
             })
 
 
@@ -3120,7 +3180,11 @@ class LoginAPIViewV2(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
+            login(request, user)
             vendor = VendorKYC.objects.filter(user=user).first()
+            if not request.session.session_key:
+                request.session.save()
+            session_id = request.session.session_key
 
             return Response({
                 'message': 'Logged in successfully.',
@@ -3129,6 +3193,7 @@ class LoginAPIViewV2(APIView):
                 'access': access_token,
                 'is_approved': vendor.is_approved if vendor else '',
                 'vendor_id': vendor.vendor_id if vendor else '',
+                'sessionid': session_id
             }, status=status.HTTP_200_OK)
 
         elif login_type == 'phone': 
@@ -3173,7 +3238,11 @@ class LoginWithOTP(APIView):
         user = CustomUser.objects.filter(phone_number=phone).first()
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
+        login(request, user)
         vendor = VendorKYC.objects.filter(user=user).first()
+        if not request.session.session_key:
+            request.session.save()
+        session_id = request.session.session_key
 
         return Response({
             'message': 'Logged in successfully.',
@@ -3182,4 +3251,94 @@ class LoginWithOTP(APIView):
             'access': access_token,
             'is_approved': vendor.is_approved if vendor else '',
             'vendor_id': vendor.vendor_id if vendor else '',
+            'sessionid': session_id
         },status=status.HTTP_200_OK)
+
+class LogoutAPIV2(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        refresh_token = request.data.get("refresh_token")
+        device_token = request.data.get("device_token")
+
+        if not refresh_token:
+            return Response({"error": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                token = RefreshToken(refresh_token)
+
+                # Blacklist the token
+                token.blacklist()
+
+                # Delete device token
+                if device_token:
+                    Device.objects.filter(user=request.user, device_token=device_token).delete()
+
+                
+                # Create activity log only after successful logout
+                ActivityLog.objects.create(
+                    user=request.user,
+                    event=ActivityLog.LOGOUT,
+                    metadata={}
+                )
+
+                # Logout the user
+                logout(request)
+
+        except TokenError:
+            return Response({"error": "Invalid token or token already blacklisted."}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"message": "Logged out successfully."}, status=status.HTTP_200_OK)
+
+
+
+# ==================== Favorite Views ===================== # 
+
+class FavoriteUnfavoriteUserAPI(APIView):
+    """
+    Post() ---> Favorite or Unfavorite a vendor
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, fav_user_id):
+        user = request.user
+        user_to_be_favorited = CustomUser.objects.filter(id=fav_user_id).first()
+
+        if not user_to_be_favorited:
+            return Response({
+                'error': 'User to be favorited does not exist.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if user == user_to_be_favorited:
+            return Response({
+                'error': 'You cannot favorite yourself.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        favorite_relation = FavoriteUser.objects.filter(user=user, favorite_user=user_to_be_favorited).first()
+
+        if favorite_relation:
+            # Already favorited: perform unfavorite
+            favorite_relation.delete()
+            return Response({
+                'message': f'You unfavorited {user_to_be_favorited.name}.'
+            }, status=status.HTTP_200_OK)
+        else:
+            # Not yet favorited: perform favorite
+            try:
+                FavoriteUser.objects.create(
+                    user=user,
+                    favorite_user=user_to_be_favorited
+                )
+                return Response({
+                    'message': f'You favorited {user_to_be_favorited.name}.'
+                }, status=status.HTTP_200_OK)
+            except IntegrityError:
+                return Response({
+                    'error': 'You have already favorited this user.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ==================== End Favorite Views ===================== # 

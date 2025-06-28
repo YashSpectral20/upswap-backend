@@ -10,11 +10,11 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-       # migrations.AddField(
-          #  model_name='customuser',
-         #   name='email_verified',
-        #    field=models.BooleanField(default=False),
-       # ),
+        migrations.AddField(
+            model_name='customuser',
+            name='email_verified',
+            field=models.BooleanField(default=False),
+        ),
         migrations.AlterField(
             model_name='customuser',
             name='country',

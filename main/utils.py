@@ -11,7 +11,8 @@ import requests
 from PIL import Image
 from io import BytesIO
 import base64
-from datetime import timedelta
+from datetime import timedelta, datetime
+from zoneinfo import ZoneInfo
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
@@ -267,20 +268,6 @@ def send_whatsapp_message(to_phone):
         return {"status": "error", "message": str(e)}
 
 
-# def custom_exception_handler(exc, context):
-#     response = exception_handler(exc, context)
-
-#     if response is not None:
-#         # Agar 'detail' key ho to usko 'message' bana do
-#         if 'detail' in response.data:
-#             response.data = {'message': response.data['detail']}
-#     else:
-#         # Agar koi unknown error ho
-#         return Response({'message': 'Something went wrong'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-#     return response
-
-
 def send_email_via_mailgun(email, otp):
     response = requests.post(
         f"https://api.mailgun.net/v3/{os.getenv('MAILGUN_DOMAIN')}/messages",
@@ -299,3 +286,42 @@ def send_email_via_mailgun(email, otp):
         print(response.text)
         return False
 
+
+def convert_to_utc_date_time(date_str: str, time_str: str, timezone_str: str) -> tuple[str | None, str | None, str | None]:
+    """
+    Convert local date and time strings to UTC equivalents.
+
+    Args:
+        date_str (str): Date in 'YYYY-MM-DD' format.
+        time_str (str): Time in 'HH:MM' or 'HH:MM:SS' format.
+        timezone_str (str): IANA timezone string, e.g., 'Asia/Kolkata'.
+
+    Returns:
+        tuple: (UTC date str, UTC time str, error message or None)
+    """
+    try:
+        # Try parsing time with or without seconds
+        try:
+            local_naive = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            local_naive = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M")
+
+        # Validate and attach timezone
+        try:
+            tz = ZoneInfo(timezone_str)
+        except ZoneInfoNotFoundError:
+            return None, None, f"Invalid timezone: '{timezone_str}'"
+
+        local_aware = local_naive.replace(tzinfo=tz)
+
+        # Convert to UTC
+        utc_dt = local_aware.astimezone(ZoneInfo("UTC"))
+
+        # Return as strings
+        return utc_dt.strftime("%Y-%m-%d"), utc_dt.strftime("%H:%M:%S"), None
+
+    except ValueError as ve:
+        return None, None, f"Invalid date or time format: {ve}"
+
+    except Exception as e:
+        return None, None, f"Unexpected error: {str(e)}"

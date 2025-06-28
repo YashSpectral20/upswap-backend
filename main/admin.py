@@ -248,12 +248,12 @@ class RaiseAnIssueCustomUserAdmin(admin.ModelAdmin):
     list_filter = ('created_at',)
     ordering = ('-created_at',)
     
-@admin.register(FavoriteVendor)
-class FavoriteVendorAdmin(admin.ModelAdmin):
-    list_display = ('user', 'vendor', 'added_at')
-    search_fields = ('user__email', 'vendor__full_name')
-    list_filter = ('added_at',)
-    ordering = ('-added_at',)
+# @admin.register(FavoriteVendor)
+# class FavoriteVendorAdmin(admin.ModelAdmin):
+#     list_display = ('user', 'vendor', 'added_at')
+#     search_fields = ('user__email', 'vendor__full_name')
+#     list_filter = ('added_at',)
+#     ordering = ('-added_at',)
     
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):

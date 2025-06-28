@@ -238,15 +238,22 @@ class ActivitySerializer(serializers.ModelSerializer):
         return value
 
 class ParticipantSerializer(serializers.ModelSerializer):
+    profile_pic = serializers.SerializerMethodField()
     class Meta:
         model = CustomUser
         fields = [
-            'id', 'username', 'profile_pic'
+            'id', 'username', 'profile_pic', 'name',
         ]
+
+    def get_profile_pic(self, obj):
+        # If profile_pic is a list and has at least one URL, return the first one
+        if obj.profile_pic:
+            return obj.profile_pic
+        return ""
     
 class ActivityListsSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source='created_by.id', read_only=True)
-    created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
+    created_by = serializers.CharField(source='created_by.name')  # Assuming `created_by` refers to CustomUser
     # activity_category = serializers.CharField(source='activity_category.actv_category', read_only=True)
     uploaded_images = serializers.SerializerMethodField()
     original_images = serializers.SerializerMethodField()
@@ -294,8 +301,7 @@ class ActivityListsSerializer(serializers.ModelSerializer):
 
 class ActivityDetailsSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source='created_by.id', read_only=True)
-    created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    # activity_category = serializers.StringRelatedField(read_only=True) # ActivityCategorySerializer(required=True)
+    created_by = serializers.CharField(source='created_by.name')
     uploaded_images = serializers.SerializerMethodField()
     original_images = serializers.SerializerMethodField()
     organizer_profile_picture = serializers.CharField(source='created_by.profile_pic', read_only=True)
@@ -328,16 +334,13 @@ class ActivityDetailsSerializer(serializers.ModelSerializer):
         Fetch only the uploaded image compressed served via S3/CDN URLs.
         The compressed URLs are directly mapped based on uploaded images.
         """
-        # Ensure uploaded_images field is valid
         if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
             return []
 
-        # Extract only the 'compressed' key from each image entry
         compressed = [
             image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
         ]
 
-        # Return only compressed
         return compressed
     
     def get_participants(self, obj):
@@ -351,17 +354,6 @@ class AddressSerializer(serializers.ModelSerializer):
         fields = ['uuid', 'house_no_building_name', 'road_name_area_colony', 'country', 
                   'state', 'city', 'pincode', 'latitude', 'longitude']
         read_only_fields = ['uuid']
-
-
-# class ServiceSerializer(serializers.ModelSerializer):
-
-#     class Meta:
-#         model = Service
-#         fields = ['uuid', 'item_name', 'item_description', 'item_price']
-#         read_only_fields = ['uuid']
-
-#     def create(self, validated_data):
-#         return super().create(validated_data)
         
         
 class VendorKYCSerializer(serializers.ModelSerializer):
@@ -369,15 +361,32 @@ class VendorKYCSerializer(serializers.ModelSerializer):
     uploaded_business_documents = serializers.ListField(
         child=serializers.URLField(),
         required=False,
-        allow_empty=True
+        allow_empty=True,
+        allow_null=True
     )
+    # uploaded_images = serializers.ListField(
+    #     child=serializers.DictField(
+    #         child=serializers.URLField(
+    #             allow_empty=True,
+    #             allow_null=True,
+    #             required=False
+    #         ),
+    #     ),
+    #     required=False,
+    #     allow_empty=True
+    # )
     uploaded_images = serializers.ListField(
         child=serializers.DictField(
-            child=serializers.URLField()
+            child=serializers.URLField(
+                allow_null=True,
+                allow_blank=True,
+                required=False
+            )
         ),
         required=False,
         allow_empty=True
-    )
+    )   
+
     business_hours = serializers.JSONField(required=False, allow_null=True)
     addresses = AddressSerializer(many=True, required=False)
 
@@ -459,13 +468,13 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     user = serializers.UUIDField(source='user.id', read_only=True)
     addresses = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
-    is_favorite = serializers.SerializerMethodField()
+    # is_favorite = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     services = serializers.SerializerMethodField()
     
     class Meta:
         model = VendorKYC
-        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'addresses', 'is_favorite', 'average_rating', 'services']
+        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'addresses', 'average_rating', 'services']  # 'is_favorite', 
 
     def get_addresses(self, obj):
         # Assuming 'addresses' is a related field in the VendorKYC model
@@ -497,13 +506,13 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         services = obj.ven_services.all()
         return ServiceSerializer(services, many=True).data
     
-    def get_is_favorite(self, obj):
-        user = self.context.get('request').user
-        if user.is_authenticated:
-            # Check if this vendor is favorited by the logged-in user
-            favorite_vendor = FavoriteVendor.objects.filter(user=user, vendor=obj).exists()
-            return favorite_vendor
-        return False  # If user is not authenticated, return False
+    # def get_is_favorite(self, obj):
+    #     user = self.context.get('request').user
+    #     if user.is_authenticated:
+    #         # Check if this vendor is favorited by the logged-in user
+    #         favorite_vendor = FavoriteVendor.objects.filter(user=user, vendor=obj).exists()
+    #         return favorite_vendor
+    #     return False  # If user is not authenticated, return False
     
     def get_average_rating(self, obj):
         average = VendorRating.objects.filter(vendor=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
@@ -513,7 +522,6 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         
 
 class VendorKYCDetailSerializer(serializers.ModelSerializer):
-    # Include related fields for addresses, services, business documents, and photos
     addresses = AddressSerializer(many=True, read_only=True)
     uploaded_business_documents = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
@@ -794,11 +802,11 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
         if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
             return []
 
-        compressed = [
-            image.get("compressed") for image in obj.uploaded_images if image.get("compressed")
+        original = [
+            image.get("original") for image in obj.uploaded_images if image.get("original")
         ]
 
-        return compressed
+        return original
     
     def get_uploaded_images(self, obj):
         """
@@ -995,7 +1003,8 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
             'gender', 
             'date_of_birth', 
             'bio', 
-            'profile_pic'
+            'profile_pic',
+            'dial_code',
         ]
         extra_kwargs = {
             'email': {'required': True},  # Ensure email is mandatory during updates
@@ -1008,18 +1017,11 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
         return value
 
     def validate_username(self, value):
-        if not re.match(r'^[A-Za-z0-9]+$', value):
+        if not re.match(r'^[a-z0-9._]{8,}$', value):
             raise serializers.ValidationError("Username can only contain letters and numbers.")
         if len(value) < 6:
             raise serializers.ValidationError("Username must be at least 6 characters long.")
         return value
-
-    # def validate_phone_number(self, value):
-    #     user = self.instance
-    #     if user.phone_number != value:
-    #         if not OTP.objects.filter(user=user, phone_number=value, is_verified=True).exists():
-    #             raise PhoneNumberNotVerified()
-    #     return value
 
     def validate_email(self, value):
         user = self.context['request'].user
@@ -1144,19 +1146,21 @@ class OTPValidationSerializer(serializers.Serializer):
     
 class MyActivitysSerializer(serializers.ModelSerializer):
     user_id = serializers.UUIDField(source='created_by.id', read_only=True)
-    created_by = serializers.CharField(source='created_by.username')  # Assuming `created_by` refers to CustomUser
-    # activity_category = ActivityCategorySerializer(required=True)
+    created_by = serializers.CharField(source='created_by.username') 
     uploaded_images = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
     is_accepted = serializers.SerializerMethodField()
     is_rejected = serializers.SerializerMethodField()
     chat_room_id = serializers.SerializerMethodField()
+    original_images = serializers.SerializerMethodField()
 
     class Meta:
         model = Activity
         fields = ['activity_id', 'user_id', 'activity_title','uploaded_images', 'activity_description', 'created_by', 'user_participation', 'maximum_participants', 'infinite_time', 'category',
                   'end_date', 'end_time', 'latitude', 'longitude', 'created_by',
-                  'location', 'created_at', 'is_accepted', 'is_rejected', 'chat_room_id']
+                  'location', 'created_at', 'is_accepted', 'is_rejected', 'chat_room_id',
+                  'original_images'
+                  ]
         
     def get_created_at(self, obj):
         if obj.created_at:
@@ -1176,6 +1180,20 @@ class MyActivitysSerializer(serializers.ModelSerializer):
         first_image = obj.uploaded_images[0]  # Get the first image
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
+
+    def get_original_images(self, obj):
+        """
+        Fetch only the first image thumbnail from uploaded_images.
+        This ensures only the first uploaded image's thumbnail is fetched.
+        """
+        # Ensure uploaded_images field is valid and has data
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
+
+        # Return only the thumbnail of the first image in the uploaded_images list
+        first_image = obj.uploaded_images[0]  # Get the first image
+        original = first_image.get("original") if first_image else None  # Extract its thumbnail
+        return [original] if original else []
     
     def get_is_accepted(self, obj):
         request = self.context.get('request', None)
@@ -1566,21 +1584,6 @@ class RegisterSerializerV2(serializers.Serializer):
 
     latitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
     longitude = serializers.DecimalField(max_digits=9, decimal_places=6, required=False, allow_null=True)
-
-    # def validate_email(self, email):
-    #     if CustomUser.objects.filter(email=email).exists():
-    #         raise serializers.ValidationError("User with this email already exists.")
-    #     return email
-
-    # def validate_phone_number(self, phone_number):
-    #     if CustomUser.objects.filter(phone_number=phone_number).exists():
-    #         raise serializers.ValidationError("User with this phone number already exists.")
-    #     return phone_number
-
-    # def validate_username(self, username):
-    #     if CustomUser.objects.filter(username=username).exists():
-    #         raise serializers.ValidationError("User with this username already exists.")
-    #     return username
 
     def validate(self, data):
         if data.get('password') != data.get('confirm_password'):

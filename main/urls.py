@@ -127,7 +127,7 @@ from .views import (
     VerifyOTPNewPhoneNumberView, ServicesCreateView, test_push_notification,
     SendVerificationOTP, VerifyOTPViewV2, UpdatePasswordAPI, DealDeleteView, ActivityDeleteView,
     SendOTPToEmail, VerifyOTPForPassword, SetPasswordAPI,ConfirmRejectActivityPartcipation, VerifyOTPAPIViewV2, RegisterAPIViewV2,
-    RegisterResendOTP, RegisterAPIViewV3, VerifyOTPAPIViewV3, CreateUserInDB, LoginWithOTP, LoginAPIViewV2, LoginResendOTP
+    RegisterResendOTP, RegisterAPIViewV3, VerifyOTPAPIViewV3, CreateUserInDB, LoginWithOTP, LoginAPIViewV2, LoginResendOTP, RemoveActivityParticipantView, LogoutAPIV2, FavoriteUnfavoriteUserAPI
 )
 
 # Swagger Schema View
@@ -224,7 +224,7 @@ urlpatterns = [
     
     path('UploadProfileImageAPI/', UploadProfileImageAPI.as_view(), name='upload-profileimages'),
     
-    path('my-deals/', MyDealView.as_view(), name='my_deals'),
+    path('my-deals/<uuid:vendor_id>/', MyDealView.as_view(), name='my_deals'),
     
     path('superadmin/login/', SuperadminLoginView.as_view(), name='superadmin-login'),
     
@@ -290,7 +290,9 @@ urlpatterns = [
     path('send/email/forgot-password/', SendOTPToEmail.as_view(), name='send-email-forgot-password'),
     path('verify/otp/forgot-password/', VerifyOTPForPassword.as_view(), name='verify-otp-forgot-password'),
     path('reset-password/v2/', SetPasswordAPI.as_view(), name='reset-password-v2'),
+    # activity participation 
     path('activity/confirm-reject/participation/<uuid:activity_id>/', ConfirmRejectActivityPartcipation.as_view(), name='confirm-reject-activity-participation'),
+    path('activity/remove/participant/<uuid:activity_id>/', RemoveActivityParticipantView.as_view(), name='remove-participant'), 
     path('register/v2/', RegisterAPIViewV2.as_view(), name='register-v2'),
     path('verify/create/v2/', VerifyOTPAPIViewV2.as_view(), name='verify-v2'),
     path('resend/register/otp/', RegisterResendOTP.as_view(), name='resend-register-otp'),
@@ -301,6 +303,10 @@ urlpatterns = [
     path('login/v2/', LoginAPIViewV2.as_view(), name='login-v2'),
     path('login-otp/', LoginWithOTP.as_view(), name='login-otp'),
     path('resend/login/otp/', LoginResendOTP.as_view(), name='resend-login-otp'),
+    path('logout/v2/', LogoutAPIV2.as_view(), name='logout-v2'),
+
+    # Favorite APIs (Same APIs can be used for Unfavoriting.)
+    path('favorite/user/<uuid:fav_user_id>/', FavoriteUnfavoriteUserAPI.as_view(), name='favorite-user'), # can unfavorite also
 ]
 
 if settings.DEBUG:
