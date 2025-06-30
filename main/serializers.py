@@ -20,9 +20,10 @@ from django.utils.timezone import localtime
 from .models import (
     CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
     ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser,
-    Notification, Device
+    Notification, Device, DealViewCount
 )
 from upswap_chat.models import ChatRequest, ChatRoom, ChatMessage
+from django.db.models import Sum
 
 from upswap_chat.models import ChatRequest
 from upswap_chat.serializers import ChatRequestSerializer
@@ -712,6 +713,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     uploaded_images = serializers.SerializerMethodField()
     original_images = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
+    view_count = serializers.SerializerMethodField()
     
     class Meta:
         model = CreateDeal
@@ -722,9 +724,13 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'category',
-            'discount_percentage', 'latitude', 'longitude', 'average_rating', 'buy_now'
+            'discount_percentage', 'latitude', 'longitude', 'average_rating', 'buy_now', 'view_count'
         ]
         read_only_fields = ['deal_uuid', 'discount_percentage']
+
+    def get_view_count(self, obj):
+        return obj.deal_views.aggregate(total_views=Sum('view_count'))['total_views'] or 0
+
 
     def get_discount_percentage(self, obj):
         if obj.actual_price and obj.deal_price:
@@ -777,6 +783,8 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     uploaded_images = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     original_images = serializers.SerializerMethodField()
+    view_count = serializers.SerializerMethodField()
+    deal_views = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
@@ -788,9 +796,24 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'discount_percentage',
-            'latitude', 'longitude', 'average_rating'
+            'latitude', 'longitude', 'average_rating', 'view_count', 'deal_views',
         ]
         read_only_fields = ['vendor_uuid', 'deal_uuid', 'discount_percentage']
+    
+    def get_deal_views(self, obj):
+        view_counts = DealViewCount.objects.filter(deal=obj)
+        result = []
+
+        for vc in view_counts:
+            area = vc.location.get('area', 'other') if vc.location else 'other'
+            result.append({
+                'area': area.lower(),
+                'view_count': vc.view_count
+            })
+        return result
+
+    def get_view_count(self, obj):
+        return obj.deal_views.aggregate(total_views=Sum('view_count'))['total_views'] or 0
 
     def get_discount_percentage(self, obj):
         if obj.actual_price and obj.deal_price:
@@ -1232,7 +1255,8 @@ class MyDealSerializer(serializers.ModelSerializer):
     discount_percentage = serializers.SerializerMethodField()
     deal_post_time = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
-    view_count = serializers.IntegerField(read_only=True)
+    view_count = serializers.SerializerMethodField()
+    deal_views = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
@@ -1243,8 +1267,23 @@ class MyDealSerializer(serializers.ModelSerializer):
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country',
-            'discount_percentage', 'latitude', 'longitude', 'view_count'
+            'discount_percentage', 'latitude', 'longitude', 'view_count', 'deal_views',
         ]
+
+    def get_deal_views(self, obj):
+        view_counts = DealViewCount.objects.filter(deal=obj)
+        result = []
+
+        for vc in view_counts:
+            area = vc.location.get('area', 'other') if vc.location else 'other'
+            result.append({
+                'area': area.lower(),
+                'view_count': vc.view_count
+            })
+        return result
+
+    def get_view_count(self, obj):
+        return obj.deal_views.aggregate(total_views=Sum('view_count'))['total_views'] or 0
 
     def to_representation(self, instance):
         """

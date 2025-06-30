@@ -347,7 +347,7 @@ class CreateDeal(models.Model):
     end_date = models.DateField(null=True, blank=True)
     end_time = models.TimeField(blank=True, null=True)
     buy_now = models.BooleanField(default=True)
-    view_count = models.IntegerField(default=0)
+    # view_count = models.IntegerField(default=0)
 
     actual_price = models.DecimalField(max_digits=10, decimal_places=2)
     deal_price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -582,3 +582,17 @@ class FavoriteVendor(FavoriteBase):
         ]
 
 # ==================== End Favorite Models ===================== # 
+
+# ==================== View Count Models ===================== # 
+
+class ViewCount(models.Model):
+    view_count = models.BigIntegerField()
+    location = models.JSONField(default=dict, null=True, blank=True)
+
+    class Meta:
+        abstract = True
+
+class DealViewCount(ViewCount):
+    deal = models.ForeignKey(CreateDeal, on_delete=models.CASCADE, related_name='deal_views')
+
+# ==================== End View Models ===================== # 

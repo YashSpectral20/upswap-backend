@@ -1,3 +1,4 @@
+import json
 import random, string
 import datetime as dt
 from PIL import Image
@@ -25,6 +26,7 @@ from django.db.models import Sum
 from django.db import models
 from django.contrib.auth import login, logout
 from django.db import transaction
+from django.db import IntegrityError
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken, TokenError
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
@@ -37,9 +39,9 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
 from .models import (
     CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device, FavoriteUser, FavoriteService, FavoriteVendor,
+    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device, FavoriteUser, FavoriteService, FavoriteVendor, DealViewCount,
     )
-
+from appointments.models import Service
 from .serializers import (
     CustomUserSerializer, OTPRequestSerializer, OTPResetPasswordSerializer, OTPValidationSerializer, VerifyOTPSerializer, LoginSerializer,
     ActivitySerializer, VendorKYCSerializer,
@@ -740,17 +742,51 @@ class CreateDealDetailView(generics.RetrieveAPIView):
     lookup_field = 'deal_uuid'
     
     def get(self, request, *args, **kwargs):
-        deal = self.get_object()  # Get the specific deal
+        deal = self.get_object()
         user = request.user
-
-        # Agar user authenticated hai aur usi vendor ka deal hai to view count increase nahi hoga
-        if user.is_authenticated and deal.vendor_kyc.user == user:
-            pass  # Vendor apni deal dekh raha hai, toh kuch nahi hoga
+        location_param = request.GET.get('location')
+        if user.is_authenticated and deal.vendor_kyc.user.id == user.id:
+            pass
         else:
-            deal.view_count += 1  # View count increase karenge
-            deal.save(update_fields=['view_count'])  # Sirf view_count field ko update karenge
+            try:
+                print("location params --> ", location_param, " on ", deal.deal_title)
+                location_data = json.loads(location_param) if location_param else {}
+                area = location_data.get("area", "").strip().lower()
 
-        return super().get(request, *args, **kwargs)  # Normal response return kar do
+                # Treat empty/blank/None area as "other"
+                if not area or area == 'null':
+                    area = "other"
+                # Fill default location data if missing
+                location_data.setdefault('longitude', '')
+                location_data.setdefault('latitude', '')
+                location_data.setdefault('city', '')
+                location_data.setdefault('state', '')
+                location_data.setdefault('country', '')
+                location_data.setdefault('username', '')
+                location_data['area'] = area  # Ensure area is set properly
+
+                existing_entry = DealViewCount.objects.filter(
+                    deal=deal,
+                    location__area=area
+                ).first()
+                
+                if existing_entry:
+                    DealViewCount.objects.filter(id=existing_entry.id).update(
+                        view_count=F('view_count') + 1
+                    )
+                else:
+                    DealViewCount.objects.create(
+                        deal=deal,
+                        view_count=1,
+                        location=location_data
+                    )
+
+            except json.JSONDecodeError as err:
+                print("Deal Details error creating view data json error ---> ", err)
+            except Exception as e:
+                print("Deal Details error creating view data exceprion  ---> ", e)
+        return super().get(request, *args, **kwargs)
+
 
 
 class UploadImagesAPI(APIView):
@@ -3128,7 +3164,7 @@ class CreateUserInDB(APIView):
                 'user': CustomUserSerializer(user).data,
                 'refresh': str(refresh),
                 'access': access_token,
-                'is_approved': '',
+                'is_approved': False,
                 'vendor_id': '',
                 'sessionid': session_id,
             })
@@ -3152,7 +3188,7 @@ class CreateUserInDB(APIView):
                 'user': CustomUserSerializer(user).data,
                 'refresh': str(refresh),
                 'access': access_token,
-                'is_approved': '',
+                'is_approved': False,
                 'vendor_id': '',
                 'sessionid': session_id
             })
@@ -3165,62 +3201,71 @@ class LoginAPIViewV2(APIView):
         login_type = data.get('login_type')
 
         if login_type == 'email':
-            email = data.get('email')
-            password = data.get('password')
-            user = CustomUser.objects.filter(email=email).first()
-            if not user:
+            try:
+                email = data.get('email')
+                password = data.get('password')
+                user = CustomUser.objects.filter(email=email).first()
+                if not user:
+                    return Response({
+                        'error': 'User does not exist with this email.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                username = user.username
+                user = authenticate(username=username, password=password)
+                if not user:
+                    return Response({
+                        'error': 'Invalid credentials.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                refresh = RefreshToken.for_user(user)
+                access_token = str(refresh.access_token)
+                login(request, user)
+                vendor = VendorKYC.objects.filter(user=user).first()
+                if not request.session.session_key:
+                    request.session.save()
+                session_id = request.session.session_key
                 return Response({
-                    'error': 'User does not exist with this email.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            username = user.username
-            user = authenticate(username=username, password=password)
-            if not user:
-                return Response({
-                    'error': 'Invalid credentials.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-            refresh = RefreshToken.for_user(user)
-            access_token = str(refresh.access_token)
-            login(request, user)
-            vendor = VendorKYC.objects.filter(user=user).first()
-            if not request.session.session_key:
-                request.session.save()
-            session_id = request.session.session_key
-
-            return Response({
-                'message': 'Logged in successfully.',
-                'user': CustomUserSerializer(user).data,
-                'refresh': str(refresh),
-                'access': access_token,
-                'is_approved': vendor.is_approved if vendor else '',
-                'vendor_id': vendor.vendor_id if vendor else '',
-                'sessionid': session_id
-            }, status=status.HTTP_200_OK)
+                    'message': 'Logged in successfully.',
+                    'user': CustomUserSerializer(user).data,
+                    'refresh': str(refresh),
+                    'access': access_token,
+                    'is_approved': vendor.is_approved if vendor else False,
+                    'vendor_id': vendor.vendor_id if vendor else '',
+                    'sessionid': session_id
+                }, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Reponse({
+                    'message': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         elif login_type == 'phone': 
-            dial_code = data.get('dial_code')
-            phone = data.get('phone')
-            if not dial_code or not phone:
-                return Response({
-                    'error': 'Dial code or phone number is missing.',
-                }, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                dial_code = data.get('dial_code')
+                phone = data.get('phone')
+                if not dial_code or not phone:
+                    return Response({
+                        'error': 'Dial code or phone number is missing.',
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-            user = CustomUser.objects.filter(phone_number=phone).exists()
-            if not user:
-                return Response({
-                    'error': 'No user exists with this Phone number.'
-                }, status=status.HTTP_400_BAD_REQUEST)
+                user = CustomUser.objects.filter(phone_number=phone).exists()
+                if not user:
+                    return Response({
+                        'error': 'No user exists with this Phone number.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-            otp = ''.join(random.choices(string.digits, k=6))
-            err, err_code = send_otp_via_sms(dial_code, phone, otp)
-            if err or err_code:
+                otp = ''.join(random.choices(string.digits, k=6))
+                err, err_code = send_otp_via_sms(dial_code, phone, otp)
+                if err or err_code:
+                    return Response({
+                        'error': 'Couldn\'t send OTP to your number.',
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                cache.set(f"otp:{phone}", otp, timeout=300)
                 return Response({
-                    'error': 'Couldn\'t send OTP to your number.',
-                }, status=status.HTTP_400_BAD_REQUEST)
-            
-            cache.set(f"otp:{phone}", otp, timeout=300)
-            return Response({
-                'message': 'OTP is sent to your number.'
-            }, status=status.HTTP_200_OK)
+                    'message': 'OTP is sent to your number.'
+                }, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Reponse({
+                    'error': str(e)
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LoginWithOTP(APIView):
@@ -3249,7 +3294,7 @@ class LoginWithOTP(APIView):
             'user': CustomUserSerializer(user).data,
             'refresh': str(refresh),
             'access': access_token,
-            'is_approved': vendor.is_approved if vendor else '',
+            'is_approved': vendor.is_approved if vendor else False,
             'vendor_id': vendor.vendor_id if vendor else '',
             'sessionid': session_id
         },status=status.HTTP_200_OK)
@@ -3299,13 +3344,13 @@ class LogoutAPIV2(APIView):
 
 class FavoriteUnfavoriteUserAPI(APIView):
     """
-    Post() ---> Favorite or Unfavorite a vendor
+    Post() ---> Favorite or Unfavorite an user
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, fav_user_id):
+    def post(self, request, user_id):
         user = request.user
-        user_to_be_favorited = CustomUser.objects.filter(id=fav_user_id).first()
+        user_to_be_favorited = CustomUser.objects.filter(id=user_id).first()
 
         if not user_to_be_favorited:
             return Response({
@@ -3320,13 +3365,11 @@ class FavoriteUnfavoriteUserAPI(APIView):
         favorite_relation = FavoriteUser.objects.filter(user=user, favorite_user=user_to_be_favorited).first()
 
         if favorite_relation:
-            # Already favorited: perform unfavorite
             favorite_relation.delete()
             return Response({
                 'message': f'You unfavorited {user_to_be_favorited.name}.'
             }, status=status.HTTP_200_OK)
         else:
-            # Not yet favorited: perform favorite
             try:
                 FavoriteUser.objects.create(
                     user=user,
@@ -3334,6 +3377,84 @@ class FavoriteUnfavoriteUserAPI(APIView):
                 )
                 return Response({
                     'message': f'You favorited {user_to_be_favorited.name}.'
+                }, status=status.HTTP_200_OK)
+            except IntegrityError:
+                return Response({
+                    'error': 'You have already favorited this user.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FavoriteUnfavoriteVendorAPI(APIView):
+    """
+    Post() ---> Favorite or Unfavorite a vendor
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, vendor_id):
+        user = request.user
+        vendor_to_be_favorited = VendorKYC.objects.filter(vendor_id=vendor_id).first()
+
+        if not vendor_to_be_favorited:
+            return Response({
+                'error': 'Vendor to be favorited does not exist.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # if user == _to_be_favorited:
+        #     return Response({
+        #         'error': 'You cannot favorite yourself.'
+        #     }, status=status.HTTP_400_BAD_REQUEST)
+
+        favorite_relation = FavoriteVendor.objects.filter(user=user, vendor=vendor_to_be_favorited).first()
+
+        if favorite_relation:
+            favorite_relation.delete()
+            return Response({
+                'message': f'You unfavorited {vendor_to_be_favorited.full_name}.'
+            }, status=status.HTTP_200_OK)
+        else:
+            try:
+                FavoriteVendor.objects.create(
+                    user=user,
+                    vendor=vendor_to_be_favorited
+                )
+                return Response({
+                    'message': f'You favorited {vendor_to_be_favorited.full_name}.'
+                }, status=status.HTTP_200_OK)
+            except IntegrityError:
+                return Response({
+                    'error': 'You have already favorited this user.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+class FavoriteUnfavoriteServiceAPI(APIView):
+    """
+    Post() ---> Favorite or Unfavorite a service
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, service_id):
+        user = request.user
+        service_to_be_favorited = Service.objects.filter(id=service_id).first()
+
+        if not service_to_be_favorited:
+            return Response({
+                'error': 'Service to be favorited does not exist.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        favorite_relation = FavoriteService.objects.filter(user=user, service=service_to_be_favorited).first()
+
+        if favorite_relation:
+            favorite_relation.delete()
+            return Response({
+                'message': f'You unfavorited {service_to_be_favorited.name}.'
+            }, status=status.HTTP_200_OK)
+        else:
+            try:
+                FavoriteService.objects.create(
+                    user=user,
+                    service=service_to_be_favorited
+                )
+                return Response({
+                    'message': f'You favorited {service_to_be_favorited.name}.'
                 }, status=status.HTTP_200_OK)
             except IntegrityError:
                 return Response({
