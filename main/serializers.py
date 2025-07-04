@@ -8,6 +8,7 @@ import base64
 import boto3
 import datetime as dt
 from PIL import Image
+from uuid import UUID
 from rest_framework import serializers
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
@@ -20,7 +21,8 @@ from django.utils.timezone import localtime
 from .models import (
     CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
     ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser,
-    Notification, Device, DealViewCount
+    Notification, Device, DealViewCount, FavoriteVendor, FavoriteUser, FavoriteService, 
+    Purchase
 )
 from upswap_chat.models import ChatRequest, ChatRoom, ChatMessage
 from django.db.models import Sum
@@ -43,6 +45,8 @@ from .exceptions import PhoneNumberNotVerified
 
 from activity_log.models import ActivityLog
 from appointments.serializers import ServiceSerializer
+
+from main.utils import generate_and_upload_qr_to_s3
 
 User = get_user_model()
 
@@ -469,13 +473,14 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
     user = serializers.UUIDField(source='user.id', read_only=True)
     addresses = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
-    # is_favorite = serializers.SerializerMethodField()
+    is_favorite = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     services = serializers.SerializerMethodField()
     
     class Meta:
         model = VendorKYC
-        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'addresses', 'average_rating', 'services']  # 'is_favorite', 
+        fields = ['profile_pic', 'full_name', 'vendor_id', 'user', 'uploaded_images', 'addresses', 'average_rating', 
+        'is_favorite', 'services'] 
 
     def get_addresses(self, obj):
         # Assuming 'addresses' is a related field in the VendorKYC model
@@ -507,13 +512,12 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         services = obj.ven_services.all()
         return ServiceSerializer(services, many=True).data
     
-    # def get_is_favorite(self, obj):
-    #     user = self.context.get('request').user
-    #     if user.is_authenticated:
-    #         # Check if this vendor is favorited by the logged-in user
-    #         favorite_vendor = FavoriteVendor.objects.filter(user=user, vendor=obj).exists()
-    #         return favorite_vendor
-    #     return False  # If user is not authenticated, return False
+    def get_is_favorite(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            favorite_vendor = FavoriteVendor.objects.filter(user=user, vendor=obj).exists()
+            return favorite_vendor
+        return False
     
     def get_average_rating(self, obj):
         average = VendorRating.objects.filter(vendor=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
@@ -530,6 +534,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
     business_hours = serializers.JSONField(required=False, allow_null=True)
     average_rating = serializers.SerializerMethodField()
     services = serializers.SerializerMethodField()
+    is_favorite = serializers.SerializerMethodField()
 
     class Meta:
         model = VendorKYC
@@ -539,7 +544,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
             'uploaded_images', 'same_as_personal_phone_number', 'services',
             'same_as_personal_email_id', 'addresses', 'country_code', 'dial_code', 
             'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
-            'business_hours', 'is_approved', 'average_rating'
+            'business_hours', 'is_approved', 'average_rating', 'is_favorite'
         ]
         read_only_fields = ['user', 'is_approved']
 
@@ -553,6 +558,13 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         representation['addresses'] = AddressSerializer(instance.addresses.all(), many=True).data
 
         return representation
+
+    def get_is_favorite(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            favorite_vendor = FavoriteVendor.objects.filter(user=user, vendor=obj).exists()
+            return favorite_vendor
+        return False 
     
     def get_uploaded_business_documents(self, obj):
         """
@@ -617,7 +629,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
         fields = [
             'deal_uuid', 'deal_title', 'deal_description', 'category', 'service',
             'uploaded_images', 'end_date', 'end_time',
-            'buy_now', 'actual_price', 'deal_price', 'available_deals',
+            'buy_now', 'actual_price', 'deal_price', 'available_deals', 'deals_left',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode', 'vendor_kyc',
             'vendor_name', 'vendor_uuid', 'vendor_email', 'vendor_number',
@@ -635,7 +647,7 @@ class CreateDealSerializer(serializers.ModelSerializer):
         available_deals = data.get('available_deals', 0)
         if available_deals < 1:
             raise serializers.ValidationError({'available_deals': "You must provide at least 1 deal."})
-        print(data.get('service'))
+        
         # serv = AppService.objects.filter(id=service_id).first()
         # if not serv:
         #     raise serializers.ValidationError({'service': f"Invalid service ID: {service_id}"})
@@ -720,7 +732,7 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
         fields = [
             'deal_uuid', 'deal_post_time', 'deal_title',
             'uploaded_images', 'original_images', 'end_date', 'end_time',
-            'actual_price', 'deal_price', 'available_deals',
+            'actual_price', 'deal_price', 'available_deals', 'deals_left',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'category',
@@ -789,16 +801,16 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = CreateDeal
         fields = [
-            'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
+            'id', 'vendor_uuid', 'vendor_name', 'vendor_email', 'vendor_phone_number',
             'deal_uuid','uploaded_images', 'original_images', 'deal_post_time', 
             'deal_title', 'deal_description', 'end_date', 'vendor_profile_picture', 'vendor_description', 'category',
-            'end_time', 'buy_now', 'actual_price', 'deal_price', 'available_deals',
+            'end_time', 'buy_now', 'actual_price', 'deal_price', 'available_deals', 'deals_left',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'discount_percentage',
             'latitude', 'longitude', 'average_rating', 'view_count', 'deal_views',
         ]
-        read_only_fields = ['vendor_uuid', 'deal_uuid', 'discount_percentage']
+        read_only_fields = ['id', 'vendor_uuid', 'deal_uuid', 'discount_percentage']
     
     def get_deal_views(self, obj):
         view_counts = DealViewCount.objects.filter(deal=obj)
@@ -1030,8 +1042,8 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
             'dial_code',
         ]
         extra_kwargs = {
-            'email': {'required': True},  # Ensure email is mandatory during updates
-            'username': {'required': True},  # Ensure username is mandatory
+            'email': {'required': True},
+            'username': {'required': True},
         }
 
     def validate_name(self, value):
@@ -1040,8 +1052,8 @@ class CustomUserEditSerializer(serializers.ModelSerializer):
         return value
 
     def validate_username(self, value):
-        if not re.match(r'^[a-z0-9._]{8,}$', value):
-            raise serializers.ValidationError("Username can only contain letters and numbers.")
+        if not re.match(r'^[a-z0-9._]{8,}$', value.strip()):
+            raise serializers.ValidationError("Username can only contain letters, underscores, dots and numbers.")
         if len(value) < 6:
             raise serializers.ValidationError("Username must be at least 6 characters long.")
         return value
@@ -1263,11 +1275,12 @@ class MyDealSerializer(serializers.ModelSerializer):
         fields = [
             'deal_uuid', 'deal_post_time', 'deal_title',
             'uploaded_images', 'end_date', 'end_time',
-            'actual_price', 'deal_price', 'available_deals',
+            'actual_price', 'deal_price', 'available_deals', 'deals_left',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country',
-            'discount_percentage', 'latitude', 'longitude', 'view_count', 'deal_views',
+            'discount_percentage', 'latitude', 'longitude', 
+            'view_count', 'deal_views',
         ]
 
     def get_deal_views(self, obj):
@@ -1276,8 +1289,14 @@ class MyDealSerializer(serializers.ModelSerializer):
 
         for vc in view_counts:
             area = vc.location.get('area', 'other') if vc.location else 'other'
+            city = vc.location.get('city', '')
+            state = vc.location.get('state', '')
+            country = vc.location.get('country', '')
             result.append({
                 'area': area.lower(),
+                'city': city,
+                'state': state,
+                'country': country, 
                 'view_count': vc.view_count
             })
         return result
@@ -1317,12 +1336,12 @@ class MyDealSerializer(serializers.ModelSerializer):
         thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
         return [thumbnail] if thumbnail else []
     
-class FavoriteVendorSerializer(serializers.ModelSerializer):
-    vendor_name = serializers.CharField(source='vendor.full_name', read_only=True)
+# class FavoriteVendorSerializer(serializers.ModelSerializer):
+#     vendor_name = serializers.CharField(source='vendor.full_name', read_only=True)
 
-    class Meta:
-        model = FavoriteVendor
-        fields = ['id', 'vendor', 'vendor_name', 'added_at']
+#     class Meta:
+#         model = FavoriteVendor
+#         fields = ['id', 'vendor', 'vendor_name', 'added_at']
         
 class FavoriteVendorsListSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='vendor.full_name', read_only=True)
@@ -1338,7 +1357,7 @@ class FavoriteVendorsListSerializer(serializers.ModelSerializer):
     profile_pic = serializers.SerializerMethodField()
     
     class Meta:
-        model = FavoriteVendor  # Assuming FavoriteVendor links to VendorKYC
+        model = FavoriteVendor 
         fields = [
             'profile_pic', 'full_name', 'phone_number', 'business_email_id', 'vendor_id', 'user',
             'uploaded_images', 'services', 'addresses',
@@ -1350,7 +1369,7 @@ class FavoriteVendorsListSerializer(serializers.ModelSerializer):
 
     
     def get_services(self, obj):
-        services = obj.vendor.services.all()  # Assuming 'vendor' is the related field to VendorKYC
+        services = obj.vendor.services.all()
         return ServiceSerializer(services, many=True).data
 
     def get_addresses(self, obj):
@@ -1632,3 +1651,97 @@ class RegisterSerializerV2(serializers.Serializer):
     def create(self, validated_data):
         validated_data.pop('confirm_password')  # remove before saving
         return validated_data  # just return cleaned data for caching
+
+class FavoriteVendorSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(source='vendor.full_name', read_only=True)
+    profile_pic = serializers.CharField(source='vendor.profile_pic', read_only=True)
+    email = serializers.CharField(source='vendor.business_email_id', read_only=True)
+    addresses = AddressSerializer(source='vendor.addresses', many=True, read_only=True)
+
+    class Meta:
+        model = FavoriteVendor
+        fields = [
+            'name', 'profile_pic', 'email', 
+            'created_at', 'vendor', 'addresses',
+        ]
+
+class FavoriteUserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FavoriteUser
+        fields = '__all__'
+
+class FavoriteServiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FavoriteService
+        fields = '__all__'
+
+class PurchaseDealSerializer(serializers.ModelSerializer):
+    deal_title = serializers.CharField(source='deal.deal_title', read_only=True)
+    images = serializers.JSONField(source='deal.uploaded_images', read_only=True)
+    deal_price = serializers.CharField(source='deal.deal_price', read_only=True)
+    seller_name = serializers.CharField(source='deal.vendor_kyc.full_name', read_only=True)
+    percent_off = serializers.SerializerMethodField(read_only=True)
+    buyer_name = serializers.CharField(source='buyer.name', read_only=True)
+
+    class Meta:
+        model = Purchase
+        fields = [
+            'id', 'buyer', 'seller', 'created_at', 'deal',
+            'collection_code', 'active', 'quantity', 
+            'status', 'amount', 'images', 'deal_title',
+            'seller_name', 'deal_price', 'percent_off',
+            'buyer_name',
+        ]
+
+    def get_percent_off(self, obj):
+        actual_price = obj.deal.actual_price
+        deal_price = obj.deal.deal_price
+
+        return format((((actual_price - deal_price) / actual_price) * 100), '.2f')
+
+    def validate(self, attrs):
+        vendor = attrs.get('seller')
+        user = self.context.get('user')
+        deal = attrs.get('deal')
+        amount = attrs.get('amount')
+        if not deal:
+            raise serializers.ValidationError('No deal found.')
+
+        if deal.vendor_kyc and deal.vendor_kyc.user == user:
+            raise serializers.ValidationError('You cannot buy your own deal.')
+
+        if deal.deals_left < attrs.get('quantity'):
+            raise serializers.ValidationError('Not enough deals are available.')
+
+        return attrs
+
+class EditPurchaseDealSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Purchase
+        fields = '__all__'
+
+    def fullfill_purchase(self, instance, action):
+        status = instance.status
+        active = instance.active
+        # USER_CANCEL, VENDOR_CANCEL, FULFILL
+
+        if not status == 'PENDING' and not active:
+            if status == 'USER_CANCEL':
+                msg = 'Purchase cancelled by user.'
+            elif status == 'VENDOR_CANCEL':
+                msg = 'Purchase cancelled by vendor.'
+            elif status == 'FULFILLED':
+                msg = 'QR is already scanned.'
+            raise serializers.ValidationError({'error': msg})
+        if action == 'FULFILL':
+            instance.status = 'FULFILLED'
+            instance.active = False
+            instance.completed_at =  timezone.now()
+        elif action == 'USER_CANCEL':
+            instance.status = 'USER_CANCEL'
+            instance.active = False
+        elif action == 'VENDOR_CANCEL':
+            instance.status = 'VENDOR_CANCEL'
+            instance.active = False
+        instance.save()
+        return instance

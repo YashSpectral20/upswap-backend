@@ -352,6 +352,7 @@ class CreateDeal(models.Model):
     actual_price = models.DecimalField(max_digits=10, decimal_places=2)
     deal_price = models.DecimalField(max_digits=10, decimal_places=2)
     available_deals = models.PositiveIntegerField(default=0)
+    deals_left = models.PositiveIntegerField(default=0)
 
     location_house_no = models.CharField(max_length=255, blank=True)
     location_road_name = models.CharField(max_length=255, blank=True)
@@ -596,3 +597,51 @@ class DealViewCount(ViewCount):
     deal = models.ForeignKey(CreateDeal, on_delete=models.CASCADE, related_name='deal_views')
 
 # ==================== End View Models ===================== # 
+
+class Purchase(models.Model):
+    TRANSACTION_STATUS = [
+        ('PENDING', 'PENDING'),
+        ('VENDOR_CANCEL', 'VENDOR_CANCEL'),
+        ('USER_CANCEL', 'USER_CANCEL'),
+        ('FULFILLED', 'FULFILLED')
+    ]
+    buyer = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True)
+    seller = models.ForeignKey(VendorKYC, on_delete=models.SET_NULL, null=True)
+    deal = models.ForeignKey(CreateDeal, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    collection_code = models.JSONField(default=list)
+    active = models.BooleanField(default=True)
+    quantity = models.IntegerField(default=1)
+    status = models.CharField(default='PENDING', choices=TRANSACTION_STATUS)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    amount = models.DecimalField(max_digits=8, decimal_places=2)
+
+# ==================== Rating Models ===================== # 
+
+# class BaseRating(models.Model):
+#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # rater
+#     rating = models.DecimalField(max_digits=2, decimal_places=1)
+#     comment = models.TextField(blank=True)
+#     created_at = models.DateTimeField(auto_now_add=True)
+
+#     class Meta:
+#         abstract = True
+
+# class UserToVendorRating(BaseRating):
+#     vendor = models.ForeignKey('VendorKYC', on_delete=models.CASCADE)
+
+#     class Meta:
+#         unique_together = ('user', 'vendor')
+
+# class UserToDealRating(BaseRating):
+#     deal = models.ForeignKey('CreateDeal', on_delete=models.CASCADE)
+
+#     class Meta:
+#         unique_together = ('user', 'deal')
+
+# class UserToActivityRating(BaseRating):
+#     activity = models.ForeignKey('Activity', on_delete=models.CASCADE)
+
+#     class Meta:
+#         unique_together = ('user', 'activity')
+

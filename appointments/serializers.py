@@ -6,6 +6,7 @@ from .models import (
     Appointment,
     TimeSlot,
 )
+from main.models import FavoriteService
 
 class ServiceNameSerializer(serializers.ModelSerializer):
     class Meta:
@@ -63,13 +64,17 @@ class ServiceCategorySerializer(serializers.ModelSerializer):
 
 class ServiceSerializer(serializers.ModelSerializer):
     providers = ProviderNameSerializer(many=True, read_only=True)
+    vendor_name = serializers.CharField(source='vendor.full_name', read_only=True)
+    vendor_pic = serializers.CharField(source='vendor.profile_pic', read_only=True)
+    is_favorite = serializers.SerializerMethodField()
 
     class Meta:
         model = Service
         fields = [
-            'id', 'name', 'vendor', 'description', 'category', 'duration',
+            'id', 'name', 'vendor', 'vendor_name', 'vendor_pic', 
+            'description', 'category', 'duration',
             'buffer_time', 'price', 'color_code',
-            'image', 'providers'
+            'image', 'providers', 'is_favorite'
         ]
 
     def update(self, instance, validated_data):
@@ -77,6 +82,12 @@ class ServiceSerializer(serializers.ModelSerializer):
         if image_data:
             instance.image = image_data
         return super().update(instance, validated_data)
+
+    def get_is_favorite(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return FavoriteService.objects.filter(user=request.user, service=obj).exists()
+        return False
 
 class AppointmentSerializer(serializers.ModelSerializer):
     class Meta:

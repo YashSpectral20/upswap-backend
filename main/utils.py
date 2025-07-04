@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import math
 import random
@@ -325,3 +326,45 @@ def convert_to_utc_date_time(date_str: str, time_str: str, timezone_str: str) ->
 
     except Exception as e:
         return None, None, f"Unexpected error: {str(e)}"
+
+import qrcode
+import io
+import json
+import hmac
+import hashlib
+import base64
+from datetime import datetime
+
+SECRET_KEY = b'supersecretkey'
+
+def generate_qr_data(deal):
+    payload = {
+        "deal_id": str(deal.id),
+        "buyer_id": str(deal.buyer.id),
+        "seller_id": str(deal.seller.id),
+        "created_at": deal.created_at.isoformat()
+    }
+
+    # Create signature
+    message = json.dumps(payload, sort_keys=True).encode()
+    signature = hmac.new(SECRET_KEY, message, hashlib.sha256).hexdigest()
+    payload["signature"] = signature
+
+    return json.dumps(payload)
+
+def generate_qr_image_in_memory(data: str) -> io.BytesIO:
+    qr = qrcode.make(json.dumps(data))
+    buffer = io.BytesIO()
+    qr.save(buffer, format="webp")
+    buffer.seek(0)
+    return buffer
+
+def generate_and_upload_qr_to_s3(deal):
+    # data = generate_qr_data(deal)
+    buffer = generate_qr_image_in_memory(deal)
+    
+    filename = f"collection-code/{deal.get('purchase_id')}.webp"
+    folder = "qr_codes"
+
+    s3_url = upload_to_s3(buffer, folder, filename)
+    return s3_url

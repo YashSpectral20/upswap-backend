@@ -25,7 +25,8 @@ from .views import (
     SendOTPToEmail, VerifyOTPForPassword, SetPasswordAPI,ConfirmRejectActivityPartcipation, VerifyOTPAPIViewV2, RegisterAPIViewV2,
     RegisterResendOTP, RegisterAPIViewV3, VerifyOTPAPIViewV3, CreateUserInDB, LoginWithOTP, LoginAPIViewV2, LoginResendOTP, RemoveActivityParticipantView, LogoutAPIV2, 
     FavoriteUnfavoriteUserAPI, FavoriteUnfavoriteVendorAPI, 
-    FavoriteUnfavoriteServiceAPI
+    FavoriteUnfavoriteServiceAPI, PurchaseDealAPIView, GetUserPurchaseAPIView, GetVendorSalesAPIView,
+    DeleteCustomUser,
 )
 
 # Swagger Schema View
@@ -194,6 +195,15 @@ urlpatterns = [
     path('user/<uuid:user_id>/favorite/', FavoriteUnfavoriteUserAPI.as_view(), name='favorite-user'),
     path('vendors/<uuid:vendor_id>/favorite/', FavoriteUnfavoriteVendorAPI.as_view(), name='favorite-vendor'),
     path('service/<int:service_id>/favorite/', FavoriteUnfavoriteServiceAPI.as_view(), name='favorite-service'),
+
+    path('favorite-vendor/list/', FavoriteUnfavoriteVendorAPI.as_view(), name='fav-vendor-list'),
+
+    # Buy deal
+    path('buy-deal/dummy/', PurchaseDealAPIView.as_view(), name='buy-dummy-deal'), # POST
+    path('fulfill-deal/dummy/<int:id>/', PurchaseDealAPIView.as_view(), name='buy-dummy-deal'), # PATCH
+    path('get/user/purchases/', GetUserPurchaseAPIView.as_view(), name='get-user-purchases'),
+    path('get/vendor/sales/<uuid:vendor_id>/', GetVendorSalesAPIView.as_view(), name='get-vendor-sales'),
+    path('delete/user/<uuid:pk>/', DeleteCustomUser.as_view(), name='delete-user'),
 ]
 
 if settings.DEBUG:

@@ -27,3 +27,5 @@ sendgrid
 twilio
 firebase-admin
 ngrok
+qrcode[pil]
+pycryptodome

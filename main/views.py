@@ -20,7 +20,7 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models import Q
-from django.db.models import F, Func, FloatField
+from django.db.models import F, Func, FloatField, Value, ExpressionWrapper
 from math import radians, sin, cos, sqrt, atan2, asin
 from django.db.models import Sum
 from django.db import models
@@ -39,7 +39,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
 from .models import (
     CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device, FavoriteUser, FavoriteService, FavoriteVendor, DealViewCount,
+    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device, FavoriteUser, FavoriteService, FavoriteVendor, DealViewCount, Purchase
     )
 from appointments.models import Service
 from .serializers import (
@@ -49,7 +49,8 @@ from .serializers import (
     VendorKYCListSerializer, ActivityListsSerializer, ActivityDetailsSerializer, ForgotPasswordSerializer, ResetPasswordSerializer, CreateDeallistSerializer, CreateDealDetailSerializer, PlaceOrderSerializer, PlaceOrderDetailsSerializer,
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
     MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, AddressSerializer,
-    ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer, GetVendorSerializer, RegisterSerializerV2,
+    ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer, GetVendorSerializer, RegisterSerializerV2, FavoriteVendorSerializer, FavoriteUserSerializer, FavoriteServiceSerializer,
+    PurchaseDealSerializer, EditPurchaseDealSerializer,
 
 )
 
@@ -98,7 +99,7 @@ from activity_log.serializers import ActivityLogSerializer
 User = get_user_model()
 token_generator = PasswordResetTokenGenerator()
 
-USERNAME_REGEX = r'^[a-z0-9._]{8,}$'  # r'^[a-z0-9]{6,}$'  # Adjust the pattern as needed
+USERNAME_REGEX = r'^[a-z0-9._]{5,20}$'  # r'^[a-z0-9]{6,}$'  # Adjust the pattern as needed
 PASSWORD_REGEX = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]{8,}$'  # At least 8 characters, 1 letter and 1 number
 
 
@@ -396,15 +397,15 @@ class ActivityCreateView(generics.CreateAPIView):
                     status=status.HTTP_201_CREATED,
                 )
             else:
-                # Validation error
-                # error_message = next(iter(serializer.errors.values()))[0]
+                errors = serializer.errors
+                error_list = [f"{field} {str(msg)}" for field, messages in errors.items() for msg in messages]
                 return Response(
-                    {"message": serializer.errors},
+                    {"error": error_list[0]},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         except Exception as e:
             # Koi unexpected error
-            return Response({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def handle_exception(self, exc):
         if isinstance(exc, NotAuthenticated):
@@ -474,6 +475,7 @@ class VendorKYCCreateView(generics.CreateAPIView):
                 'vendor_kyc': serializer.data
             }, status=status.HTTP_201_CREATED)
         except ValidationError as e:
+
             return Response({
                 'message': list(e.detail.values())[0][0] if e.detail else "Validation error occurred."
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -655,13 +657,14 @@ class CreateDealView(generics.CreateAPIView):
             # implement a past endtime check for activity. 
             data['end_date'] = utc_end_date_str
             data['end_time'] = utc_end_time_str
-
+            
             serializer = self.get_serializer(data=data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
 
             # Add uploaded images metadata to the deal
             deal = serializer.instance
+            deal.deals_left = int(data.get('available_deals'))
             deal.set_uploaded_images(uploaded_images)
             deal.save()
             
@@ -767,7 +770,9 @@ class CreateDealDetailView(generics.RetrieveAPIView):
 
                 existing_entry = DealViewCount.objects.filter(
                     deal=deal,
-                    location__area=area
+                    location__area=area,
+                    location__city=location_data.get('city'),
+                    location__state=location_data.get('state')
                 ).first()
                 
                 if existing_entry:
@@ -914,6 +919,87 @@ class UploadProfileImageAPI(APIView):
 
 
 
+# class CreateDeallistView(generics.ListAPIView):
+#     serializer_class = CreateDeallistSerializer
+#     permission_classes = [AllowAny]
+
+#     def get_queryset(self):
+#         now = timezone.now()
+#         today = now.date()
+#         current_time = now.time()
+
+#         queryset = CreateDeal.objects.filter(
+#             end_date__gte=today, 
+#             available_deals__gt=0
+#         ).exclude(
+#             end_date=today, end_time__lte=current_time
+#         )
+        
+        
+#         search_keyword = self.request.query_params.get('address', None)
+#         if search_keyword:
+#             search_terms = [term.strip() for term in search_keyword.split(',')]
+#             query = Q()
+
+#             # Single search term ke liye multiple fields me search karenge
+#             if len(search_terms) == 1:
+#                 clean_term = search_terms[0]
+#                 query |= Q(location_city__icontains=clean_term)
+#                 query |= Q(location_state__icontains=clean_term)
+#                 query |= Q(location_country__icontains=clean_term)
+#                 query |= Q(location_pincode__icontains=clean_term)
+#                 query |= Q(location_road_name__icontains=clean_term)
+
+#             # Do search terms ke liye priority dete hue filter karenge
+#             elif len(search_terms) == 2:
+#                 if queryset.filter(location_city__icontains=search_terms[0]).exists():
+#                     query |= Q(location_city__icontains=search_terms[0])
+#                 elif queryset.filter(location_state__icontains=search_terms[0]).exists():
+#                     query |= Q(location_state__icontains=search_terms[0])
+#                 elif queryset.filter(location_country__icontains=search_terms[0]).exists():
+#                     query |= Q(location_country__icontains=search_terms[0])
+
+#             # Teen search terms ke liye bhi similarly handle karenge
+#             elif len(search_terms) == 3:
+#                 if queryset.filter(location_city__icontains=search_terms[0]).exists():
+#                     query |= Q(location_city__icontains=search_terms[0])
+#                 elif queryset.filter(location_state__icontains=search_terms[1]).exists():
+#                     query |= Q(location_state__icontains=search_terms[1])
+#                 elif queryset.filter(location_country__icontains=search_terms[2]).exists():
+#                     query |= Q(location_country__icontains=search_terms[2])
+
+#             elif len(search_terms) >= 4:
+#                 if queryset.filter(location_road_name__icontains=search_terms[0]).exists():
+#                     query |= Q(location_road_name__icontains=search_terms[0])
+#                 else:
+#                     return CreateDeal.objects.none()
+
+#             queryset = queryset.filter(query).distinct()
+
+#         return queryset
+
+#     def list(self, request, *args, **kwargs):
+#         queryset = self.get_queryset()
+#         response_data = {
+#             "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Deals",
+#             "deals": []
+#         }
+
+#         if queryset.exists():
+#             serializer = self.get_serializer(queryset, many=True)
+#             response_data["deals"] = serializer.data
+
+#         return Response(response_data, status=status.HTTP_200_OK)
+
+# from django.db.models import Q, F, Value, FloatField, ExpressionWrapper
+# from django.db.models.functions import ACos, Cos, Sin, Radians
+# from django.utils import timezone
+# from rest_framework.response import Response
+# from rest_framework import status
+# from functools import reduce
+# from rest_framework import generics
+# from rest_framework.permissions import AllowAny
+
 class CreateDeallistView(generics.ListAPIView):
     serializer_class = CreateDeallistSerializer
     permission_classes = [AllowAny]
@@ -924,19 +1010,18 @@ class CreateDeallistView(generics.ListAPIView):
         current_time = now.time()
 
         queryset = CreateDeal.objects.filter(
-            end_date__gte=today, 
+            end_date__gte=today,
             available_deals__gt=0
         ).exclude(
             end_date=today, end_time__lte=current_time
         )
-        
-        
+
+        # Address filtering
         search_keyword = self.request.query_params.get('address', None)
         if search_keyword:
             search_terms = [term.strip() for term in search_keyword.split(',')]
             query = Q()
 
-            # Single search term ke liye multiple fields me search karenge
             if len(search_terms) == 1:
                 clean_term = search_terms[0]
                 query |= Q(location_city__icontains=clean_term)
@@ -945,7 +1030,6 @@ class CreateDeallistView(generics.ListAPIView):
                 query |= Q(location_pincode__icontains=clean_term)
                 query |= Q(location_road_name__icontains=clean_term)
 
-            # Do search terms ke liye priority dete hue filter karenge
             elif len(search_terms) == 2:
                 if queryset.filter(location_city__icontains=search_terms[0]).exists():
                     query |= Q(location_city__icontains=search_terms[0])
@@ -954,7 +1038,6 @@ class CreateDeallistView(generics.ListAPIView):
                 elif queryset.filter(location_country__icontains=search_terms[0]).exists():
                     query |= Q(location_country__icontains=search_terms[0])
 
-            # Teen search terms ke liye bhi similarly handle karenge
             elif len(search_terms) == 3:
                 if queryset.filter(location_city__icontains=search_terms[0]).exists():
                     query |= Q(location_city__icontains=search_terms[0])
@@ -971,6 +1054,33 @@ class CreateDeallistView(generics.ListAPIView):
 
             queryset = queryset.filter(query).distinct()
 
+        # Distance sorting (if lat/lng provided)
+        lat = self.request.query_params.get('lat', None)
+        lng = self.request.query_params.get('lng', None)
+
+        if lat and lng:
+            try:
+                user_lat = float(lat)
+                user_lng = float(lng)
+                earth_radius_km = 6371.0
+
+                acos_expr = ACos(
+                    Cos(Radians(Value(user_lat))) *
+                    Cos(Radians(F('latitude'))) *
+                    Cos(Radians(F('longitude')) - Radians(Value(user_lng))) +
+                    Sin(Radians(Value(user_lat))) * Sin(Radians(F('latitude')))
+                )
+
+                distance_expr = ExpressionWrapper(
+                    Value(earth_radius_km) * acos_expr,
+                    output_field=FloatField()
+                )
+
+                queryset = queryset.annotate(distance=distance_expr).order_by('distance')
+
+            except ValueError:
+                pass
+
         return queryset
 
     def list(self, request, *args, **kwargs):
@@ -985,9 +1095,95 @@ class CreateDeallistView(generics.ListAPIView):
             response_data["deals"] = serializer.data
 
         return Response(response_data, status=status.HTTP_200_OK)
-
-
     
+    
+# class ActivityListsView(generics.ListAPIView):
+#     serializer_class = ActivityListsSerializer
+#     permission_classes = [AllowAny]
+
+#     def get_queryset(self):
+#         current_time = make_aware(datetime.now())
+#         search_keyword = self.request.query_params.get('address', None)
+
+#         queryset = Activity.objects.filter(
+#             is_deleted=False
+#         ).filter(
+#             Q(end_date__gt=current_time.date()) |
+#             Q(end_date=current_time.date(), end_time__gte=current_time.time()) |
+#             Q(end_date__isnull=True, end_time__gte=current_time.time()) |
+#             Q(end_date__gte=current_time.date(), end_time__isnull=True) |
+#             Q(end_date__isnull=True, end_time__isnull=True)
+#         )
+
+#         if search_keyword:
+#             search_terms = [term.strip().lower() for term in search_keyword.split(',')]
+#             queryset = queryset.filter(
+#                 reduce(
+#                     lambda q, term: q | Q(location__icontains=term),
+#                     search_terms,
+#                     Q()
+#                 )
+#             )
+
+#         return queryset
+
+class Radians(Func):
+    function = 'RADIANS'
+    arity = 1
+
+# class ActivityListsView(generics.ListAPIView):
+#     serializer_class = ActivityListsSerializer
+#     permission_classes = [AllowAny]
+
+#     def get_queryset(self):
+#         current_time = make_aware(datetime.now())
+#         search_keyword = self.request.query_params.get('address', None)
+
+#         queryset = Activity.objects.filter(
+#             is_deleted=False
+#         ).filter(
+#             Q(end_date__gt=current_time.date()) |
+#             Q(end_date=current_time.date(), end_time__gte=current_time.time()) |
+#             Q(end_date__isnull=True, end_time__gte=current_time.time()) |
+#             Q(end_date__gte=current_time.date(), end_time__isnull=True) |
+#             Q(end_date__isnull=True, end_time__isnull=True)
+#         )
+
+#         if search_keyword:
+#             search_terms = [term.strip().lower() for term in search_keyword.split(',')]
+#             queryset = queryset.filter(
+#                 reduce(
+#                     lambda q, term: q | Q(location__icontains=term),
+#                     search_terms,
+#                     Q()
+#                 )
+#             )
+
+#         lat = self.request.query_params.get('lat', None)
+#         lng = self.request.query_params.get('lng', None)
+#         distance_expr = None
+#         try:
+#             if lat and lng:
+#                 user_lat = float(lat)
+#                 user_lng = float(lng)
+#                 earth_radius_km = 6371.0
+
+#                 acos_expr = ACos(
+#                     Cos(Radians(Value(user_lat))) *
+#                     Cos(Radians(F('latitude'))) *
+#                     Cos(Radians(F('longitude')) - Radians(Value(user_lng))) +
+#                     Sin(Radians(Value(user_lat))) * Sin(Radians(F('latitude')))
+#                 )
+
+#                 # Wrap the full formula in ExpressionWrapper to declare the output type
+#                 distance_expr = ExpressionWrapper(
+#                     Value(earth_radius_km) * acos_expr,
+#                     output_field=FloatField()
+#                 )          
+#         except Exception:
+#             pass
+#             queryset = queryset.annotate(distance=distance_expr).order_by('distance')
+#         return queryset
     
 class ActivityListsView(generics.ListAPIView):
     serializer_class = ActivityListsSerializer
@@ -1007,6 +1203,7 @@ class ActivityListsView(generics.ListAPIView):
             Q(end_date__isnull=True, end_time__isnull=True)
         )
 
+        # Optional keyword filtering
         if search_keyword:
             search_terms = [term.strip().lower() for term in search_keyword.split(',')]
             queryset = queryset.filter(
@@ -1017,10 +1214,36 @@ class ActivityListsView(generics.ListAPIView):
                 )
             )
 
+        # Optional location-based distance sorting
+        lat = self.request.query_params.get('lat')
+        lng = self.request.query_params.get('lng')
+
+        if lat and lng:
+            try:
+                user_lat = float(lat)
+                user_lng = float(lng)
+                earth_radius_km = 6371.0
+
+                acos_expr = ACos(
+                    Cos(Radians(Value(user_lat))) *
+                    Cos(Radians(F('latitude'))) *
+                    Cos(Radians(F('longitude')) - Radians(Value(user_lng))) +
+                    Sin(Radians(Value(user_lat))) * Sin(Radians(F('latitude')))
+                )
+
+                distance_expr = ExpressionWrapper(
+                    Value(earth_radius_km) * acos_expr,
+                    output_field=FloatField()
+                )
+
+                queryset = queryset.annotate(distance=distance_expr).order_by('distance')
+
+            except (ValueError, TypeError):
+                # If lat/lng are invalid, skip distance sorting
+                pass
+
         return queryset
 
-
-    
 class ActivityDetailsView(generics.RetrieveAPIView):
     queryset = Activity.objects.all()  # Retrieves all Activity instances
     serializer_class = ActivityDetailsSerializer
@@ -1033,16 +1256,14 @@ class LogoutAPI(APIView):
 
     def post(self, request):
         from django.contrib.auth import logout
-        # Extract refresh token from request data
         refresh_token = request.data.get('refresh_token')
         
         if not refresh_token:
             return Response({"message": "Refresh token is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Handle refresh token
         try:
             refresh = RefreshToken(refresh_token)
-            refresh.blacklist()  # Blacklists the refresh token
+            refresh.blacklist()
         except TokenError:
             return Response({"message": "Invalid or expired refresh token."}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -1251,8 +1472,12 @@ class CustomUserEditView(APIView):
             return Response({
                 'error': 'This phone number is not verified via OTP.'
             }, status=status.HTTP_200_OK)
+
+        if (not user.email_verified or user.email != request.data.get('email')) and request.data.get('email'):
+            return Response({
+                'error': 'This email is not verified via OTP.'
+            }, status=status.HTTP_200_OK)
         
-            
         serializer = CustomUserEditSerializer(user, data=request.data, partial=True, context={'request': request})  # Pass the request
         if serializer.is_valid():
             serializer.save()
@@ -1334,6 +1559,7 @@ class SocialLogin(generics.GenericAPIView):
                 phone_number="",
                 date_of_birth=None,
                 gender=None,
+                otp_verified=True,
                 type=login_type,
                 fcm_token=fcm_token,
                 latitude=latitude,
@@ -2464,7 +2690,7 @@ class SendVerificationOTP(APIView):
         verification_type = request.data.get('verification_type')
         if not verification_type:
             return Response({
-                'message': 'Verification type is required.',
+                'error': 'Verification type is required.',
                 'data': {}
             }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2472,20 +2698,20 @@ class SendVerificationOTP(APIView):
             email = request.data.get('email')
             if not email:
                 return Response({
-                    'message': 'Email is required.',
+                    'error': 'Email is required.',
                     'data': []
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             if email == request.user.email:
                 return Response({
-                    'message': 'New email is same as old email.',
+                    'error': 'New email is same as old email.',
                     'data': []
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             email_exists = CustomUser.objects.filter(email=email).exists()
             if email_exists:
                 return Response({
-                    'message': 'User with this email already exists.',
+                    'error': 'User with this email already exists.',
                     'data': []
                 }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2494,7 +2720,7 @@ class SendVerificationOTP(APIView):
             sent = send_email_via_mailgun(email, otp)
             if not sent:
                 return Response({
-                    'message': 'OTP couldn\'t be sent, please try again later.',
+                    'error': 'OTP couldn\'t be sent, please try again later.',
                     'data': {}
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             return Response({
@@ -2507,20 +2733,20 @@ class SendVerificationOTP(APIView):
             dial_code = request.data.get('dial_code')
             if not phone or not dial_code:
                 return Response({
-                    'message': 'Phone number and dial code is required.',
+                    'error': 'Phone number and dial code is required.',
                     'data': {}
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             if phone == request.user.phone_number and request.user.otp_verified:
                 return Response({
-                    'message': 'New Phone number is same as old number.',
+                    'error': 'New Phone number is same as old number.',
                     'data': []
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             phone_exists = CustomUser.objects.filter(phone_number=phone).exclude(id=request.user.id).exists()
             if phone_exists:
                 return Response({
-                    'message': 'User with this phone number already exists.',
+                    'error': 'User with this phone number already exists.',
                     'data': []
                 }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2530,9 +2756,9 @@ class SendVerificationOTP(APIView):
             err, err_code = send_otp_via_sms(dial_code, phone, otp)
             if err or err_code:
                 return Response({
-                'message': 'OTP couldn\'t be sent.',
-                'error': f"{err}, {err_code}"
-            }, status=status.HTTP_200_OK)
+                'error': 'OTP couldn\'t be sent.',
+                'info': f"{err}, {err_code}"
+            }, status=status.HTTP_400_BAD_REQUEST)
             return Response({
                 'message': 'OTP sent successfully.',
                 'data': {}
@@ -2556,13 +2782,13 @@ class VerifyOTPViewV2(APIView):
                 original_otp = cache.get(email)
                 if not original_otp:
                     return Response({
-                        'message': 'OTP has expired, please try again.',
-                        'data': {}
-                    }, status=status.HTTP_200_OK)
+                        'error': 'OTP has expired, please try again.',
+                    }, status=status.HTTP_400_BAD_REQUEST)
                 if original_otp == otp:     
                     # user = CustomUser.objects.get(email=user.email)
                     user.email = email
                     user.social_id = None
+                    user.email_verified = True
                     user.save()
                     return Response({
                         'message': 'OTP has been verified.',
@@ -2570,8 +2796,7 @@ class VerifyOTPViewV2(APIView):
                     }, status=status.HTTP_200_OK)
                 else:
                     return Response({
-                        'message': 'OTP didn\'t match. Please try again.',
-                        'data': {}
+                        'error': 'OTP didn\'t match. Please try again.',
                     }, status=status.HTTP_400_BAD_REQUEST)
             
             elif verification_type == 'phone':
@@ -2579,9 +2804,8 @@ class VerifyOTPViewV2(APIView):
                 original_otp = cache.get(phone)
                 if not original_otp:
                     return Response({
-                        'message': 'OTP has expired, please try again.',
-                        'data': {}
-                    }, status=status.HTTP_200_OK)
+                        'error': 'OTP has expired, please try again.',
+                    }, status=status.HTTP_400_BAD_REQUEST)
                 if original_otp == otp:     
                     # user = CustomUser.objects.get(phone_number=user.phone_number)
                     user.otp_verified = True
@@ -2593,8 +2817,8 @@ class VerifyOTPViewV2(APIView):
                     }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
-                'message': 'OTP cannot be verified.',
-                'error': str(e)
+                'error': 'OTP cannot be verified.',
+                'info': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UpdatePasswordAPI(APIView):
@@ -2609,14 +2833,12 @@ class UpdatePasswordAPI(APIView):
 
         if not password or not confirm_password:
             return Response({
-                'message': 'Password or Confirm Password is missing.',
-                'data': {}
+                'error': 'Password or Confirm Password is missing.',
             }, status=status.HTTP_400_BAD_REQUEST)
 
         if password != confirm_password:
             return Response({
-                'message': 'Passwords do not match.',
-                'data': {}
+                'error': 'Passwords do not match.',
             }, status=status.HTTP_400_BAD_REQUEST)
 
         user.set_password(password)
@@ -2635,7 +2857,7 @@ class ActivityDeleteView(APIView):
             activity = Activity.objects.get(activity_id=activity_id)
         except Activity.DoesNotExist:
             return Response({
-                'message': 'Activity not found.'
+                'error': 'Activity not found.'
             }, status=status.HTTP_404_NOT_FOUND)
         
         activity.is_deleted = True
@@ -2653,7 +2875,7 @@ class DealDeleteView(APIView):
             deal = CreateDeal.objects.get(deal_uuid=deal_uuid)
         except CreateDeal.DoesNotExist:
             return Response({
-                'message': 'Activity not found.'
+                'error': 'Deal not found.'
             }, status=status.HTTP_404_NOT_FOUND)
         
         # Optionally delete and return success
@@ -2673,7 +2895,7 @@ class SendOTPToEmail(APIView):
         email = request.data.get('email')
         if not email:
             return Response({
-                'message': 'Email is required.',
+                'error': 'Email is required.',
                 'data': []
             }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -2681,7 +2903,7 @@ class SendOTPToEmail(APIView):
 
         if not user:
             return Response({
-                'message': 'No user exist with this email.',
+                'error': 'No user exist with this email.',
                 'data': []
             }, status=status.HTTP_400_BAD_REQUEST)
         otp = ''.join(random.choices(string.digits, k=6))
@@ -2689,7 +2911,7 @@ class SendOTPToEmail(APIView):
             sent = send_email_via_mailgun(email, otp)
             if not sent:
                 return Response({
-                'message': 'OTP couldn\'t be sent, please try again later.',
+                'error': 'OTP couldn\'t be sent, please try again later.',
                 'data': []
             }, status=status.HTTP_400_BAD_REQUEST)
             cache.set(email, otp, timeout=300)
@@ -2700,7 +2922,7 @@ class SendOTPToEmail(APIView):
 
         except Exception as e:
             return Response({
-                'message': 'Something went wrong while sending OTP.',
+                'error': 'Something went wrong while sending OTP.',
                 'data': []
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -2745,9 +2967,14 @@ class SetPasswordAPI(APIView):
         password = request.data.get('password')
         password2 = request.data.get('password2')
 
+        if not re.match(PASSWORD_REGEX, password):
+            return Response({
+                'error': 'Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a digit, and a special character.'
+            },status=status.HTTP_400_BAD_REQUEST)
+
         if password != password2:
             return Response({
-                'message': 'Passwords do not match.'
+                'error': 'Passwords do not match.'
             }, status=status.HTTP_400_BAD_REQUEST)
 
         user = CustomUser.objects.get(email=email)
@@ -2755,7 +2982,7 @@ class SetPasswordAPI(APIView):
         user.save()
         return Response({
             'message': 'Password has been set successfully.'
-        }, status=status.HTTP_204_NO_CONTENT)
+        }, status=status.HTTP_200_OK)
 
 
 class ConfirmRejectActivityPartcipation(APIView):
@@ -2764,7 +2991,7 @@ class ConfirmRejectActivityPartcipation(APIView):
     """
 
     def post(self, request, activity_id):
-        participation_status = request.data.get('status') # accept, reject
+        participation_status = request.data.get('status').lower() # accept, reject
         user_id = request.data.get('user_id')
         try:
             activity = Activity.objects.filter(activity_id=activity_id).first()
@@ -2942,7 +3169,7 @@ class VerifyOTPAPIViewV2(APIView):
 class RegisterResendOTP(APIView):
 
     def post(self, request):
-        resend_type = request.data.get('resend_type')
+        resend_type = request.data.get('resend_type').lower()
         otp = ''.join(random.choices(string.digits, k=6))
 
         if resend_type == 'email':
@@ -3016,7 +3243,7 @@ class RegisterAPIViewV3(APIView):
 
     def post(self, request):
         data = request.data.copy()
-        registration_type = data.get('registration_type')
+        registration_type = data.get('registration_type').lower()
         otp = ''.join(random.choices(string.digits, k=6))
 
         if registration_type == 'email':
@@ -3080,7 +3307,7 @@ class VerifyOTPAPIViewV3(APIView):
 
     def post(self, request):
         data = request.data.copy()
-        registration_type = data.get('registration_type')
+        registration_type = data.get('registration_type').lower()
 
         if registration_type == 'email':
             email = data.get('email')
@@ -3138,7 +3365,7 @@ class VerifyOTPAPIViewV3(APIView):
 class CreateUserInDB(APIView):
     def post(self, request):
         data = request.data.copy()
-        registration_type = data.get('registration_type')
+        registration_type = data.get('registration_type').lower()
 
         if registration_type == 'email':
             user = CustomUser.objects.filter(email=data.get('email')).first()
@@ -3146,8 +3373,20 @@ class CreateUserInDB(APIView):
                 return Response({
                     'error': 'User already exists with this email.'
                 }, status=status.HTTP_400_BAD_REQUEST)
+            if not data.get('password'):
+                return Response({
+                    'error': 'Password is required.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not re.match(PASSWORD_REGEX, data.get('password')):
+                return Response({
+                    'error': 'Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a digit, and a special character.'
+                },status=status.HTTP_400_BAD_REQUEST)
+
+
             user = CustomUser.objects.create(
                 email=data.get('email'),
+                email_verified=True,
                 username=CustomUser.generate_unique_username(),
                 name=data.get('full_name')
             )
@@ -3170,11 +3409,17 @@ class CreateUserInDB(APIView):
             })
 
         elif registration_type == 'phone':
+            if not data.get('date_of_birth'):
+                return Response({
+                    'error': 'DOB is required.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             user = CustomUser.objects.create(
                 phone_number=data.get('phone'),
                 dial_code=data.get('dial_code'),
                 username=CustomUser.generate_unique_username(),
                 name=data.get('full_name'),
+                date_of_birth=data.get('date_of_birth'),
                 otp_verified=True
             )
             refresh = RefreshToken.for_user(user)
@@ -3198,11 +3443,11 @@ class LoginAPIViewV2(APIView):
     
     def post(self, request):
         data = request.data.copy()
-        login_type = data.get('login_type')
+        login_type = data.get('login_type').lower()
 
         if login_type == 'email':
             try:
-                email = data.get('email')
+                email = data.get('email').lower()
                 password = data.get('password')
                 user = CustomUser.objects.filter(email=email).first()
                 if not user:
@@ -3233,7 +3478,7 @@ class LoginAPIViewV2(APIView):
                 }, status=status.HTTP_200_OK)
             except Exception as e:
                 return Reponse({
-                    'message': str(e)
+                    'error': str(e)
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         elif login_type == 'phone': 
@@ -3348,6 +3593,20 @@ class FavoriteUnfavoriteUserAPI(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        user_id = request.user.id
+        fav_users = FavoriteUser.objects.filter(user=user_id)
+        if fav_users:
+            serializer = FavoriteUserSerializer(fav_users, many=True)
+            return Response({
+                'message': 'Favorite users found.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        return Response({
+            'message': 'No Favorite users found.',
+            'data': []
+        }, status=status.HTTP_200_OK)
+
     def post(self, request, user_id):
         user = request.user
         user_to_be_favorited = CustomUser.objects.filter(id=user_id).first()
@@ -3386,9 +3645,25 @@ class FavoriteUnfavoriteUserAPI(APIView):
 
 class FavoriteUnfavoriteVendorAPI(APIView):
     """
-    Post() ---> Favorite or Unfavorite a vendor
+    Get() ---> Get all favorite vendors for an user.
+    Post() ---> Favorite or Unfavorite a vendor.
     """
     permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_id = request.user.id
+        fav_vendors = FavoriteVendor.objects.filter(user=user_id)
+        if fav_vendors:
+            serializer = FavoriteVendorSerializer(fav_vendors, many=True)
+            return Response({
+                'message': 'Favorite vendors found.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        return Response({
+            'message': 'No Favorite vendors found.',
+            'data': []
+        }, status=status.HTTP_200_OK)
+        
 
     def post(self, request, vendor_id):
         user = request.user
@@ -3405,7 +3680,6 @@ class FavoriteUnfavoriteVendorAPI(APIView):
         #     }, status=status.HTTP_400_BAD_REQUEST)
 
         favorite_relation = FavoriteVendor.objects.filter(user=user, vendor=vendor_to_be_favorited).first()
-
         if favorite_relation:
             favorite_relation.delete()
             return Response({
@@ -3430,6 +3704,20 @@ class FavoriteUnfavoriteServiceAPI(APIView):
     Post() ---> Favorite or Unfavorite a service
     """
     permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_id = request.user.id
+        fav_services = FavoriteService.objects.filter(user=user_id)
+        if fav_services:
+            serializer = FavoriteServiceSerializer(fav_services, many=True)
+            return Response({
+                'message': 'Favorite services found.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        return Response({
+            'message': 'No Favorite services found.',
+            'data': []
+        }, status=status.HTTP_200_OK)
 
     def post(self, request, service_id):
         user = request.user
@@ -3463,3 +3751,153 @@ class FavoriteUnfavoriteServiceAPI(APIView):
 
 
 # ==================== End Favorite Views ===================== # 
+
+
+# ==================== Buy deal dummy Views ===================== #
+from main.utils import generate_and_upload_qr_to_s3
+class PurchaseDealAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            purchase = Purchase.objects.get(id=pk)
+            serializer = PurchaseDealSerializer(purchase)
+            return Response({
+                'message': 'Purchase found.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        except BuyDeal.DoesNotExist:
+            return Response({
+                'error': 'No purchase with this ID.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    def post(self, request):
+        user = request.user
+        data = request.data.copy()
+
+        serializer = PurchaseDealSerializer(data=data, context={'user': user})
+        if serializer.is_valid():
+            try:
+                with transaction.atomic():
+                    purchase = serializer.save()
+                    qr_data = {
+                        "purchase_id": purchase.id,
+                        "deal_id": purchase.deal_id,
+                        "vendor_id": str(purchase.seller.vendor_id),
+                        "buyer_id": str(user.id),
+                        "quantity": purchase.quantity,
+                        "created_at": timezone.now().strftime('%Y-%m-%d %H:%M:%S')
+                    }
+                    qr_url = generate_and_upload_qr_to_s3(qr_data)
+                    purchase.collection_code = [qr_url]
+                    purchase.buyer = user
+                    deal = purchase.deal
+                    purchase.amount = purchase.amount or (purchase.quantity * deal.deal_price)
+                    purchase.save()
+                    deal.deals_left = deal.deals_left - int(purchase.quantity)
+                    deal.save()
+
+            except Exception as e:
+                return Response({
+                    'error': f'Error while generating collection code -> {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response({
+                'message': 'Purchase successful.',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED)
+
+        errors = serializer.errors
+        error_list = [f"{field} {str(msg)}" for field, messages in errors.items() for msg in messages]
+        return Response({
+            'message': 'Purchase failed.',
+            'error': error_list[0]
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, id):    
+        data = request.data.copy()
+        action = data.get('action')
+        if not action or action != 'FULFILL':
+            return Response({
+                'error': 'Action is missing or invalid.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            purchase = Purchase.objects.get(pk=id)
+        except Purchase.DoesNotExist:
+            return Response({
+                'error': 'This purchase does not exists.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.user.vendorkyc_set.exists():
+            vendor_kyc = request.user.vendorkyc_set.first()
+            if purchase.seller.vendor_id != vendor_kyc.vendor_id:
+                return Response({
+                    'error': 'Deal belongs to other vendor. Scan failed.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = EditPurchaseDealSerializer(purchase, data=data, partial=True)
+        if serializer.is_valid():
+            instance = serializer.fullfill_purchase(purchase, action)
+            resp_data = PurchaseDealSerializer(instance)
+            return Response({
+                'message': 'Purchase processed successfully.',
+                'data': resp_data.data
+            }, status=status.HTTP_200_OK)
+        errors = serializer.errors
+        error_list = [f"{field} {str(msg)}" for field, messages in errors.items() for msg in messages]
+        return Response({
+            'info': 'Purchase process failed.',
+            'error': error_list[0]
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GetUserPurchaseAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            purchase = Purchase.objects.filter(buyer=request.user)
+            serializer = PurchaseDealSerializer(purchase, many=True)
+            return Response({
+                'message': 'Purchases found.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'message': 'Something went wrong while fetching purchases.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class GetVendorSalesAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, vendor_id):
+        try:
+            purchase = Purchase.objects.filter(seller=vendor_id)
+            serializer = PurchaseDealSerializer(purchase, many=True)
+            return Response({
+                'message': 'Purchases found.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'message': 'Something went wrong while fetching purchases.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class DeleteCustomUser(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            user = CustomUser.objects.get(pk=pk)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'error': 'User does not exists.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        user.is_active = False
+        user.save()
+        return Response({
+            'message': 'User deleted successfully.'
+        }, status=status.HTTP_200_OK)

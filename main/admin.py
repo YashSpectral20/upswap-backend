@@ -6,12 +6,13 @@ from .models import (
 
 # Custom User Admin
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ('id', 'email', 'name', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio', 'fcm_token', 'latitude', 'longitude', 'user_type')
+    list_display = ('id', 'email', 'name', 'phone_number', 'date_of_birth', 'gender', 'is_staff', 'is_active', 'otp_verified', 
+    'email_verified', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio', 'fcm_token', 'latitude', 'longitude', 'user_type')
     list_filter = ('is_staff', 'is_active', 'otp_verified', 'country', 'type')
     fieldsets = (
         (None, {'fields': ('username', 'password', 'email', 'social_id', 'type')}),
         ('Personal info', {'fields': ('id', 'name', 'phone_number', 'date_of_birth', 'gender', 'country_code', 'dial_code', 'country', 'bio', 'profile_pic', 'fcm_token', 'latitude', 'longitude', 'user_type')}),
-        ('Permissions', {'fields': ('is_staff', 'is_active', 'otp_verified', 'is_superuser')}),
+        ('Permissions', {'fields': ('is_staff', 'is_active', 'otp_verified', 'email_verified', 'is_superuser')}),
     )
     readonly_fields = ('id',)
     search_fields = ('username', 'email', 'phone_number', 'country_code', 'dial_code', 'country', 'social_id', 'type', 'bio', 'fcm_token', 'user_type')
@@ -202,30 +203,30 @@ class PasswordResetOTPAdmin(admin.ModelAdmin):
     list_display = ('user', 'otp', 'used', 'created_at')
     search_fields = ('user__username', 'otp')
     
-@admin.register(VendorRating)
-class VendorRatingAdmin(admin.ModelAdmin):
-    list_display = ('rating_id', 'user', 'vendor', 'order', 'rating', 'created_at')  # ✅ Admin panel me show hone wale columns
-    list_filter = ('rating', 'created_at')  # ✅ Filter options rating aur created_at ke basis par
-    search_fields = ('user__username', 'vendor__business_name', 'order__id')  # ✅ Search by username, vendor name, order ID
-    ordering = ('-created_at',)  # ✅ Latest rating sabse upar dikhayega
-    readonly_fields = ('rating_id', 'created_at')  # ✅ UUID aur created_at ko readonly rakhenge
+# @admin.register(VendorRating)
+# class VendorRatingAdmin(admin.ModelAdmin):
+#     list_display = ('rating_id', 'user', 'vendor', 'order', 'rating', 'created_at')  # ✅ Admin panel me show hone wale columns
+#     list_filter = ('rating', 'created_at')  # ✅ Filter options rating aur created_at ke basis par
+#     search_fields = ('user__username', 'vendor__business_name', 'order__id')  # ✅ Search by username, vendor name, order ID
+#     ordering = ('-created_at',)  # ✅ Latest rating sabse upar dikhayega
+#     readonly_fields = ('rating_id', 'created_at')  # ✅ UUID aur created_at ko readonly rakhenge
 
-    fieldsets = (
-        ("User & Vendor Details", {
-            'fields': ('user', 'vendor', 'order')
-        }),
-        ("Rating Details", {
-            'fields': ('rating', 'created_at')
-        }),
-    )
+#     fieldsets = (
+#         ("User & Vendor Details", {
+#             'fields': ('user', 'vendor', 'order')
+#         }),
+#         ("Rating Details", {
+#             'fields': ('rating', 'created_at')
+#         }),
+#     )
 
-    def vendor_name(self, obj):
-        return obj.vendor.business_name  # ✅ Vendor ka naam show karega
-    vendor_name.short_description = "Vendor Name"
+#     def vendor_name(self, obj):
+#         return obj.vendor.business_name  # ✅ Vendor ka naam show karega
+#     vendor_name.short_description = "Vendor Name"
 
-    def user_email(self, obj):
-        return obj.user.email  # ✅ User ka email show karega
-    user_email.short_description = "User Email"
+#     def user_email(self, obj):
+#         return obj.user.email  # ✅ User ka email show karega
+#     user_email.short_description = "User Email"
     
 @admin.register(RaiseAnIssueMyOrders)
 class RaiseAnIssueMyOrdersAdmin(admin.ModelAdmin):
@@ -247,13 +248,7 @@ class RaiseAnIssueCustomUserAdmin(admin.ModelAdmin):
     search_fields = ('subject', 'raised_by__username', 'against_user__username', 'activity__title')
     list_filter = ('created_at',)
     ordering = ('-created_at',)
-    
-# @admin.register(FavoriteVendor)
-# class FavoriteVendorAdmin(admin.ModelAdmin):
-#     list_display = ('user', 'vendor', 'added_at')
-#     search_fields = ('user__email', 'vendor__full_name')
-#     list_filter = ('added_at',)
-#     ordering = ('-added_at',)
+
     
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
