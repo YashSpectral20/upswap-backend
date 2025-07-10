@@ -26,8 +26,8 @@ from .views import (
     RegisterResendOTP, RegisterAPIViewV3, VerifyOTPAPIViewV3, CreateUserInDB, LoginWithOTP, LoginAPIViewV2, LoginResendOTP, RemoveActivityParticipantView, LogoutAPIV2, 
     FavoriteUnfavoriteUserAPI, FavoriteUnfavoriteVendorAPI, 
     FavoriteUnfavoriteServiceAPI, PurchaseDealAPIView, GetUserPurchaseAPIView, GetVendorSalesAPIView,
-    DeleteCustomUser,
-)
+    DeleteCustomUser,     
+) # CreateDealSearchView, ActivitySearchView
 
 # Swagger Schema View
 schema_view = get_schema_view(
@@ -91,6 +91,9 @@ urlpatterns = [
     
     path('forgot-password/', ForgotPasswordView.as_view(), name='forgot-password'),
     path('password-reset-confirm/<uidb64>/<token>/', ResetPasswordView.as_view(), name='password-reset-confirm'),
+    # path('search/deal/', CreateDealSearchView.as_view(), name='search-deal'),
+    # path('search/activity/', ActivitySearchView.as_view(), name='search-activity'),
+
     
     # PlaceOrder
     path('place-order/', PlaceOrderView.as_view(), name='place-order'),

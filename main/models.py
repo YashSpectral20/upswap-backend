@@ -82,7 +82,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     phone_number = models.CharField(max_length=15, null=True, blank=True)
     username = models.CharField(max_length=100, unique=True, null=True, blank=True) # removed unique true because unqiue contraint fails when field is empty if someone logins with phone their email will be empty and vice versa
 
-    name = models.CharField(max_length=255, blank=True, null=True)
+    name = models.CharField(max_length=255, blank=True, null=True, db_index=True)
     country_code = models.CharField(max_length=10, blank=True, null=True)
     dial_code = models.CharField(max_length=10, blank=True, null=True)
     country = models.CharField(max_length=100, blank=True, null=True)
@@ -109,6 +109,11 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = 'username'
     REQUIRED_FIELDS = []
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['name'])
+        ]
 
     def __str__(self):
         return self.email if self.email else self.username
@@ -165,7 +170,7 @@ class Activity(models.Model):
     ]
     activity_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     created_by = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    activity_title = models.CharField(max_length=100)
+    activity_title = models.CharField(max_length=100, db_index=True)
     activity_description = models.TextField()
     uploaded_images = models.JSONField(default=list, blank=True)
     category = models.CharField(max_length=100, choices=ACTIVITY_CATEGORIES)
@@ -182,6 +187,11 @@ class Activity(models.Model):
     longitude = models.DecimalField(max_digits=9, decimal_places=6, blank=True, null=True, help_text="Longitude of the location")
     is_deleted = models.BooleanField(default=False)   # set to true, don't delete the activity.
     participants = models.ManyToManyField(CustomUser, related_name='participants', blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['activity_title'])
+        ]
     
     def clean(self):
         now = timezone.now().date()
@@ -225,7 +235,7 @@ class VendorKYC(models.Model):
     vendor_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     profile_pic = models.CharField(max_length=500, blank=True, default="")
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, blank=True, default='')
-    full_name = models.CharField(max_length=255)
+    full_name = models.CharField(max_length=255, db_index=True)
     phone_number = models.CharField(max_length=15, blank=True)
     business_email_id = models.EmailField(max_length=255, blank=True)
     business_establishment_year = models.IntegerField()
@@ -250,6 +260,11 @@ class VendorKYC(models.Model):
     ifsc_code = models.CharField(max_length=20, default='', blank=True)
     
     business_hours = models.JSONField(default=list, blank=True, null=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['full_name'])
+        ]
     
     def populate_contact_details(self):
         """
@@ -338,7 +353,7 @@ class CreateDeal(models.Model):
     vendor_kyc = models.ForeignKey('VendorKYC', on_delete=models.CASCADE, related_name='deal')
     deal_post_time = models.DateTimeField(default=timezone.now)
     deal_uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
-    deal_title = models.CharField(max_length=255)
+    deal_title = models.CharField(max_length=255, db_index=True)
     deal_description = models.TextField()
     service = models.ForeignKey(Service, on_delete=models.CASCADE, null=True, blank=True)
     category = models.CharField(max_length=100)
@@ -363,7 +378,11 @@ class CreateDeal(models.Model):
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Latitude")
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, verbose_name="Longitude")
 
-    # is_deleted = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+    class Meta:
+        indexes = [
+            models.Index(fields=['deal_title']),
+        ]
 
     def save(self, *args, **kwargs):
         if self.pk is None: 

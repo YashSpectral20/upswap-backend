@@ -82,8 +82,7 @@ class ProviderAPIView(APIView):
             services = json.loads(data.get('services', '[]'))
         except json.JSONDecodeError:
             return Response({
-                'message': 'Invalid format for services.',
-                'data': {}
+                'error': 'Invalid format for services.',
             }, status=status.HTTP_400_BAD_REQUEST)
         data.pop('services', None)
         data['vendor'] = vendor.vendor_id

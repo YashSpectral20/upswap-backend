@@ -45,6 +45,7 @@ from .exceptions import PhoneNumberNotVerified
 
 from activity_log.models import ActivityLog
 from appointments.serializers import ServiceSerializer
+from appointments.models import Service as AppService
 
 from main.utils import generate_and_upload_qr_to_s3
 
@@ -1342,6 +1343,49 @@ class MyDealSerializer(serializers.ModelSerializer):
 #     class Meta:
 #         model = FavoriteVendor
 #         fields = ['id', 'vendor', 'vendor_name', 'added_at']
+
+class FavoriteVendorSerializer(serializers.ModelSerializer):
+    full_name = serializers.CharField(source='vendor.full_name', read_only=True)
+    user = serializers.UUIDField(source='user.id', read_only=True)
+    profile_pic = serializers.CharField(source='vendor.profile_pic', read_only=True)
+    business_email_id = serializers.CharField(source='vendor.business_email_id', read_only=True)
+    addresses = AddressSerializer(source='vendor.addresses', many=True, read_only=True)
+    services = serializers.SerializerMethodField()
+    uploaded_images = serializers.SerializerMethodField()
+    is_favorite = serializers.SerializerMethodField()
+    phone_number = serializers.CharField(source='vendor.phone_number', read_only=True)
+
+    class Meta:
+        model = FavoriteVendor
+        fields = [
+            'full_name', 'user', 'profile_pic', 'business_email_id', 
+            'created_at', 'vendor', 'addresses', 'services',
+            'uploaded_images', 'is_favorite', 'phone_number', 
+        ]
+
+    def get_services(self, obj):
+        services = obj.vendor.ven_services.all()
+        return ServiceSerializer(services, many=True).data
+
+    def get_uploaded_images(self, obj):
+        uploaded_images = obj.vendor.uploaded_images  # Fetching from related vendor
+        if not uploaded_images or not isinstance(uploaded_images, list):
+            return []
+        images = [
+            {
+                "compressed": image.get("compressed"),
+                "thumbnail": image.get("thumbnail")
+            }
+            for image in uploaded_images
+            if image.get("compressed") and image.get("thumbnail")
+        ]
+        return images
+
+    def get_is_favorite(self, obj):
+        user = self.context.get('request').user
+        if user.is_authenticated:
+            return FavoriteVendor.objects.filter(user=user, vendor=obj.vendor).exists()
+        return False
         
 class FavoriteVendorsListSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='vendor.full_name', read_only=True)
@@ -1652,18 +1696,18 @@ class RegisterSerializerV2(serializers.Serializer):
         validated_data.pop('confirm_password')  # remove before saving
         return validated_data  # just return cleaned data for caching
 
-class FavoriteVendorSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(source='vendor.full_name', read_only=True)
-    profile_pic = serializers.CharField(source='vendor.profile_pic', read_only=True)
-    email = serializers.CharField(source='vendor.business_email_id', read_only=True)
-    addresses = AddressSerializer(source='vendor.addresses', many=True, read_only=True)
+# class FavoriteVendorSerializer(serializers.ModelSerializer):
+#     name = serializers.CharField(source='vendor.full_name', read_only=True)
+#     profile_pic = serializers.CharField(source='vendor.profile_pic', read_only=True)
+#     email = serializers.CharField(source='vendor.business_email_id', read_only=True)
+#     addresses = AddressSerializer(source='vendor.addresses', many=True, read_only=True)
 
-    class Meta:
-        model = FavoriteVendor
-        fields = [
-            'name', 'profile_pic', 'email', 
-            'created_at', 'vendor', 'addresses',
-        ]
+#     class Meta:
+#         model = FavoriteVendor
+#         fields = [
+#             'name', 'profile_pic', 'email', 
+#             'created_at', 'vendor', 'addresses',
+#         ]
 
 class FavoriteUserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -1682,6 +1726,10 @@ class PurchaseDealSerializer(serializers.ModelSerializer):
     seller_name = serializers.CharField(source='deal.vendor_kyc.full_name', read_only=True)
     percent_off = serializers.SerializerMethodField(read_only=True)
     buyer_name = serializers.CharField(source='buyer.name', read_only=True)
+    deal_description = serializers.CharField(source='deal.deal_description', read_only=True)
+    longitude = serializers.CharField(source='deal.longitude', read_only=True)
+    latitude = serializers.CharField(source='deal.latitude', read_only=True)
+    deal_uuid = serializers.CharField(source='deal.deal_uuid', read_only=True)
 
     class Meta:
         model = Purchase
@@ -1690,7 +1738,8 @@ class PurchaseDealSerializer(serializers.ModelSerializer):
             'collection_code', 'active', 'quantity', 
             'status', 'amount', 'images', 'deal_title',
             'seller_name', 'deal_price', 'percent_off',
-            'buyer_name',
+            'buyer_name', 'deal_description', 'deal_uuid',
+            'longitude', 'latitude'
         ]
 
     def get_percent_off(self, obj):

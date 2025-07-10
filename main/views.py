@@ -30,7 +30,7 @@ from django.db import IntegrityError
 from django.db.models.functions import ACos, Cos, Radians, Sin, Cast
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken, TokenError
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
-from rest_framework import status, generics,  permissions
+from rest_framework import status, generics,  permissions, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.generics import CreateAPIView, ListAPIView, RetrieveAPIView
@@ -460,29 +460,29 @@ class VendorKYCCreateView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         try:
             serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
+            if serializer.is_valid():    # raise_exception=True
+                self.perform_create(serializer)
 
-            # activity log
-            ActivityLog.objects.create(
-                user=request.user,
-                event=ActivityLog.APPLY_KYC,
-                metadata={}
-            )
+                # activity log
+                ActivityLog.objects.create(
+                    user=request.user,
+                    event=ActivityLog.APPLY_KYC,
+                    metadata={}
+                )
 
+                return Response({
+                    'message': 'Vendor KYC created successfully.',
+                    'vendor_kyc': serializer.data
+                }, status=status.HTTP_201_CREATED)
+            errors = serializer.errors
+            error_list = [f"{field} {str(msg)}" for field, messages in errors.items() for msg in messages]
             return Response({
-                'message': 'Vendor KYC created successfully.',
-                'vendor_kyc': serializer.data
-            }, status=status.HTTP_201_CREATED)
-        except ValidationError as e:
-
-            return Response({
-                'message': list(e.detail.values())[0][0] if e.detail else "Validation error occurred."
+                'error': error_list[0] # list(e.detail.values())[0][0] if e.detail else "Validation error occurred."
             }, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            # Catch unexpected exceptions
             return Response({
-                'message': str(e)
+                'error': 'Something went wrong. Please try again later.',
+                'info': str(e)
             }, status=status.HTTP_400_BAD_REQUEST)
 
     def get_serializer_context(self):
@@ -917,98 +917,18 @@ class UploadProfileImageAPI(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-
-
-# class CreateDeallistView(generics.ListAPIView):
-#     serializer_class = CreateDeallistSerializer
-#     permission_classes = [AllowAny]
-
-#     def get_queryset(self):
-#         now = timezone.now()
-#         today = now.date()
-#         current_time = now.time()
-
-#         queryset = CreateDeal.objects.filter(
-#             end_date__gte=today, 
-#             available_deals__gt=0
-#         ).exclude(
-#             end_date=today, end_time__lte=current_time
-#         )
-        
-        
-#         search_keyword = self.request.query_params.get('address', None)
-#         if search_keyword:
-#             search_terms = [term.strip() for term in search_keyword.split(',')]
-#             query = Q()
-
-#             # Single search term ke liye multiple fields me search karenge
-#             if len(search_terms) == 1:
-#                 clean_term = search_terms[0]
-#                 query |= Q(location_city__icontains=clean_term)
-#                 query |= Q(location_state__icontains=clean_term)
-#                 query |= Q(location_country__icontains=clean_term)
-#                 query |= Q(location_pincode__icontains=clean_term)
-#                 query |= Q(location_road_name__icontains=clean_term)
-
-#             # Do search terms ke liye priority dete hue filter karenge
-#             elif len(search_terms) == 2:
-#                 if queryset.filter(location_city__icontains=search_terms[0]).exists():
-#                     query |= Q(location_city__icontains=search_terms[0])
-#                 elif queryset.filter(location_state__icontains=search_terms[0]).exists():
-#                     query |= Q(location_state__icontains=search_terms[0])
-#                 elif queryset.filter(location_country__icontains=search_terms[0]).exists():
-#                     query |= Q(location_country__icontains=search_terms[0])
-
-#             # Teen search terms ke liye bhi similarly handle karenge
-#             elif len(search_terms) == 3:
-#                 if queryset.filter(location_city__icontains=search_terms[0]).exists():
-#                     query |= Q(location_city__icontains=search_terms[0])
-#                 elif queryset.filter(location_state__icontains=search_terms[1]).exists():
-#                     query |= Q(location_state__icontains=search_terms[1])
-#                 elif queryset.filter(location_country__icontains=search_terms[2]).exists():
-#                     query |= Q(location_country__icontains=search_terms[2])
-
-#             elif len(search_terms) >= 4:
-#                 if queryset.filter(location_road_name__icontains=search_terms[0]).exists():
-#                     query |= Q(location_road_name__icontains=search_terms[0])
-#                 else:
-#                     return CreateDeal.objects.none()
-
-#             queryset = queryset.filter(query).distinct()
-
-#         return queryset
-
-#     def list(self, request, *args, **kwargs):
-#         queryset = self.get_queryset()
-#         response_data = {
-#             "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Deals",
-#             "deals": []
-#         }
-
-#         if queryset.exists():
-#             serializer = self.get_serializer(queryset, many=True)
-#             response_data["deals"] = serializer.data
-
-#         return Response(response_data, status=status.HTTP_200_OK)
-
-# from django.db.models import Q, F, Value, FloatField, ExpressionWrapper
-# from django.db.models.functions import ACos, Cos, Sin, Radians
-# from django.utils import timezone
-# from rest_framework.response import Response
-# from rest_framework import status
-# from functools import reduce
-# from rest_framework import generics
-# from rest_framework.permissions import AllowAny
-
 class CreateDeallistView(generics.ListAPIView):
     serializer_class = CreateDeallistSerializer
     permission_classes = [AllowAny]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['deal_title', 'vendor_kyc__full_name']
 
     def get_queryset(self):
         now = timezone.now()
         today = now.date()
         current_time = now.time()
 
+        # Basic deal filter: not expired and has available deals
         queryset = CreateDeal.objects.filter(
             end_date__gte=today,
             available_deals__gt=0
@@ -1029,35 +949,21 @@ class CreateDeallistView(generics.ListAPIView):
                 query |= Q(location_country__icontains=clean_term)
                 query |= Q(location_pincode__icontains=clean_term)
                 query |= Q(location_road_name__icontains=clean_term)
-
             elif len(search_terms) == 2:
-                if queryset.filter(location_city__icontains=search_terms[0]).exists():
-                    query |= Q(location_city__icontains=search_terms[0])
-                elif queryset.filter(location_state__icontains=search_terms[0]).exists():
-                    query |= Q(location_state__icontains=search_terms[0])
-                elif queryset.filter(location_country__icontains=search_terms[0]).exists():
-                    query |= Q(location_country__icontains=search_terms[0])
-
+                query |= Q(location_city__icontains=search_terms[0])
+                query |= Q(location_state__icontains=search_terms[1])
             elif len(search_terms) == 3:
-                if queryset.filter(location_city__icontains=search_terms[0]).exists():
-                    query |= Q(location_city__icontains=search_terms[0])
-                elif queryset.filter(location_state__icontains=search_terms[1]).exists():
-                    query |= Q(location_state__icontains=search_terms[1])
-                elif queryset.filter(location_country__icontains=search_terms[2]).exists():
-                    query |= Q(location_country__icontains=search_terms[2])
-
+                query |= Q(location_city__icontains=search_terms[0])
+                query |= Q(location_state__icontains=search_terms[1])
+                query |= Q(location_country__icontains=search_terms[2])
             elif len(search_terms) >= 4:
-                if queryset.filter(location_road_name__icontains=search_terms[0]).exists():
-                    query |= Q(location_road_name__icontains=search_terms[0])
-                else:
-                    return CreateDeal.objects.none()
+                query |= Q(location_road_name__icontains=search_terms[0])
 
             queryset = queryset.filter(query).distinct()
 
-        # Distance sorting (if lat/lng provided)
-        lat = self.request.query_params.get('lat', None)
-        lng = self.request.query_params.get('lng', None)
-
+        # Distance-based sorting
+        lat = self.request.query_params.get('lat')
+        lng = self.request.query_params.get('lng')
         if lat and lng:
             try:
                 user_lat = float(lat)
@@ -1077,16 +983,15 @@ class CreateDeallistView(generics.ListAPIView):
                 )
 
                 queryset = queryset.annotate(distance=distance_expr).order_by('distance')
-
             except ValueError:
                 pass
 
         return queryset
 
     def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
+        queryset = self.filter_queryset(self.get_queryset())  # applies DRF SearchFilter
         response_data = {
-            "message": "No deals found for the specified search keyword." if not queryset.exists() else "List of Deals",
+            "message": "No deals found." if not queryset.exists() else "List of Deals",
             "deals": []
         }
 
@@ -1096,36 +1001,6 @@ class CreateDeallistView(generics.ListAPIView):
 
         return Response(response_data, status=status.HTTP_200_OK)
     
-    
-# class ActivityListsView(generics.ListAPIView):
-#     serializer_class = ActivityListsSerializer
-#     permission_classes = [AllowAny]
-
-#     def get_queryset(self):
-#         current_time = make_aware(datetime.now())
-#         search_keyword = self.request.query_params.get('address', None)
-
-#         queryset = Activity.objects.filter(
-#             is_deleted=False
-#         ).filter(
-#             Q(end_date__gt=current_time.date()) |
-#             Q(end_date=current_time.date(), end_time__gte=current_time.time()) |
-#             Q(end_date__isnull=True, end_time__gte=current_time.time()) |
-#             Q(end_date__gte=current_time.date(), end_time__isnull=True) |
-#             Q(end_date__isnull=True, end_time__isnull=True)
-#         )
-
-#         if search_keyword:
-#             search_terms = [term.strip().lower() for term in search_keyword.split(',')]
-#             queryset = queryset.filter(
-#                 reduce(
-#                     lambda q, term: q | Q(location__icontains=term),
-#                     search_terms,
-#                     Q()
-#                 )
-#             )
-
-#         return queryset
 
 class Radians(Func):
     function = 'RADIANS'
@@ -1184,18 +1059,26 @@ class Radians(Func):
 #             pass
 #             queryset = queryset.annotate(distance=distance_expr).order_by('distance')
 #         return queryset
-    
+
+# class ActivitySearchView(generics.ListAPIView):
+#     queryset = Activity.objects.all()
+#     serializer_class = ActivityListsSerializer
+#     permission_classes = [AllowAny]
+#     filter_backends = [filters.SearchFilter]
+#     search_fields = ['activity_title', 'created_by__username']
+
 class ActivityListsView(generics.ListAPIView):
     serializer_class = ActivityListsSerializer
     permission_classes = [AllowAny]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['activity_title', 'created_by__username']
 
     def get_queryset(self):
         current_time = make_aware(datetime.now())
         search_keyword = self.request.query_params.get('address', None)
 
-        queryset = Activity.objects.filter(
-            is_deleted=False
-        ).filter(
+        # Filter non-deleted and active (not expired) activities
+        queryset = Activity.objects.filter(is_deleted=False).filter(
             Q(end_date__gt=current_time.date()) |
             Q(end_date=current_time.date(), end_time__gte=current_time.time()) |
             Q(end_date__isnull=True, end_time__gte=current_time.time()) |
@@ -1203,7 +1086,7 @@ class ActivityListsView(generics.ListAPIView):
             Q(end_date__isnull=True, end_time__isnull=True)
         )
 
-        # Optional keyword filtering
+        # Optional keyword-based address filtering
         if search_keyword:
             search_terms = [term.strip().lower() for term in search_keyword.split(',')]
             queryset = queryset.filter(
@@ -1214,7 +1097,7 @@ class ActivityListsView(generics.ListAPIView):
                 )
             )
 
-        # Optional location-based distance sorting
+        # Optional location-based sorting
         lat = self.request.query_params.get('lat')
         lng = self.request.query_params.get('lng')
 
@@ -1239,10 +1122,24 @@ class ActivityListsView(generics.ListAPIView):
                 queryset = queryset.annotate(distance=distance_expr).order_by('distance')
 
             except (ValueError, TypeError):
-                # If lat/lng are invalid, skip distance sorting
                 pass
 
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        # Apply DRF search filtering (search=...)
+        queryset = self.filter_queryset(self.get_queryset())
+
+        response_data = {
+            "message": "No activities found." if not queryset.exists() else "List of Activities.",
+            "data": []
+        }
+
+        if queryset.exists():
+            serializer = self.get_serializer(queryset, many=True)
+            response_data["data"] = serializer.data
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
 class ActivityDetailsView(generics.RetrieveAPIView):
     queryset = Activity.objects.all()  # Retrieves all Activity instances
@@ -3526,6 +3423,10 @@ class LoginWithOTP(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         user = CustomUser.objects.filter(phone_number=phone).first()
+        if not user.is_active:
+            return Response({
+                'error': 'You deleted this account.'
+            }, status=status.HTTP_400_BAD_REQUEST)
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
         login(request, user)
@@ -3654,14 +3555,14 @@ class FavoriteUnfavoriteVendorAPI(APIView):
         user_id = request.user.id
         fav_vendors = FavoriteVendor.objects.filter(user=user_id)
         if fav_vendors:
-            serializer = FavoriteVendorSerializer(fav_vendors, many=True)
+            serializer = FavoriteVendorSerializer(fav_vendors, context={'request': request},many=True)
             return Response({
                 'message': 'Favorite vendors found.',
-                'data': serializer.data
+                'vendors': serializer.data
             }, status=status.HTTP_200_OK)
         return Response({
             'message': 'No Favorite vendors found.',
-            'data': []
+            'vendors': []
         }, status=status.HTTP_200_OK)
         
 
@@ -3840,7 +3741,7 @@ class PurchaseDealAPIView(APIView):
             instance = serializer.fullfill_purchase(purchase, action)
             resp_data = PurchaseDealSerializer(instance)
             return Response({
-                'message': 'Purchase processed successfully.',
+                'message': 'Purchase completed successfully.',
                 'data': resp_data.data
             }, status=status.HTTP_200_OK)
         errors = serializer.errors
@@ -3856,7 +3757,7 @@ class GetUserPurchaseAPIView(APIView):
 
     def get(self, request):
         try:
-            purchase = Purchase.objects.filter(buyer=request.user)
+            purchase = Purchase.objects.filter(buyer=request.user).order_by('-created_at')
             serializer = PurchaseDealSerializer(purchase, many=True)
             return Response({
                 'message': 'Purchases found.',
@@ -3873,7 +3774,7 @@ class GetVendorSalesAPIView(APIView):
 
     def get(self, request, vendor_id):
         try:
-            purchase = Purchase.objects.filter(seller=vendor_id)
+            purchase = Purchase.objects.filter(seller=vendor_id).order_by('-created_at')
             serializer = PurchaseDealSerializer(purchase, many=True)
             return Response({
                 'message': 'Purchases found.',
