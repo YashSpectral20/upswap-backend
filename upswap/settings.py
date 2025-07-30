@@ -126,7 +126,7 @@ CACHES = {
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
+    # 'whitenoise.middleware.WhiteNoiseMiddleware',
     # 'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
@@ -153,10 +153,8 @@ CSRF_TRUSTED_ORIGINS = [
  
 CORS_ALLOW_ALL_ORIGINS = True
  
-# Optional: Allow credentials (cookies, authorization headers)
 CORS_ALLOW_CREDENTIALS = True
  
-# Allow specific headers if needed
 CORS_ALLOW_HEADERS = [
     'content-type',
     'authorization',

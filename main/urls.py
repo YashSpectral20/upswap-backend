@@ -26,7 +26,8 @@ from .views import (
     RegisterResendOTP, RegisterAPIViewV3, VerifyOTPAPIViewV3, CreateUserInDB, LoginWithOTP, LoginAPIViewV2, LoginResendOTP, RemoveActivityParticipantView, LogoutAPIV2, 
     FavoriteUnfavoriteUserAPI, FavoriteUnfavoriteVendorAPI, 
     FavoriteUnfavoriteServiceAPI, PurchaseDealAPIView, GetUserPurchaseAPIView, GetVendorSalesAPIView,
-    DeleteCustomUser,     
+    DeleteCustomUser, RateVendorAPIView, GetUpdateDeleteUserRatings,
+    CreateUserToDealRating, RetrieveUpdateDeleteUserToDealRating,
 ) # CreateDealSearchView, ActivitySearchView
 
 # Swagger Schema View
@@ -136,6 +137,8 @@ urlpatterns = [
     path('deals/repost/<uuid:deal_uuid>/', RepostDealView.as_view(), name='repost-deal'),
     
     path('activities/deactivate/<uuid:activity_id>/', DeactivateActivitiesView.as_view(), name='deactivate-activity'),
+
+    path('activities/deactivated/<uuid:user_id>/', DeactivateActivitiesView.as_view(), name='get-deactivate-activity'),
     
     path('activity/repost/<uuid:activity_id>/', ActivityRepostView.as_view(), name='activity-repost'),
     
@@ -200,6 +203,7 @@ urlpatterns = [
     path('service/<int:service_id>/favorite/', FavoriteUnfavoriteServiceAPI.as_view(), name='favorite-service'),
 
     path('favorite-vendor/list/', FavoriteUnfavoriteVendorAPI.as_view(), name='fav-vendor-list'),
+    path('favorite-service/list/', FavoriteUnfavoriteServiceAPI.as_view(), name='fav-service-list'),
 
     # Buy deal
     path('buy-deal/dummy/', PurchaseDealAPIView.as_view(), name='buy-dummy-deal'), # POST
@@ -207,6 +211,13 @@ urlpatterns = [
     path('get/user/purchases/', GetUserPurchaseAPIView.as_view(), name='get-user-purchases'),
     path('get/vendor/sales/<uuid:vendor_id>/', GetVendorSalesAPIView.as_view(), name='get-vendor-sales'),
     path('delete/user/<uuid:pk>/', DeleteCustomUser.as_view(), name='delete-user'),
+
+    # Rating 
+    path('rate/vendor/', RateVendorAPIView.as_view(), name='rate-vendor'),
+    path('get/vendor/ratings/<uuid:vendor_id>/', RateVendorAPIView.as_view(), name='get-vendor-ratings'),
+    path('rating/vendor/<uuid:vendor_id>/', GetUpdateDeleteUserRatings.as_view(), name='user-vendor-rating'),
+    path('rate-deal/', CreateUserToDealRating.as_view(), name='rate-deal'),
+    path('rate-deal/<int:deal_id>/', RetrieveUpdateDeleteUserToDealRating.as_view(), name='get-update-delete-deal-rating'),
 ]
 
 if settings.DEBUG:

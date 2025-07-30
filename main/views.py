@@ -39,7 +39,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.authtoken.models import Token  # Import Token from rest_framework
 from .models import (
     CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, CreateDeal, PlaceOrder,
-    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device, FavoriteUser, FavoriteService, FavoriteVendor, DealViewCount, Purchase
+    ActivityCategory, ServiceCategory, FavoriteVendor, RaiseAnIssueVendors, RaiseAnIssueCustomUser, Notification, Device, FavoriteUser, FavoriteService, FavoriteVendor, DealViewCount, Purchase, UserToVendorRating, UserToDealRating,
     )
 from appointments.models import Service
 from .serializers import (
@@ -50,14 +50,14 @@ from .serializers import (
     ActivityCategorySerializer, ServiceCategorySerializer, CustomUserDetailsSerializer, PlaceOrderListsSerializer, VendorKYCStatusSerializer, CustomUserEditSerializer, MyDealSerializer, SuperadminLoginSerializer, FavoriteVendorSerializer,
     MyActivitysSerializer, FavoriteVendorsListSerializer, VendorRatingSerializer, RaiseAnIssueSerializerMyOrders, RaiseAnIssueVendorsSerializer, RaiseAnIssueCustomUserSerializer, AddressSerializer,
     ActivityRepostSerializer, MySalesSerializer, NotificationSerializer, DeviceSerializer, ServiceCreateSerializer, GetVendorSerializer, RegisterSerializerV2, FavoriteVendorSerializer, FavoriteUserSerializer, FavoriteServiceSerializer,
-    PurchaseDealSerializer, EditPurchaseDealSerializer,
-
+    PurchaseDealSerializer, EditPurchaseDealSerializer, RateVendorSerializer,
+    UserToDealRatingSerializer,
 )
 
 from datetime import timezone as pytimezone
 from datetime import datetime as dt
 from rest_framework.generics import RetrieveAPIView
-from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification, send_whatsapp_message, send_email_via_mailgun, convert_to_utc_date_time
+from .utils import generate_otp, process_image, upload_to_s3, upload_to_s3_documents, upload_to_s3_profile_image, generate_asset_uuid, send_otp_via_sms, create_notification, send_whatsapp_message, send_email_via_mailgun, convert_to_utc_date_time, get_error_messages
 from .firebase_utils import send_notification_to_user 
 from rest_framework.decorators import api_view
 from geopy.distance import geodesic
@@ -329,7 +329,7 @@ class ActivityCreateView(generics.CreateAPIView):
                 if 'user_participation' not in serializer.validated_data:
                     serializer.validated_data['user_participation'] = True
                 if 'infinite_time' not in serializer.validated_data:
-                    serializer.validated_data['infinite_time'] = False  # Ensure default is False
+                    serializer.validated_data['infinite_time'] = False
                 
                 activity = serializer.save(created_by=self.request.user)
                 
@@ -503,16 +503,25 @@ class VendorKYCListView(generics.RetrieveUpdateDestroyAPIView):
 """
 
 class VendorKYCStatusView(generics.RetrieveAPIView):
+    # def get(self, request, vendor_id):
+    #     try:
+    #         # Fetch VendorKYC instance by vendor_id
+    #         vendor_kyc = VendorKYC.objects.get(vendor_id=vendor_id)
+    #         serializer = VendorKYCStatusSerializer(vendor_kyc)
+    #         return Response(serializer.data, status=status.HTTP_200_OK)
+    #     except VendorKYC.DoesNotExist:
+    #         return Response({"message": "VendorKYC not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer_class = VendorKYCStatusSerializer
+
     def get(self, request, vendor_id):
         try:
-            # Fetch VendorKYC instance by vendor_id
             vendor_kyc = VendorKYC.objects.get(vendor_id=vendor_id)
-            serializer = VendorKYCStatusSerializer(vendor_kyc)
+            serializer = self.get_serializer(vendor_kyc)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except VendorKYC.DoesNotExist:
             return Response({"message": "VendorKYC not found."}, status=status.HTTP_404_NOT_FOUND)
-
-
+            
 class VendorKYCListView(ListAPIView):
     serializer_class = VendorKYCListSerializer
     permission_classes = [AllowAny]
@@ -652,7 +661,7 @@ class CreateDealView(generics.CreateAPIView):
             if err:
                 return Response({
                     'error': err
-                }, status=status.HTTP_200_OK)
+                }, status=status.HTTP_400_BAD_REQUEST)
 
             # implement a past endtime check for activity. 
             data['end_date'] = utc_end_date_str
@@ -732,7 +741,7 @@ class CreateDealView(generics.CreateAPIView):
             else:
                 message = str(e.detail)
 
-            return Response({"message": message}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
             return Response({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -2043,7 +2052,7 @@ class RepostDealView(generics.CreateAPIView):
             user=request.user,
             event=ActivityLog.REPOST_DEAL,
             metadata={
-                'old_deal': str(deal_uuid),    # old deal id from the request parameter
+                'old_deal': str(deal_uuid),
                 'new_deal': str(new_deal.deal_uuid)
             }
         )
@@ -2054,62 +2063,34 @@ class RepostDealView(generics.CreateAPIView):
 class DeactivateActivitiesView(APIView):
     permission_classes = [IsAuthenticated]  # Ensure the user is authenticated
 
-    def post(self, request, activity_id):
-        try:
-            # Fetch the activity using the activity_id
-            activity = Activity.objects.get(activity_id=activity_id, created_by=request.user)
-            current_time = timezone.now()
-
-            # Convert start_date & start_time and end_date & end_time to datetime
-            activity_start_datetime = datetime.combine(activity.start_date, activity.start_time)
-            activity_end_datetime = datetime.combine(activity.end_date, activity.end_time)
-
-            # Make them timezone-aware
-            activity_start_datetime = timezone.make_aware(activity_start_datetime, timezone.get_current_timezone())
-            activity_end_datetime = timezone.make_aware(activity_end_datetime, timezone.get_current_timezone())
-
-            # Check if it's a live or scheduled activity and update accordingly
-            if activity_start_datetime <= current_time <= activity_end_datetime:
-                # Live activity: Set end_date and end_time to current time
-                update_fields = {
-                    "end_date": current_time.date(),
-                    "end_time": current_time.time().replace(microsecond=0),
-                }
-            elif current_time < activity_start_datetime:
-                # Scheduled activity: Set start_date, start_time, end_date, and end_time to current time
-                update_fields = {
-                    "start_date": current_time.date(),
-                    "start_time": current_time.time().replace(microsecond=0),
-                    "end_date": current_time.date(),
-                    "end_time": current_time.time().replace(microsecond=0),
-                }
-            else:
-                return Response({"message": "Activity has already ended."}, status=status.HTTP_400_BAD_REQUEST)
-
-            # ✅ Bypass validation by using `update()` instead of `save()`
-            Activity.objects.filter(activity_id=activity_id).update(**update_fields)
-
-            # Serialize the updated activity and return response
-            activity.refresh_from_db()  # Refresh instance after update
-            serializer = ActivitySerializer(activity)
-            # activity log
-            ActivityLog.objects.create(
-                user=request.user,
-                event=ActivityLog.DEACTIVATE_ACTIVITY,
-                metadata={
-                    'activity': str(activity.activity_id),
-                    'activity_title': activity.activity_title
-                }
-            )
+    def get(self, request, user_id):
+        activities = Activity.objects.filter(created_by=user_id, is_deleted=True)
+        if activities:
+            serializer = ActivityListsSerializer(activities, many=True)
             return Response({
-                "message": "Activity deactivated successfully",
-                "data": serializer.data
+                'message': 'Deactivated activities.',
+                'data': serializer.data
             }, status=status.HTTP_200_OK)
+        return Response({
+            'message': 'No Deactivated activities.',
+            'data': []
+        }, status=status.HTTP_200_OK)
 
-        except Activity.DoesNotExist:
+    def post(self, request, activity_id):
+    
+        activity = Activity.objects.get(activity_id=activity_id, created_by=request.user)
+        if activity.is_deleted:
+            activity.is_deleted = False
+            activity.save()
             return Response({
-                "message": "Activity not found."
-            }, status=status.HTTP_404_NOT_FOUND)
+                'message': f'Successfully activated activity {activity.activity_title}.',
+            }, status=status.HTTP_200_OK)
+        activity.is_deleted = True
+        activity.save()
+        return Response({
+            'message': f'Successfully deactivated activity {activity.activity_title}.',
+        }, status=status.HTTP_200_OK)
+    
             
 class ActivityRepostView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -2272,7 +2253,7 @@ class RegisterDeviceView(generics.CreateAPIView):
         # Required fields check
         if not device_token or not device_type:
             return Response(
-                {'message': 'Device token and device type dono chahiye.'},
+                {'error': 'Device token and device type are required.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -2284,7 +2265,6 @@ class RegisterDeviceView(generics.CreateAPIView):
         )
 
         if not created:
-            # Agar pehle se exist karta hai
             return Response(
                 {'message': 'Device already registered.', 'device_id': str(device.id)},
                 status=status.HTTP_200_OK
@@ -3458,23 +3438,17 @@ class LogoutAPIV2(APIView):
         try:
             with transaction.atomic():
                 token = RefreshToken(refresh_token)
-
-                # Blacklist the token
                 token.blacklist()
 
-                # Delete device token
                 if device_token:
                     Device.objects.filter(user=request.user, device_token=device_token).delete()
-
                 
-                # Create activity log only after successful logout
                 ActivityLog.objects.create(
                     user=request.user,
                     event=ActivityLog.LOGOUT,
                     metadata={}
                 )
 
-                # Logout the user
                 logout(request)
 
         except TokenError:
@@ -3802,3 +3776,138 @@ class DeleteCustomUser(APIView):
         return Response({
             'message': 'User deleted successfully.'
         }, status=status.HTTP_200_OK)
+
+class RateVendorAPIView(APIView):
+    """
+    Get() ---> Get vendor ratings.
+    Post() ---> Rate a vendor. 
+    """
+
+    def get(self, request, vendor_id):
+        vendor_ratings = UserToVendorRating.objects.filter(vendor=vendor_id)
+        if not vendor_ratings:
+            return Response({
+                'message': 'No ratings found.',
+                'data': []
+            }, status=status.HTTP_200_OK)
+        serializer = RateVendorSerializer(vendor_ratings, many=True)
+        return Response({
+            'message': 'Vendor ratings found.',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        data = request.data.copy()
+        user = request.user
+        try:
+            if user.vendorkyc_set.exists() and str(user.vendorkyc_set.first().vendor_id) == data.get('vendor'):
+                return Response({
+                    'error': 'You cannot rate yourself.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            data['user'] = user.id
+            serializer = RateVendorSerializer(data=data)   # , context={'user': user}
+            if serializer.is_valid():
+                serializer.save()
+                return Response({
+                    'message': 'Rating submitted successfully.',
+                    'data': serializer.data
+                }, status=status.HTTP_201_CREATED)
+            errors = get_error_messages(serializer.errors)
+            return Response({
+                'message': 'Rating couldn\'t be submitted.',
+                'error': "You have already rated this vendor." if errors == "The fields user, vendor must make a unique set." else errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except IntegrityError as ie:
+            return Response({
+                'error': 'You have already rated this vendor.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class GetUpdateDeleteUserRatings(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = RateVendorSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UserToVendorRating.objects.filter(user=self.request.user)
+
+    def get_object(self):
+        vendor_id = self.kwargs.get('vendor_id')
+        return get_object_or_404(self.get_queryset(), vendor_id=vendor_id)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
+        data['user'] = request.user.id
+        serializer = self.get_serializer(instance, data=data, partial=True)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response({
+                'message': 'Rating updated.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+
+        except ValidationError as e:
+            return Response({ 
+                'error': get_error_messages(serializer.errors)}, status=status.HTTP_400_BAD_REQUEST)
+        except IntegrityError:
+            # Handle unique_together DB-level errors (if any slipped through)
+            return Response({"detail": "A rating with this user and vendor already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# POST: Rate a Deal
+class CreateUserToDealRating(generics.CreateAPIView):
+    serializer_class = UserToDealRatingSerializer
+    permission_classes = [IsAuthenticated]
+
+    # def perform_create(self, serializer):
+    #     serializer.save(user=self.request.user)
+
+    def post(self, request):
+        data = request.data.copy()
+        data['user'] = request.user.id
+
+        serializer = UserToDealRatingSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'Rating submitted.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+            errors = get_error_messages(serializer.errors)
+        return Response({
+                'error': "You have already rated this deal." if get_error_messages(serializer.errors) == " The fields user, deal must make a unique set." else errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+# GET/PUT/DELETE: Retrieve, Update, or Delete User's Rating for a Deal
+class RetrieveUpdateDeleteUserToDealRating(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = UserToDealRatingSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return UserToDealRating.objects.filter(user=self.request.user)
+
+    def get_object(self):
+        deal_id = self.kwargs.get('deal_id')
+        return get_object_or_404(self.get_queryset(), deal_id=deal_id)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = request.data.copy()
+        data['user'] = request.user.id
+        serializer = self.get_serializer(instance, data=data)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response({
+                'message': 'Updated Succcesfully.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        except IntegrityError:
+            return Response({"detail": "Duplicate rating not allowed."}, status=status.HTTP_400_BAD_REQUEST)

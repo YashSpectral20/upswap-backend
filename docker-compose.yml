@@ -91,7 +91,7 @@ services:
       
   web:
     build: .
-    command: bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    command: uvicorn upswap.asgi:application --host 0.0.0.0 --port 8000 --reload # gunicorn upswap.asgi:application -w 4 -k uvicorn.workers.UvicornWorker --reload --bind 0.0.0.0:8000 # command: gunicorn upswap.asgi:application --bind 0.0.0.0:8000 # bash -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     working_dir: /usr/src/app/
     volumes:
       - .:/usr/src/app
@@ -101,6 +101,9 @@ services:
     depends_on:
       - redis
       - adminer
+    restart: always
+    env_file:
+      - .env
     environment:
       - DATABASE_NAME=upswap-db
       - DATABASE_USER=upswap

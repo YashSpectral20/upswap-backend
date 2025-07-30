@@ -199,32 +199,87 @@ def upload_to_s3_documents(file, folder, file_type="document"):
     
     return f"{settings.MEDIA_URL}{file_key}"
 
+# def upload_to_s3_profile_image(file, folder, file_type="image"):
+#     s3_client = boto3.client('s3', region_name=settings.AWS_S3_REGION_NAME,
+#                              aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+#                              aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
+    
+#     # Generate unique file name using UUID
+#     asset_uuid = str(uuid.uuid4())
+    
+#     # Resize and convert the image to WebP format
+#     if file_type == "image":
+#         image = Image.open(file)
+#         # Resize the image to 160x130
+#         image = image.resize((160, 130))
+        
+#         # Convert the image to WebP format
+#         webp_file = BytesIO()
+#         image.save(webp_file, 'WEBP')
+#         webp_file.seek(0)
+        
+#         file_key = f"{folder}/asset_{asset_uuid}.webp"
+#         s3_client.upload_fileobj(webp_file, settings.AWS_STORAGE_BUCKET_NAME, file_key,
+#                                  ExtraArgs={"ContentType": "image/webp"})
+#     else:
+#         raise ValueError("Unsupported file type")
+
+#     return f"{settings.MEDIA_URL}{file_key}"
+
 def upload_to_s3_profile_image(file, folder, file_type="image"):
-    s3_client = boto3.client('s3', region_name=settings.AWS_S3_REGION_NAME,
-                             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
+    """
+    Uploads two versions of an image to S3: a compressed thumbnail and a full-size original.
     
-    # Generate unique file name using UUID
-    asset_uuid = str(uuid.uuid4())
+    1. A resized (160x130) and compressed WebP image.
+    2. The original size image, also converted to WebP, in an 'original/' subfolder.
     
-    # Resize and convert the image to WebP format
-    if file_type == "image":
-        image = Image.open(file)
-        # Resize the image to 160x130
-        image = image.resize((160, 130))
-        
-        # Convert the image to WebP format
-        webp_file = BytesIO()
-        image.save(webp_file, 'WEBP')
-        webp_file.seek(0)
-        
-        file_key = f"{folder}/asset_{asset_uuid}.webp"
-        s3_client.upload_fileobj(webp_file, settings.AWS_STORAGE_BUCKET_NAME, file_key,
-                                 ExtraArgs={"ContentType": "image/webp"})
-    else:
+    Returns the URL of the compressed thumbnail only.
+    """
+    if file_type != "image":
         raise ValueError("Unsupported file type")
 
-    return f"{settings.MEDIA_URL}{file_key}"
+    s3_client = boto3.client(
+        's3', 
+        region_name=settings.AWS_S3_REGION_NAME,
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+    )
+    
+    asset_uuid = str(uuid.uuid4())
+    image = Image.open(file)
+    
+    # --- 1. Process and Upload Resized (Compressed) Image ---
+    # resized_image = image.resize((160, 130))
+    webp_buffer = BytesIO()
+    # Save with a standard quality for thumbnails
+    image.save(webp_buffer, 'WEBP', quality=85)
+    webp_buffer.seek(0)
+    
+    resized_file_key = f"{folder}/asset_{asset_uuid}.webp"
+    s3_client.upload_fileobj(
+        webp_buffer, 
+        settings.AWS_STORAGE_BUCKET_NAME, 
+        resized_file_key,
+        ExtraArgs={"ContentType": "image/webp"}
+    )
+    
+    # --- 2. Process and Upload Original Image (as WebP) ---
+    original_webp_buffer = BytesIO()
+    # Save the original image (no resize) with higher quality
+    image.save(original_webp_buffer, 'WEBP', quality=95)
+    original_webp_buffer.seek(0)
+
+    # The key for the original image, placed in a subfolder as requested
+    original_file_key = f"{folder}/original/asset_{asset_uuid}.webp"
+    s3_client.upload_fileobj(
+        original_webp_buffer, 
+        settings.AWS_STORAGE_BUCKET_NAME, 
+        original_file_key,
+        ExtraArgs={"ContentType": "image/webp"}
+    )
+    
+    # --- 3. Return only the URL of the compressed image as requested ---
+    return f"{settings.MEDIA_URL}{resized_file_key}"
 
 def create_notification(user, notification_type, title, body, reference_instance=None, data=None):
     reference_id = None
@@ -284,7 +339,7 @@ def send_email_via_mailgun(email, otp):
     if response.status_code == 200:
         return True
     else:
-        print(response.text)
+        print("OTP", otp, ' | ' ,response.text)
         return False
 
 
@@ -368,3 +423,14 @@ def generate_and_upload_qr_to_s3(deal):
 
     s3_url = upload_to_s3(buffer, folder, filename)
     return s3_url
+
+def get_error_messages(errors):
+    messages = ""
+    for field, field_errors in errors.items():
+        for error in field_errors:
+            messages = f"{field} {error}"
+            break
+        break
+    if "non_field_errors" in messages :
+        messages = messages.replace("non_field_errors","")
+    return messages

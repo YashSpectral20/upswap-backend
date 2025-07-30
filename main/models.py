@@ -194,9 +194,9 @@ class Activity(models.Model):
         ]
     
     def clean(self):
-        now = timezone.now().date()
-        if self.end_date and self.end_date < now:
-            raise ValidationError("End date cannot be in the past.")
+        # now = timezone.now().date()
+        # if self.end_date and self.end_date < now:
+        #     raise ValidationError("End date cannot be in the past.")
 
         if self.maximum_participants > 1000:
             raise ValidationError("Maximum participants cannot exceed 1000.")
@@ -637,30 +637,45 @@ class Purchase(models.Model):
 
 # ==================== Rating Models ===================== # 
 
-# class BaseRating(models.Model):
-#     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # rater
-#     rating = models.DecimalField(max_digits=2, decimal_places=1)
-#     comment = models.TextField(blank=True)
-#     created_at = models.DateTimeField(auto_now_add=True)
+class BaseRating(models.Model):
+    RATING_CHOICES = [
+        (Decimal('1.0'), '1.0'),
+        (Decimal('1.5'), '1.5'),
+        (Decimal('2.0'), '2.0'),
+        (Decimal('2.5'), '2.5'),
+        (Decimal('3.0'), '3.0'),
+        (Decimal('3.5'), '3.5'),
+        (Decimal('4.0'), '4.0'),
+        (Decimal('4.5'), '4.5'),
+        (Decimal('5.0'), '5.0'),
+    ]
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # rater
+    rating = models.DecimalField(
+        max_digits=2, 
+        decimal_places=1, 
+        choices=RATING_CHOICES
+    )
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
-#     class Meta:
-#         abstract = True
+    class Meta:
+        abstract = True
 
-# class UserToVendorRating(BaseRating):
-#     vendor = models.ForeignKey('VendorKYC', on_delete=models.CASCADE)
+class UserToVendorRating(BaseRating):
+    vendor = models.ForeignKey('VendorKYC', on_delete=models.CASCADE)
 
-#     class Meta:
-#         unique_together = ('user', 'vendor')
+    class Meta:
+        unique_together = ('user', 'vendor')
 
-# class UserToDealRating(BaseRating):
-#     deal = models.ForeignKey('CreateDeal', on_delete=models.CASCADE)
+class UserToDealRating(BaseRating):
+    deal = models.ForeignKey('CreateDeal', on_delete=models.CASCADE)
 
-#     class Meta:
-#         unique_together = ('user', 'deal')
+    class Meta:
+        unique_together = ('user', 'deal')
 
-# class UserToActivityRating(BaseRating):
-#     activity = models.ForeignKey('Activity', on_delete=models.CASCADE)
+class UserToActivityRating(BaseRating):
+    activity = models.ForeignKey('Activity', on_delete=models.CASCADE)
 
-#     class Meta:
-#         unique_together = ('user', 'activity')
+    class Meta:
+        unique_together = ('user', 'activity')
 

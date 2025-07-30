@@ -18,12 +18,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
         # Get ChatRoom instance
         self.chat_room = await database_sync_to_async(ChatRoom.objects.get)(id=self.room_uuid)
         self.room_group_name = f'chat_{self.room_uuid}'
-
         # Get user from session_id
         self.user = await self.get_user_from_session(self.session_id)
 
         if self.user is None:
             await self.close()
+            print("Session expired.")
             return
 
         await self.channel_layer.group_add(

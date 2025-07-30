@@ -22,7 +22,7 @@ from .models import (
     CustomUser, OTP, Activity, PasswordResetOTP, VendorKYC, Address, Service, CreateDeal, PlaceOrder,
     ActivityCategory, ServiceCategory, FavoriteVendor, VendorRating, RaiseAnIssueMyOrders, RaiseAnIssueVendors, RaiseAnIssueCustomUser,
     Notification, Device, DealViewCount, FavoriteVendor, FavoriteUser, FavoriteService, 
-    Purchase
+    Purchase, UserToVendorRating, UserToDealRating,
 )
 from upswap_chat.models import ChatRequest, ChatRoom, ChatMessage
 from django.db.models import Sum
@@ -270,9 +270,9 @@ class ActivityListsSerializer(serializers.ModelSerializer):
         fields = [
             'activity_id', 'user_id', 'activity_title','uploaded_images', 
             'original_images','created_by', 'user_participation', 'infinite_time', 
-            'category',
+            'category', 'activity_description', 'maximum_participants',
             'end_date', 'end_time', 'latitude', 'longitude',
-            'location', 'participants_count',
+            'location', 'participants_count', 'is_deleted',
         ]
 
     def get_original_images(self, obj):
@@ -521,7 +521,7 @@ class VendorKYCListSerializer(serializers.ModelSerializer):
         return False
     
     def get_average_rating(self, obj):
-        average = VendorRating.objects.filter(vendor=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        average = UserToVendorRating.objects.filter(vendor=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
         return round(average, 1) if average else 0.0
 
 
@@ -534,8 +534,10 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
     
     business_hours = serializers.JSONField(required=False, allow_null=True)
     average_rating = serializers.SerializerMethodField()
+    rating_count = serializers.SerializerMethodField()
     services = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
+
 
     class Meta:
         model = VendorKYC
@@ -544,7 +546,7 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
             'business_establishment_year', 'business_description', 'uploaded_business_documents',
             'uploaded_images', 'same_as_personal_phone_number', 'services',
             'same_as_personal_email_id', 'addresses', 'country_code', 'dial_code', 
-            'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code',
+            'bank_account_number', 'retype_bank_account_number', 'bank_name', 'ifsc_code', 'rating_count',
             'business_hours', 'is_approved', 'average_rating', 'is_favorite'
         ]
         read_only_fields = ['user', 'is_approved']
@@ -594,8 +596,12 @@ class VendorKYCDetailSerializer(serializers.ModelSerializer):
         return images
     
     def get_average_rating(self, obj):
-        average = VendorRating.objects.filter(vendor=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        average = UserToVendorRating.objects.filter(vendor=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
         return round(average, 1) if average else 0.0   
+
+    def get_rating_count(self, obj):
+        count = UserToVendorRating.objects.filter(vendor=obj).count()
+        return count
 
     def get_services(self, obj):
         services = obj.ven_services.all()
@@ -727,23 +733,31 @@ class CreateDeallistSerializer(serializers.ModelSerializer):
     original_images = serializers.SerializerMethodField()
     average_rating = serializers.SerializerMethodField()
     view_count = serializers.SerializerMethodField()
-    
+    deal_average_rating = serializers.SerializerMethodField()
+    deal_rating_count = serializers.SerializerMethodField()
     class Meta:
         model = CreateDeal
         fields = [
-            'deal_uuid', 'deal_post_time', 'deal_title',
+            'deal_uuid', 'deal_post_time', 'deal_title', 'deal_description',
             'uploaded_images', 'original_images', 'end_date', 'end_time',
             'actual_price', 'deal_price', 'available_deals', 'deals_left',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'category',
-            'discount_percentage', 'latitude', 'longitude', 'average_rating', 'buy_now', 'view_count'
+            'discount_percentage', 'latitude', 'longitude', 'average_rating', 'buy_now', 'view_count', 'deal_average_rating', 'deal_rating_count'
         ]
         read_only_fields = ['deal_uuid', 'discount_percentage']
 
     def get_view_count(self, obj):
         return obj.deal_views.aggregate(total_views=Sum('view_count'))['total_views'] or 0
 
+    def get_deal_average_rating(self, obj):
+        average = UserToDealRating.objects.filter(deal=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        return round(average, 1) if average else 0.0 
+
+    def get_deal_rating_count(self, obj):
+        count = UserToDealRating.objects.filter(deal=obj).count()
+        return count
 
     def get_discount_percentage(self, obj):
         if obj.actual_price and obj.deal_price:
@@ -798,6 +812,8 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
     original_images = serializers.SerializerMethodField()
     view_count = serializers.SerializerMethodField()
     deal_views = serializers.SerializerMethodField()
+    deal_average_rating = serializers.SerializerMethodField()
+    deal_rating_count = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
@@ -810,9 +826,18 @@ class CreateDealDetailSerializer(serializers.ModelSerializer):
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country', 'discount_percentage',
             'latitude', 'longitude', 'average_rating', 'view_count', 'deal_views',
+            'deal_average_rating', 'deal_rating_count',
         ]
         read_only_fields = ['id', 'vendor_uuid', 'deal_uuid', 'discount_percentage']
     
+    def get_deal_average_rating(self, obj):
+        average = UserToDealRating.objects.filter(deal=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        return round(average, 1) if average else 0.0 
+
+    def get_deal_rating_count(self, obj):
+        count = UserToDealRating.objects.filter(deal=obj).count()
+        return count
+
     def get_deal_views(self, obj):
         view_counts = DealViewCount.objects.filter(deal=obj)
         result = []
@@ -1268,20 +1293,24 @@ class MyDealSerializer(serializers.ModelSerializer):
     discount_percentage = serializers.SerializerMethodField()
     deal_post_time = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
+    original_images = serializers.SerializerMethodField()
     view_count = serializers.SerializerMethodField()
     deal_views = serializers.SerializerMethodField()
+    deal_average_rating = serializers.SerializerMethodField()
+    deal_rating_count = serializers.SerializerMethodField()
 
     class Meta:
         model = CreateDeal
         fields = [
             'deal_uuid', 'deal_post_time', 'deal_title',
-            'uploaded_images', 'end_date', 'end_time',
+            'uploaded_images', 'original_images', 'end_date', 'end_time',
             'actual_price', 'deal_price', 'available_deals', 'deals_left',
             'location_house_no', 'location_road_name', 'location_country',
             'location_state', 'location_city', 'location_pincode',
             'vendor_name', 'vendor_uuid', 'country',
             'discount_percentage', 'latitude', 'longitude', 
-            'view_count', 'deal_views',
+            'view_count', 'deal_views', 'deal_average_rating', 
+            'deal_rating_count',
         ]
 
     def get_deal_views(self, obj):
@@ -1301,6 +1330,14 @@ class MyDealSerializer(serializers.ModelSerializer):
                 'view_count': vc.view_count
             })
         return result
+
+    def get_deal_average_rating(self, obj):
+        average = UserToDealRating.objects.filter(deal=obj).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        return round(average, 1) if average else 0.0 
+
+    def get_deal_rating_count(self, obj):
+        count = UserToDealRating.objects.filter(deal=obj).count()
+        return count
 
     def get_view_count(self, obj):
         return obj.deal_views.aggregate(total_views=Sum('view_count'))['total_views'] or 0
@@ -1333,16 +1370,22 @@ class MyDealSerializer(serializers.ModelSerializer):
         if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
             return []
 
-        first_image = obj.uploaded_images[0]  # Get the first image
-        thumbnail = first_image.get("thumbnail") if first_image else None  # Extract its thumbnail
+        first_image = obj.uploaded_images[0]
+        thumbnail = first_image.get("thumbnail") if first_image else None
         return [thumbnail] if thumbnail else []
     
-# class FavoriteVendorSerializer(serializers.ModelSerializer):
-#     vendor_name = serializers.CharField(source='vendor.full_name', read_only=True)
+    def get_original_images(self, obj):
+        """
+        Fetch only the first image thumbnail from uploaded_images.
+        This ensures only the first uploaded image's thumbnail is fetched.
+        """
+        if not obj.uploaded_images or not isinstance(obj.uploaded_images, list):
+            return []
 
-#     class Meta:
-#         model = FavoriteVendor
-#         fields = ['id', 'vendor', 'vendor_name', 'added_at']
+        first_image = obj.uploaded_images[0]  
+        original = first_image.get("original") if first_image else None
+        return [original] if original else []
+
 
 class FavoriteVendorSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(source='vendor.full_name', read_only=True)
@@ -1715,9 +1758,12 @@ class FavoriteUserSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class FavoriteServiceSerializer(serializers.ModelSerializer):
+    service = ServiceSerializer()
     class Meta:
         model = FavoriteService
-        fields = '__all__'
+        fields = [
+            'id', 'service'
+        ]
 
 class PurchaseDealSerializer(serializers.ModelSerializer):
     deal_title = serializers.CharField(source='deal.deal_title', read_only=True)
@@ -1730,7 +1776,8 @@ class PurchaseDealSerializer(serializers.ModelSerializer):
     longitude = serializers.CharField(source='deal.longitude', read_only=True)
     latitude = serializers.CharField(source='deal.latitude', read_only=True)
     deal_uuid = serializers.CharField(source='deal.deal_uuid', read_only=True)
-
+    deal_average_rating = serializers.SerializerMethodField()
+    deal_rating_count = serializers.SerializerMethodField()
     class Meta:
         model = Purchase
         fields = [
@@ -1739,9 +1786,16 @@ class PurchaseDealSerializer(serializers.ModelSerializer):
             'status', 'amount', 'images', 'deal_title',
             'seller_name', 'deal_price', 'percent_off',
             'buyer_name', 'deal_description', 'deal_uuid',
-            'longitude', 'latitude'
+            'longitude', 'latitude', 'deal_rating_count', 'deal_average_rating'
         ]
 
+    def get_deal_average_rating(self, obj):
+        average = UserToDealRating.objects.filter(deal=obj.deal).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        return round(average, 1) if average else 0.0 
+
+    def get_deal_rating_count(self, obj):
+        count = UserToDealRating.objects.filter(deal=obj.deal).count()
+        return count
     def get_percent_off(self, obj):
         actual_price = obj.deal.actual_price
         deal_price = obj.deal.deal_price
@@ -1794,3 +1848,53 @@ class EditPurchaseDealSerializer(serializers.ModelSerializer):
             instance.active = False
         instance.save()
         return instance
+
+class RateVendorSerializer(serializers.ModelSerializer):
+    review_by = serializers.CharField(source='user.name', read_only=True)
+    review_by_pfp = serializers.CharField(source='user.profile_pic', read_only=True)
+    class Meta:
+        model = UserToVendorRating
+        fields = [
+            'user', 'rating', 'comment', 'created_at', 'review_by',
+            'review_by_pfp', 'vendor'
+        ]
+
+    def validate(self, attrs):
+        user = attrs.get('user')
+        vendor = attrs.get('vendor')
+
+        # Check if this combination already exists
+        if self.instance is None:  # Create case
+            if UserToVendorRating.objects.filter(user=user, vendor=vendor).exists():
+                raise ValidationError({
+                    "detail": "You have already rated this vendor."
+                })
+        else:  # Update case
+            if UserToVendorRating.objects.exclude(pk=self.instance.pk).filter(user=user, vendor=vendor).exists():
+                raise ValidationError({
+                    "detail": "You have already rated this vendor."
+                })
+
+        return attrs
+
+class UserToDealRatingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserToDealRating
+        fields = '__all__'  # or list fields explicitly
+
+    def validate(self, attrs):
+        user = attrs.get('user')
+        deal = attrs.get('deal')
+
+        # Avoid duplicate ratings
+        if self.instance is None:  # On Create
+            if UserToDealRating.objects.filter(user=user, deal=deal).exists():
+                raise serializers.ValidationError({
+                    "detail": "You have already rated this deal."
+                })
+        else:  # On Update
+            if UserToDealRating.objects.exclude(pk=self.instance.pk).filter(user=user, deal=deal).exists():
+                raise serializers.ValidationError({
+                    "detail": "You have already rated this deal."
+                })
+        return attrs

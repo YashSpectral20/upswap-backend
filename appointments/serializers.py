@@ -6,24 +6,22 @@ from .models import (
     Appointment,
     TimeSlot,
 )
-from main.models import FavoriteService
+from main.models import FavoriteService, Address
+
 
 class ServiceNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'price', 'duration', 'image']
 
 class ProviderSerializer(serializers.ModelSerializer):
     services = ServiceNameSerializer(many=True, read_only=True)
+    latest_timeslot_end_date = serializers.SerializerMethodField()
 
     class Meta:
         model = Provider
         fields = '__all__'
-        read_only_fields = ['id', 'profile_photo']
-
-    # def get_services(self, obj):
-    #     return list(obj.services.values_list('name', flat=True))
-
+        read_only_fields = ['id', 'profile_photo', 'latest_timeslot_end_date']
 
     def validate_work_hours(self, value):
         expected_days = {
@@ -46,6 +44,12 @@ class ProviderSerializer(serializers.ModelSerializer):
 
         return value
 
+    def get_latest_timeslot_end_date(self, obj):
+        latest_slot = TimeSlot.objects.filter(provider=obj).order_by('-date', '-start_time').first()
+        if latest_slot:
+            return latest_slot.date
+        return None
+
     def update(self, instance, validated_data):
         image_data = self.context.get('profile_photo', None)
         if image_data:
@@ -55,7 +59,7 @@ class ProviderSerializer(serializers.ModelSerializer):
 class ProviderNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Provider
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'email', 'phone']
 
 class ServiceCategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -93,7 +97,7 @@ class AppointmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Appointment
         fields = [
-            'id', 'customer', 'vendor', 'service',
+            'id', 'customer', 'vendor', 'service', 'time_slot',
             'status', 'notes', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -109,11 +113,37 @@ class TimeSlotSerializer(serializers.ModelSerializer):
             'end_time', 'is_available'
         ]
 
-class AppointmentSerializer(serializers.ModelSerializer):
+class AddressSerializer2(serializers.ModelSerializer):
+    class Meta:
+        model = Address
+        fields = [
+            'uuid', 'house_no_building_name', 'road_name_area_colony', 'country', 
+            'state', 'city', 'pincode', 'latitude', 'longitude'
+        ]
+        read_only_fields = ['uuid']
+
+class GetAppointmentSerializer(serializers.ModelSerializer):
+
+    provider = ProviderNameSerializer(read_only=True)
+    time_slot = TimeSlotSerializer(read_only=True, many=True)
+    service = ServiceNameSerializer(read_only=True)
+    location = serializers.SerializerMethodField()
+    booked_by_name = serializers.CharField(source='customer.name', read_only=True)
+    booked_by_email = serializers.CharField(source='customer.email', read_only=True)
+    booked_by_phone = serializers.CharField(source='customer.phone_number', read_only=True)
     class Meta:
         model = Appointment
         fields = [
-            'id', 'customer', 'vendor', 'provider',
+            'id', 'customer', 'booked_by_name', 'booked_by_email',
+            'booked_by_phone', 'vendor', 'provider',
             'service', 'time_slot', 'status', 'notes',
-            'created_at', 'updated_at'
-        ]
+            'created_at', 'updated_at', 'location'
+        ]   # 
+
+    def get_location(self, obj):
+        addresses = obj.vendor.addresses
+        if addresses.exists():
+            return AddressSerializer2(addresses, many=True).data
+        return []
+
+    

@@ -66,7 +66,7 @@ class ChatRoom(models.Model):
     chat_request = models.ForeignKey(ChatRequest, on_delete=models.SET_NULL, null=True, blank=True, related_name='chat_room')
     
     def __str__(self):
-        return f"ChatRoom {self.id} for Activity {self.activity.activity_title}"
+        return str(self.id) # f"ChatRoom {self.id} for Activity {self.activity.activity_title}"
 
 class ChatMessage(models.Model):
     chat_room = models.ForeignKey(ChatRoom, related_name='messages', on_delete=models.CASCADE)

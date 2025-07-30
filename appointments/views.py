@@ -1,7 +1,9 @@
 import json
-
-from datetime import datetime, timedelta
-from django.db import IntegrityError
+import math
+from datetime import date, datetime, timedelta
+from django.utils.timezone import make_aware
+from django.db import IntegrityError, transaction
+from django.utils.timezone import is_aware
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -9,17 +11,24 @@ from rest_framework import status
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
-from main.utils import upload_to_s3, generate_asset_uuid, process_image
+from main.utils import (
+    upload_to_s3, 
+    generate_asset_uuid, 
+    process_image, 
+    get_error_messages
+)
 
-from .utils.generate_slots import generate_timeslots
+from .utils.generate_slots import generate_timeslots, create_slots_for_provider_in_range
 from .serializers import (
     ProviderSerializer,
     ServiceSerializer,
     ServiceCategorySerializer,
     TimeSlotSerializer,
-    AppointmentSerializer
+    AppointmentSerializer,
+    GetAppointmentSerializer
 )
 from .models import (
+    Appointment,
     Provider,
     Service,
     ServiceCategory,
@@ -27,6 +36,72 @@ from .models import (
 )
 
 from main.models import VendorKYC
+
+INITIAL_SLOT_GENERATION_DAYS = 30
+SLOT_DURATION = 15
+
+class GenerateProviderSlotsAPIView(APIView):
+    """
+    An API view to generate future timeslots for a specific provider.
+    """
+    def post(self, request, provider_id, format=None):
+        try:
+            provider = Provider.objects.get(pk=provider_id)
+        except Provider.DoesNotExist:
+            return Response({
+                'error': 'Provider not found.'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            days_to_generate = int(request.data.get('days'))
+            if days_to_generate <= 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return Response({
+                'error': "Invalid input. Please provide a positive integer for 'days'."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            latest_timeslot = TimeSlot.objects.filter(provider=provider).latest('date')
+            # Check if slots already exist for more than 6 months from now.
+            # We use 180 days as an approximation for 6 months.
+            six_months_future_date = datetime.now().date() + timedelta(days=180)
+            if latest_timeslot.date >= six_months_future_date:
+                return Response({
+                    'error': 'You already have 6 months worth of slots.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            start_date = latest_timeslot.date + timedelta(days=1)
+        except TimeSlot.DoesNotExist:
+            # If no timeslots exist, start from today
+            start_date = datetime.now().date()
+
+        end_date = start_date + timedelta(days=days_to_generate - 1)
+
+        try:
+            created_count, error_message = create_slots_for_provider_in_range(provider, start_date, end_date)
+            if error_message:
+                return Response({'error': error_message}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if created_count > 0:
+                return Response({
+                    'message': f'{created_count} timeslots created successfully.',
+                    'data': {
+                        'provider_id': provider.id,
+                        'start_date': start_date.strftime('%Y-%m-%d'),
+                        'end_date': end_date.strftime('%Y-%m-%d')
+                    }
+                }, status=status.HTTP_201_CREATED)
+            else:
+                return Response({
+                    'message': 'No new timeslots were created. This may be because the days fall on non-working days.',
+                    'data': []
+                }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                'message': 'An unexpected error occurred while creating time slots.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ProviderAPIView(APIView):
     """
@@ -67,7 +142,6 @@ class ProviderAPIView(APIView):
     def post(self, request, format=None):
         user = request.user
         vendor = VendorKYC.objects.filter(user=user).first()
-
         if not vendor:
             return Response({
                 'message': 'You must be a vendor to add a provider.',
@@ -76,59 +150,81 @@ class ProviderAPIView(APIView):
 
         profile_photo = request.FILES.get('profilePhoto')
         data = request.data.copy()
+        services = data.get('services')
 
         # Parse and remove 'services' from data
         try:
-            services = json.loads(data.get('services', '[]'))
+            if not isinstance(services, list):
+                services = json.loads(data.get('services', '[]'))
         except json.JSONDecodeError:
             return Response({
                 'error': 'Invalid format for services.',
             }, status=status.HTTP_400_BAD_REQUEST)
         data.pop('services', None)
         data['vendor'] = vendor.vendor_id
+        try:
+            with transaction.atomic():
+                serializer = ProviderSerializer(data=data)
+                if not serializer.is_valid():
+                    return Response({
+                        'message': 'Failed to add provider.',
+                        'error': serializer.errors
+                    }, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = ProviderSerializer(data=data)
-        if not serializer.is_valid():
+                # Upload profile photo if provided
+                profile_photo_url = None
+                if profile_photo:
+                    profile_photo_url = upload_to_s3(
+                        profile_photo,
+                        f'profile-pictures/{vendor.vendor_id}',
+                        profile_photo.name
+                    )
+
+                provider_instance = serializer.save(
+                    vendor=vendor,
+                    profile_photo=[profile_photo_url] if profile_photo_url else []
+                )
+
+                if services:
+                    provider_instance.services.set(services)
+                message = 'Provider added successfully.'
+                start_date = datetime.now().date()
+                end_date = start_date + timedelta(days=INITIAL_SLOT_GENERATION_DAYS - 1)
+                
+                created_count, err = create_slots_for_provider_in_range(provider_instance, start_date, end_date)
+                
+                if created_count > 0:
+                    message += f' {created_count} time slots generated successfully for the next {INITIAL_SLOT_GENERATION_DAYS} days.'
+                elif err:
+                    message += f" Failed to generate time slots: {err}"
+                else:
+                     message += " No initial time slots were generated (check work hours)."
+
+                return Response({
+                    'message': message,
+                    'data': ProviderSerializer(provider_instance).data
+                }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            print(str(e))
             return Response({
-                'message': 'Failed to add provider.',
-                'error': serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Upload profile photo if provided
-        profile_photo_url = None
-        if profile_photo:
-            profile_photo_url = upload_to_s3(
-                profile_photo,
-                f'profile-pictures/{vendor.vendor_id}',
-                profile_photo.name
-            )
-
-        provider_instance = serializer.save(
-            vendor=vendor,
-            profile_photo=[profile_photo_url] if profile_photo_url else []
-        )
-
-        # Add services if provided
-        if services:
-            provider_instance.services.set(services)
-        message = 'Provider added successfully.'
-        generated, err = generate_timeslots(provider_instance)
-        if generated:
-            message += ' Time slots generated successfully.'
-        elif err:
-            message += f" Failed to generate time slots: {err}"
-        return Response({
-            'message': message,
-            'data': ProviderSerializer(provider_instance).data
-        }, status=status.HTTP_201_CREATED)
+                'info': str(e),
+                'message': 'Something went wrong while adding provider.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def put(self, request, pk, format=None):
         try:
             provider = Provider.objects.get(pk=pk)
             data = request.data.copy()
             profile_photo = request.FILES.get('profilePhoto')
+            services = data.get('services')
 
-            services = json.loads(data.get('services', '[]'))
+            try:
+                if not isinstance(services, list):
+                    services = json.loads(data.get('services', '[]'))
+            except json.JSONDecodeError:
+                return Response({
+                    'error': 'Invalid format for services.',
+                }, status=status.HTTP_400_BAD_REQUEST)
             data.pop('services', None)
             if profile_photo:
                 profile_photo_url = upload_to_s3(
@@ -151,7 +247,7 @@ class ProviderAPIView(APIView):
             else:
                 return Response({
                     'message': 'Failed to update provider.',
-                    'error': serializer.errors
+                    'error': get_error_messages(serializer.errors)
                 }, status=status.HTTP_400_BAD_REQUEST)
         except Provider.DoesNotExist:
             return Response({
@@ -170,8 +266,8 @@ class ProviderAPIView(APIView):
             provider.delete()
             return Response({
                 'message': 'Provider deleted successfully.',
-                'data': {}
-            }, status=status.HTTP_204_NO_CONTENT)
+                'data': []
+            }, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({
                 'message': 'Failed to delete provider.',
@@ -238,8 +334,8 @@ class ServiceCategoryAPIView(APIView):
             service_category = data.get('service_category')
             if not service_category:
                 return Response({
-                    'message': 'Service category is required.',
-                    'data': {}
+                    'error': 'Service category is required.',
+                    'data': []
                 }, status=status.HTTP_400_BAD_REQUEST)
             serializer = ServiceCategorySerializer(data={'service_category': service_category, 'vendor': vendor.vendor_id})
             if serializer.is_valid():
@@ -376,7 +472,9 @@ class ServiceAPIVIew(APIView):
             data = request.data.copy()
             images = request.FILES.getlist('images')
             providers = data.pop('providers', [])
-            existing_images = request.data.getlist('existing_images', []) 
+            existing_images = None
+            if 'existing_images' in request.data.keys():
+                existing_images = request.data.getlist('existing_images', []) 
             uploaded_image_urls = request.data.get('uploaded_image_urls', [])
             data['vendor'] = service.vendor.vendor_id
             image_urls = []
@@ -414,11 +512,9 @@ class ServiceAPIVIew(APIView):
                         image_urls.append(img)
                     else:
                         print("Unknown image format:", img)
-            print("existing images ---> ", existing_images)
             if uploaded_image_urls:
                 image_urls.extend(uploaded_image_urls)
 
-            print("image urls ---> ", image_urls)
             serializer = ServiceSerializer(service, data=data, partial=True, context={'images': image_urls})
             if serializer.is_valid():
                 service_instance = serializer.update(service, serializer.validated_data)
@@ -448,6 +544,7 @@ class ServiceAPIVIew(APIView):
                 'data': {}
             }, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
+            print(str(e))
             return Response({
                 'message': 'An error occurred while updating the service.',
                 'error': str(e)
@@ -501,29 +598,113 @@ class TimeSlotAPIView(APIView):
     def get(self, request, format=None):
         try:
             provider_id = request.query_params.get('provider_id')
-            for_date = request.query_params.get('for_date')
-            if not provider_id or not for_date:
+            curr_time = request.query_params.get('time')
+            for_date_str = request.query_params.get('for_date')
+            service_id = request.query_params.get('service_id')
+
+            if not provider_id or not for_date_str or not service_id:
                 return Response({
-                    'message': 'Provider ID and date are required.',
-                    'data': {}
-                }, status=status.HTTP_400_BAD_REQUEST)
-            # for_date =datetime.strptime(for_date, '%Y-%m-%d').date()
-            timeslots = TimeSlot.objects.filter(provider_id=provider_id, date=for_date)
-            if timeslots:
-                serializer = TimeSlotSerializer(timeslots, many=True)
-                return Response({
-                    'message': 'Time slots found for the provider.',
-                    'data': serializer.data
-                }, status=status.HTTP_200_OK)
-            return Response({
-                    'message': 'Time slots not found for the provider.',
+                    'error': 'Provider ID, service ID, and date are required.',
                     'data': []
-                }, status=status.HTTP_200_OK)
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                for_date = datetime.strptime(for_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return Response({
+                    'error': 'Invalid date format. Use YYYY-MM-DD.',
+                    'data': []
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            provider = Provider.objects.get(id=provider_id)
+            service = Service.objects.get(id=service_id)
+            # required_slots = service.duration // 15
+            required_slots = int(math.ceil(service.duration / 15))
+
+            timeslot_filter = {
+                'provider': provider,
+                'date': for_date,
+                # 'is_available': True
+            }
+
+            # Apply time filter only if for_date is today and curr_time is provided
+            if curr_time and for_date == date.today():
+                try:
+                    curr_time_obj = datetime.strptime(curr_time, "%H:%M").time()
+                    timeslot_filter['start_time__gt'] = curr_time_obj
+                except ValueError:
+                    return Response({
+                        'error': 'Invalid time format. Use HH:MM.',
+                        'data': []
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Query time slots
+            all_timeslots = TimeSlot.objects.filter(**timeslot_filter).order_by('start_time')
+
+            if not all_timeslots.exists():
+                return Response({
+                    'error': 'No available time slots for the given service on this date. Please try different date or provider.',
+                    'data': []
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            available_blocks = []
+            slots = list(all_timeslots)
+            i = 0
+
+            while i + required_slots <= len(slots):
+                block = slots[i:i + required_slots]
+
+                # Ensure slots are continuous
+                is_continuous = True
+                for j in range(1, required_slots):
+                    expected_next_time = (
+                        datetime.combine(datetime.today(), block[j - 1].start_time) + timedelta(minutes=15)
+                    ).time()
+                    if block[j].start_time != expected_next_time:
+                        is_continuous = False
+                        break
+
+                if is_continuous:
+                    available_blocks.append({
+                        'start_time': block[0].start_time,
+                        'end_time': block[-1].end_time,
+                        'is_available': True,
+                        'timeslots': [
+                            ts.id for ts in block 
+                        ]
+                    })
+                    i += required_slots  # ⬅️ move to the next non-overlapping block
+                else:
+                    i += 1  # try next starting point
+
+            return Response({
+                'message': 'Available timeslot blocks retrieved.',
+                'data': {
+                    'service_id': service.id,
+                    'service_name': service.name,
+                    'duration': service.duration,
+                    'available_blocks': available_blocks
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Provider.DoesNotExist:
+            return Response({
+                'message': 'Provider not found.',
+                'data': {}
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        except Service.DoesNotExist:
+            return Response({
+                'message': 'Service not found.',
+                'data': {}
+            }, status=status.HTTP_404_NOT_FOUND)
+
         except Exception as e:
             return Response({
-                    'message': 'Error occurred while fetching time slots.',
-                    'error': str(e)
-                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'message': 'An error occurred while fetching time slots.',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
     def post(self, request, service_id, format=None):
         try:
@@ -531,8 +712,8 @@ class TimeSlotAPIView(APIView):
             start_date = data.get('start_date')
             if not start_date:
                 return Response({
-                    'message': 'Start date and is required.',
-                    'date': {}
+                    'error': 'Start date and is required.',
+                    'date': []
                 }, status=status.HTTP_400_BAD_REQUEST)
             generated, err = generate_timeslots(service_id, start_date)
             if generated:
@@ -551,43 +732,292 @@ class TimeSlotAPIView(APIView):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class AppointmentsAPIView(APIView):
-    # provider, service, timeslot, notes, vendor, customer, created_at, updated_at, status
     """
+    Get() ---> Get all appointments of the vendor
     Post() ---> Book an Appointment 
     """
-    
+    permission_classes = [IsAuthenticated]
+
+    # def get(self, request, vendor_id):
+    #     now = make_aware(datetime.now())
+
+    #     appointments = Appointment.objects.filter(vendor=vendor_id).prefetch_related('time_slot')
+    #     if not appointments.exists():
+    #         return Response({
+    #             'message': 'No appointments found.',
+    #             'data': []
+    #         }, status=status.HTTP_200_OK)
+
+    #     upcoming_appointments = []
+    #     past_appointments_to_expire = []
+    #     past_appointments_data = []
+
+    #     for appointment in appointments:
+    #         slot_datetime = make_aware(datetime.combine(
+    #             appointment.time_slot.date,
+    #             appointment.time_slot.start_time
+    #         ))
+
+    #         if slot_datetime >= now:
+    #             upcoming_appointments.append(appointment)
+    #         else:
+    #             if appointment.status != 'expired':
+    #                 appointment.status = 'expired'
+    #                 past_appointments_to_expire.append(appointment)
+    #             past_appointments_data.append(appointment)
+
+    #     # Bulk update the expired appointments
+    #     if past_appointments_to_expire:
+    #         Appointment.objects.bulk_update(past_appointments_to_expire, ['status'])
+
+    #     # Serialize data
+    #     upcoming_serializer = GetAppointmentSerializer(upcoming_appointments, many=True)
+    #     past_serializer = GetAppointmentSerializer(past_appointments_data, many=True)
+
+    #     return Response({
+    #         'message': 'Appointments found.',
+    #         'data': {
+    #             'upcoming': upcoming_serializer.data,
+    #             'past': past_serializer.data
+    #         }
+    #     }, status=status.HTTP_200_OK)
+
+    def get(self, request, vendor_id):
+        now = make_aware(datetime.now())
+
+        appointments = Appointment.objects.filter(vendor=vendor_id).prefetch_related('time_slot')
+        if not appointments.exists():
+            return Response({
+                'message': 'No appointments found.',
+                'data': []
+            }, status=status.HTTP_200_OK)
+
+        upcoming_appointments = []
+        past_appointments_to_expire = []
+        past_appointments_data = []
+
+        for appointment in appointments:
+            timeslots = appointment.time_slot.all().order_by('date', 'start_time')
+
+            if not timeslots.exists():
+                continue  # or optionally treat it as past
+
+            earliest_slot = timeslots.first()
+            slot_datetime = datetime.combine(earliest_slot.date, earliest_slot.start_time)
+            if not is_aware(slot_datetime):
+                slot_datetime = make_aware(slot_datetime)
+
+            if slot_datetime >= now:
+                upcoming_appointments.append(appointment)
+            else:
+                if appointment.status != 'expired':
+                    appointment.status = 'expired'
+                    past_appointments_to_expire.append(appointment)
+                past_appointments_data.append(appointment)
+
+        # Bulk update expired appointments
+        if past_appointments_to_expire:
+            Appointment.objects.bulk_update(past_appointments_to_expire, ['status'])
+
+        # Serialize data
+        upcoming_serializer = GetAppointmentSerializer(upcoming_appointments, many=True)
+        past_serializer = GetAppointmentSerializer(past_appointments_data, many=True)
+
+        return Response({
+            'message': 'Appointments found.',
+            'data': {
+                'upcoming': upcoming_serializer.data,
+                'past': past_serializer.data
+            }
+        }, status=status.HTTP_200_OK)
+
+
     def post(self, request, format=None):
-        from django.db import connection
-        connection.queries_log.clear()
         data = request.data.copy()
         data['customer'] = request.user.id
-        
+
+        # Parse the slots
+        slots = request.data.get('time_slot')
+        if not isinstance(slots, list):
+            try:
+                slots = json.loads(slots)
+            except json.JSONDecodeError:
+                return Response({
+                    'message': 'Invalid time_slot format. It must be a list or a valid JSON list.',
+                    'data': {}
+                }, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             provider = Provider.objects.get(id=data['provider'])
-            timeslot = TimeSlot.objects.get(id=data['time_slot'])
-            if not timeslot.is_available:
-                return Response({
-                    'message': 'This timeslot is not available, try a different time slot.',
-                    'data': {}
-                }, status=status.HTTP_200_OK)
+
+            # Validate all slots
+            timeslot_objs = []
+            for slot_id in slots:
+                timeslot = TimeSlot.objects.get(id=slot_id)
+                if not timeslot.is_available:
+                    return Response({
+                        'message': f"Timeslot {slot_id} is not available. Try different time slots.",
+                        'data': {}
+                    }, status=status.HTTP_200_OK)
+                timeslot_objs.append(timeslot)
+
             data['vendor'] = provider.vendor.vendor_id
-        except Exception as e:
+
+        except Provider.DoesNotExist:
             return Response({
-                'message': 'provider not found.',
-                'error': str(e)
+                'message': 'Provider not found.'
             }, status=status.HTTP_404_NOT_FOUND)
+        except TimeSlot.DoesNotExist:
+            return Response({
+                'message': f"One or more provided time slot IDs are invalid."
+            }, status=status.HTTP_404_NOT_FOUND)
+
         serializer = AppointmentSerializer(data=data)
         if serializer.is_valid():
-            timeslot.is_available = False
-            serializer.save()
-            timeslot.save()
-            num_queries = len(connection.queries)
-            print(num_queries)
+            appointment = serializer.save()
+
+            # Set M2M field and mark slots as unavailable
+            appointment.time_slot.set(timeslot_objs)
+            for ts in timeslot_objs:
+                ts.is_available = False
+                ts.save()
+
             return Response({
                 'message': 'Appointment has been booked successfully.',
-                'data': serializer.data
+                'data': AppointmentSerializer(appointment).data
             }, status=status.HTTP_201_CREATED)
+
         return Response({
             'message': 'Appointment cannot be booked.',
-            'errors': serializer.errors
+            'error': get_error_messages(serializer.errors)
         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+    def patch(self, request, pk):
+        try:
+            appointment = Appointment.objects.get(pk=pk)
+        except Appointment.DoesNotExist:
+            return Response({
+                'error': 'Appointment does not exists.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # appointment_status = request.data.get('status')
+        serializer = AppointmentSerializer(appointment, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                'message': 'Status updated successfully.',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            'message': 'Status could not be updated.',
+            'error': get_error_messages(serializer.errors)
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+class RetrieveAppointmentAPIView(generics.RetrieveAPIView):
+    """
+    Get particular Service with ID (pk)
+    """
+    queryset = Appointment.objects.all()
+    serializer_class = GetAppointmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+class GetUserAppointmentsAPIView(APIView):
+    """
+    Get() ---> Get the user's all appointments
+    """
+    permission_classes = [IsAuthenticated]
+    # def get(self, request):
+    #     user = request.user
+    #     now = make_aware(datetime.now())  # current timezone-aware datetime
+
+    #     upcoming_appointments = []
+    #     past_appointments = []
+
+    #     appointments = Appointment.objects.filter(customer=user).prefetch_related('time_slot')
+    #     # for appointment in appointments:
+    #     #     slot_datetime = make_aware(datetime.combine(appointment.time_slot.date, appointment.time_slot.start_time))
+
+    #     #     if slot_datetime >= now:
+    #     #         upcoming_appointments.append(appointment)
+    #     #     else:
+    #     #         appointment.status = 'expired'
+    #     #         appointment.save()
+    #     #         past_appointments.append(appointment)
+    #     # ==================================
+    #     for appointment in appointments:
+    #         timeslots = appointment.time_slot.all().order_by('date', 'start_time')
+    #         if not timeslots.exists():
+    #             continue  # Or handle empty case
+
+    #         earliest_slot = timeslots.first()
+    #         slot_datetime = make_aware(datetime.combine(earliest_slot.date, earliest_slot.start_time))
+
+    #         if slot_datetime >= now:
+    #             upcoming_appointments.append(appointment)
+    #         else:
+    #             appointment.status = 'expired'
+    #             past_appointments.append(appointment)
+    #     # ==================================
+    #     if past_appointments:
+    #         print("Past appointments: ", past_appointments)
+    #         Appointment.objects.bulk_update(past_appointments, ['status'])
+
+    #     upcoming_serializer = GetAppointmentSerializer(upcoming_appointments, many=True)
+    #     past_serializer = GetAppointmentSerializer(past_appointments, many=True)
+
+    #     return Response({
+    #         'message': 'Appointments categorized.',
+    #         'data': {
+    #             'upcoming': upcoming_serializer.data,
+    #             'past': past_serializer.data
+    #         }
+    #     }, status=status.HTTP_200_OK)
+
+    def get(self, request):
+        user = request.user
+        now = make_aware(datetime.now())
+
+        upcoming_appointments = []
+        past_appointments = []
+
+        appointments = Appointment.objects.filter(customer=user).prefetch_related('time_slot')
+        print(f"Total appointments for user {user}: {appointments.count()}")
+
+        for appointment in appointments:
+            timeslots = appointment.time_slot.all().order_by('date', 'start_time')
+            if not timeslots.exists():
+                print(f"⚠️ Appointment {appointment.id} has no linked time slots.")
+                continue
+
+            earliest_slot = timeslots.first()
+            slot_datetime = datetime.combine(earliest_slot.date, earliest_slot.start_time)
+            if not is_aware(slot_datetime):
+                slot_datetime = make_aware(slot_datetime)
+
+            if slot_datetime >= now:
+                upcoming_appointments.append(appointment)
+            else:
+                if appointment.status != 'expired':
+                    appointment.status = 'expired'
+                    past_appointments.append(appointment)
+
+        if past_appointments:
+            Appointment.objects.bulk_update(past_appointments, ['status'])
+
+        upcoming_serializer = GetAppointmentSerializer(upcoming_appointments, many=True)
+        past_serializer = GetAppointmentSerializer(past_appointments, many=True)
+
+        return Response({
+            'message': 'Appointments categorized.',
+            'data': {
+                'upcoming': upcoming_serializer.data,
+                'past': past_serializer.data
+            }
+        }, status=status.HTTP_200_OK)
