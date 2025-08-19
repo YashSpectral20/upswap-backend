@@ -13,7 +13,7 @@ from PIL import Image
 from io import BytesIO
 import base64
 from datetime import timedelta, datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
@@ -342,6 +342,14 @@ def send_email_via_mailgun(email, otp):
         print("OTP", otp, ' | ' ,response.text)
         return False
 
+# Map legacy/alias names to valid IANA names
+TIMEZONE_ALIASES = {
+    "Asia/Calcutta": "Asia/Kolkata",
+    # Add others if needed
+}
+
+def normalize_timezone(tz_str: str) -> str:
+    return TIMEZONE_ALIASES.get(tz_str, tz_str)
 
 def convert_to_utc_date_time(date_str: str, time_str: str, timezone_str: str) -> tuple[str | None, str | None, str | None]:
     """
@@ -364,7 +372,7 @@ def convert_to_utc_date_time(date_str: str, time_str: str, timezone_str: str) ->
 
         # Validate and attach timezone
         try:
-            tz = ZoneInfo(timezone_str)
+            tz = ZoneInfo(normalize_timezone(timezone_str))
         except ZoneInfoNotFoundError:
             return None, None, f"Invalid timezone: '{timezone_str}'"
 

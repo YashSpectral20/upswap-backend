@@ -3649,6 +3649,10 @@ class PurchaseDealAPIView(APIView):
     def post(self, request):
         user = request.user
         data = request.data.copy()
+        if data.get('amount') > 100000:
+            return Response({
+                'error': 'You cannot make a purchase greater than 9,99,999 Rs.'
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         serializer = PurchaseDealSerializer(data=data, context={'user': user})
         if serializer.is_valid():

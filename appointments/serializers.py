@@ -102,6 +102,22 @@ class AppointmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
+        # def update(self, instance, validated_data):
+        #     print("Inside update, validated_data:", validated_data)
+
+        #     time_slots = validated_data.pop('time_slot', None)
+
+        #     for attr, value in validated_data.items():
+        #         print(f"Setting {attr} = {value}")
+        #         setattr(instance, attr, value)
+
+        #     instance.save()
+
+        #     if time_slots is not None:
+        #         instance.time_slot.set(time_slots)
+
+        #     return instance
+
 
 class TimeSlotSerializer(serializers.ModelSerializer):
     provider = ProviderNameSerializer(read_only=True)

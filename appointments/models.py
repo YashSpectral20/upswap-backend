@@ -113,16 +113,16 @@ class Appointment(models.Model):
             new_status = self.status
 
             # Handle status changes
-            if old_status != new_status:
-                if new_status == 'approved':
-                    self.time_slot.is_available = False
-                    self.time_slot.save()
-                elif (new_status == 'user_cancel' or new_status == 'vendor_cancel') and old_status == 'approved':
-                    self.time_slot.is_available = True
-                    self.time_slot.save()
-                elif new_status == 'rejected' and old_status == 'pending':
-                    self.time_slot.is_available = True
-                    self.time_slot.save()
+            # if old_status != new_status:
+                # if new_status == 'approved':
+                #     self.time_slot.is_available = False
+                #     self.time_slot.save()
+                # elif (new_status == 'user_cancel' or new_status == 'vendor_cancel') and old_status == 'approved':
+                #     self.time_slot.is_available = True
+                #     self.time_slot.save()
+                # elif new_status == 'rejected' and old_status == 'pending':
+                #     self.time_slot.is_available = True
+                #     self.time_slot.save()
 
         super().save(*args, **kwargs) 
 

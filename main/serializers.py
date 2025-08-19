@@ -470,7 +470,7 @@ class VendorKYCSerializer(serializers.ModelSerializer):
     
 
 class VendorKYCListSerializer(serializers.ModelSerializer):
-    full_name = serializers.CharField(source='user.name', read_only=True)
+    # full_name = serializers.CharField(source='user.name', read_only=True)
     user = serializers.UUIDField(source='user.id', read_only=True)
     addresses = serializers.SerializerMethodField()
     uploaded_images = serializers.SerializerMethodField()
@@ -1397,14 +1397,18 @@ class FavoriteVendorSerializer(serializers.ModelSerializer):
     uploaded_images = serializers.SerializerMethodField()
     is_favorite = serializers.SerializerMethodField()
     phone_number = serializers.CharField(source='vendor.phone_number', read_only=True)
-
+    average_rating = serializers.SerializerMethodField()
     class Meta:
         model = FavoriteVendor
         fields = [
             'full_name', 'user', 'profile_pic', 'business_email_id', 
             'created_at', 'vendor', 'addresses', 'services',
-            'uploaded_images', 'is_favorite', 'phone_number', 
+            'uploaded_images', 'is_favorite', 'phone_number', 'average_rating'
         ]
+
+    def get_average_rating(self, obj):
+        average = UserToVendorRating.objects.filter(vendor=obj.vendor).aggregate(avg_rating=Avg('rating'))['avg_rating']
+        return round(average, 1) if average else 0.0
 
     def get_services(self, obj):
         services = obj.vendor.ven_services.all()

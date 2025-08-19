@@ -894,6 +894,8 @@ class AppointmentsAPIView(APIView):
 
 
     def patch(self, request, pk):
+        print("Incoming data:", request.data)
+
         try:
             appointment = Appointment.objects.get(pk=pk)
         except Appointment.DoesNotExist:
@@ -902,9 +904,15 @@ class AppointmentsAPIView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # appointment_status = request.data.get('status')
-        serializer = AppointmentSerializer(appointment, data=request.data, partial=True)
+        data = request.data.copy()
+        data.pop('time_slot', None)
+        print("before serializer")
+        serializer = AppointmentSerializer(appointment, data=data, partial=True)
+        print("after serializer")
         if serializer.is_valid():
-            serializer.save()
+            print("serializer is valid")
+            print("validated data ", serializer.validated_data)
+            serializer.save(update_fields=['status'])
             return Response({
                 'message': 'Status updated successfully.',
                 'data': serializer.data
